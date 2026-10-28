@@ -1,5 +1,5 @@
 <p align=center>
-   <img alt="serviceFlow" src="/docs/assets/SF_logo.png" /><br/>
+   <img width=50% alt="serviceFlow" src="/docs/assets/SF_Logo.png" /><br/>
 </p>
 <h2 align=center><em>Media & Worship presentation. Sorted.</em></h2>
 
