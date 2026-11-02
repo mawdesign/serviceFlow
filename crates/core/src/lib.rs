@@ -10,3 +10,4 @@ pub mod ids;
 pub mod search;
 pub mod song;
 pub mod state;
+pub mod style;

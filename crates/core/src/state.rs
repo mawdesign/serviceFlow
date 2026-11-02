@@ -7,8 +7,9 @@ use std::sync::Arc;
 use crate::ids::{ContentHash, SongId};
 use crate::search::SearchIndex;
 use crate::song::{Slide, Song};
+use crate::style::Styles;
 
-#[derive(Debug, Clone, Default, PartialEq, Eq)]
+#[derive(Debug, Clone, Default, PartialEq)]
 pub struct State {
     /// The song whose slides are shown.
     pub song: Option<OpenSong>,
@@ -18,6 +19,9 @@ pub struct State {
     pub library: Library,
     /// What the outputs show.
     pub output: Output,
+    /// The styles slides are drawn with: imported from OpenSong's PresentSettings on first run
+    /// and again on request; serviceFlow's own copy, never written back to OpenSong.
+    pub styles: Arc<Styles>,
     /// Problems to show the operator, oldest first.
     pub problems: Vec<Problem>,
 }
@@ -29,6 +33,8 @@ pub enum Problem {
     SongUnreadable { id: SongId, error: String },
     /// The library could not be listed. `error` is the technical detail.
     LibraryUnreadable { error: String },
+    /// OpenSong's PresentSettings could not be read when the operator asked for a re-import.
+    StylesUnreadable { error: String },
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -57,6 +63,8 @@ pub struct LiveSlide {
     /// Its position in that song's slides.
     pub index: usize,
     pub slide: Slide,
+    /// The song, for the title and subtitle boxes.
+    pub source: Arc<Song>,
 }
 
 /// How the outputs show the live slide (GLOSSARY "Blank", "Black").

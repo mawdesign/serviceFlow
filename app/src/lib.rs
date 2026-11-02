@@ -19,7 +19,7 @@ pub mod web;
 
 use craft_ui::docking::{DockArea, DockContent, DockStyle, Layout, Node};
 use craft_ui::layout::{SplitAxis, SplitSize};
-use serviceflow_core::command::Command;
+use serviceflow_core::command::{Command, ImportTrigger};
 use serviceflow_core::state::{OutputMode, Problem, State};
 use serviceflow_render::Size;
 use serviceflow_runtime::Driver;
@@ -101,6 +101,8 @@ impl<S: Storage + 'static> ControlWindow<S> {
     pub fn new(mut driver: Driver<S>) -> Self {
         // Start listing and indexing the library in the background; the window is usable meanwhile.
         driver.send(Command::RefreshLibrary);
+        // First run: slides look like the congregation's OpenSong from the start.
+        driver.send(Command::ImportOpenSongStyles { trigger: ImportTrigger::FirstRun });
         Self {
             driver,
             thumbnails: thumbnails::Thumbnails::default(),
@@ -161,13 +163,17 @@ impl<S: Storage + 'static> ControlWindow<S> {
                 live_buttons(ui, &state, &mut commands);
                 ui.separator();
                 self.output_controls(ui, &monitors);
+                ui.separator();
+                if ui.button(tl!("Re-import styles from OpenSong")).clicked() {
+                    commands.push(Command::ImportOpenSongStyles { trigger: ImportTrigger::Manual });
+                }
             });
         });
         egui::Panel::right("output monitor").show(ui, |ui| {
             ui.label(egui::RichText::new(tl!("Output monitor")).strong());
             let size = egui::vec2(MIRROR_WIDTH, MIRROR_WIDTH * 9.0 / 16.0);
             let (rect, _) = ui.allocate_exact_size(size, egui::Sense::hover());
-            self.mirror.paint(ui, rect, &state.output);
+            self.mirror.paint(ui, rect, &state.output, &state.styles);
             ui.label(match state.output.mode {
                 OutputMode::Normal => "",
                 OutputMode::Blank => tl!("Blank"),
@@ -188,7 +194,7 @@ impl<S: Storage + 'static> ControlWindow<S> {
         if self.output_open {
             let index = monitors::pick(self.prefs.output.monitor.as_ref(), &monitors);
             let target = index.and_then(|i| monitors.get(i).map(|m| (i, m)));
-            self.output_open = output::show_window(ui.ctx(), target, &mut self.screen, &state.output, &mut commands);
+            self.output_open = output::show_window(ui.ctx(), target, &mut self.screen, &state.output, &state.styles, &mut commands);
         }
 
         let changed = sent || !commands.is_empty();
@@ -250,6 +256,9 @@ fn problems(ui: &mut egui::Ui, state: &State) {
             Problem::LibraryUnreadable { error } => {
                 ui.colored_label(ui.visuals().error_fg_color, format!("{}: {error}", tl!("Could not read the library")));
             }
+            Problem::StylesUnreadable { error } => {
+                ui.colored_label(ui.visuals().error_fg_color, format!("{}: {error}", tl!("Could not import the OpenSong styles")));
+            }
         }
     }
 }
@@ -264,7 +273,7 @@ fn slides(ui: &mut egui::Ui, state: &State, thumbnails: &mut thumbnails::Thumbna
     let pixels = points * ui.ctx().pixels_per_point();
     let size = Size { width: pixels.x.round() as u32, height: pixels.y.round() as u32 };
     let live = state.output.live.as_ref().filter(|live| live.song == open.id).map(|live| live.index);
-    let textures = thumbnails.for_song(ui.ctx(), open, size);
+    let textures = thumbnails.for_song(ui.ctx(), open, &state.styles, size);
     egui::ScrollArea::vertical().show(ui, |ui| {
         ui.horizontal_wrapped(|ui| {
             for (index, (slide, texture)) in open.slides.iter().zip(textures).enumerate() {

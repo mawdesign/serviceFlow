@@ -41,6 +41,11 @@ impl Element {
         })
     }
 
+    /// The value of an attribute.
+    pub fn attr(&self, name: &str) -> Option<&str> {
+        self.attributes.iter().find(|(k, _)| k == name).map(|(_, v)| v.as_str())
+    }
+
     /// The text of the first child element with this name, or `""` if there is none.
     pub fn child_text(&self, name: &str) -> String {
         self.child(name).map(Element::text).unwrap_or_default()

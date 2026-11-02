@@ -70,12 +70,12 @@ fn slide_lines_and_bars_start_new_lines_one_pitch_apart() {
 fn margins_and_alignment_place_lines_against_the_box_edges() {
     let renderer = Renderer::new();
     let mut style = Style::default();
-    style.body.margins = Margins { left: 100.0, top: 50.0, right: 200.0, bottom: 50.0 };
-    style.body.valign = VAlign::Top;
+    style.body.text.margins = Margins { left: 100.0, top: 50.0, right: 200.0, bottom: 50.0 };
+    style.body.text.valign = VAlign::Top;
 
-    style.body.align = Align::Left;
+    style.body.text.align = Align::Left;
     let left = renderer.layout(&slide(&["Grace"]), &style, HD);
-    style.body.align = Align::Right;
+    style.body.text.align = Align::Right;
     let right = renderer.layout(&slide(&["Grace"]), &style, HD);
 
     let (l, r) = (&left.boxes[0].lines[0], &right.boxes[0].lines[0]);

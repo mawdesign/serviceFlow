@@ -1,9 +1,11 @@
 //! OpenSong codec for songs, sets and settings. Reads leniently and writes canonically
 //! (ADR-0002).
 
+mod settings;
 mod song;
 mod xml;
 
+pub use settings::read_present_settings;
 pub use song::read_song;
 
 /// Why bytes could not be read as an OpenSong document.

@@ -11,14 +11,14 @@
 mod draw;
 mod fonts;
 mod layout;
-mod style;
 
 use serviceflow_core::song::Slide;
+use serviceflow_core::style::Captions;
 
 pub use draw::{Image, MAX_SIDE};
-pub use fonts::{BUILTIN_FAMILY, FontId, Fonts};
-pub use layout::{BoxRole, Frame, Glyph, GlyphRun, LINE_PITCH, Line, LineRole, Rect, Size, TextBox};
-pub use style::{Align, Margins, REFERENCE_HEIGHT, Rgba, Style, TextStyle, VAlign};
+pub use fonts::{FontId, Fonts};
+pub use layout::{BoxRole, Effects, Frame, Glyph, GlyphRun, LINE_PITCH, Line, LineRole, Rect, Size, TextBox};
+pub use serviceflow_core::style::{Align, BUILTIN_FAMILY, Margins, REFERENCE_HEIGHT, Rgba, Style, TextStyle, VAlign};
 
 /// Lays out and draws slides with a set of fonts. Keeps a cache of glyph outlines, so reuse one
 /// renderer.
@@ -42,9 +42,14 @@ impl Renderer {
         &self.fonts
     }
 
-    /// Lays out `slide` with `style` for an output of `size` pixels.
+    /// Lays out `slide` with `style` for an output of `size` pixels, without title or subtitle.
     pub fn layout(&self, slide: &Slide, style: &Style, size: Size) -> Frame {
-        layout::layout(&self.fonts, slide, style, size)
+        self.layout_captioned(slide, &Captions::default(), style, size)
+    }
+
+    /// Lays out `slide` with its title and subtitle (`captions`).
+    pub fn layout_captioned(&self, slide: &Slide, captions: &Captions, style: &Style, size: Size) -> Frame {
+        layout::layout(&self.fonts, slide, captions, style, size)
     }
 
     /// Draws a laid-out frame.
@@ -55,5 +60,10 @@ impl Renderer {
     /// Lays out and draws `slide`.
     pub fn render(&self, slide: &Slide, style: &Style, size: Size) -> Image {
         self.draw(&self.layout(slide, style, size))
+    }
+
+    /// Lays out and draws `slide` with its title and subtitle.
+    pub fn render_captioned(&self, slide: &Slide, captions: &Captions, style: &Style, size: Size) -> Image {
+        self.draw(&self.layout_captioned(slide, captions, style, size))
     }
 }

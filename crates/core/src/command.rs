@@ -9,8 +9,9 @@ use std::sync::Arc;
 
 use crate::ids::{ContentHash, SongId};
 use crate::song::Song;
+use crate::style::Styles;
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq)]
 pub enum Command {
     /// Open a song from the library and show its slides.
     OpenSong(SongId),
@@ -42,6 +43,23 @@ pub enum Command {
     ToggleBlank,
     /// Toggle black mode (pure black).
     ToggleBlack,
+    /// Read the default and scripture styles from OpenSong's PresentSettings (read-only).
+    /// Sent on first run and by the "re-import from OpenSong" action.
+    ImportOpenSongStyles { trigger: ImportTrigger },
+    /// Storage result: PresentSettings was read and parsed.
+    StylesImported(Arc<Styles>),
+    /// Storage result: PresentSettings could not be read. `missing` is true when the file does
+    /// not exist.
+    StylesImportFailed { trigger: ImportTrigger, error: String, missing: bool },
+}
+
+/// Why styles are being imported.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum ImportTrigger {
+    /// Automatically at start. A data root without PresentSettings is not a problem.
+    FirstRun,
+    /// The operator asked. Any failure is reported.
+    Manual,
 }
 
 impl Command {
@@ -55,6 +73,9 @@ impl Command {
 /// IO the engine asks for. Each effect ends with exactly one result command.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum Effect {
+    /// Read and parse `Settings/PresentSettings`; answer with [`Command::StylesImported`] or
+    /// [`Command::StylesImportFailed`]. Never writes.
+    ReadOpenSongStyles(ImportTrigger),
     /// Read and parse a song; answer with [`Command::SongLoaded`] or [`Command::SongLoadFailed`].
     LoadSong(SongId),
     /// List the library; answer with [`Command::LibraryListed`] or [`Command::LibraryListFailed`].

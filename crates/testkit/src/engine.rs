@@ -15,7 +15,7 @@ use std::sync::Arc;
 use serviceflow_core::command::Command;
 use serviceflow_core::state::State;
 use serviceflow_runtime::Driver;
-use serviceflow_storage::{Expect, SongId, SongRepository as _};
+use serviceflow_storage::{Expect, SettingsId, SettingsRepository as _, SongId, SongRepository as _};
 use serviceflow_storage_memory::MemoryStorage;
 
 pub struct EngineHarness {
@@ -36,6 +36,21 @@ impl EngineHarness {
             crate::block_on(storage.write_song(&SongId::new(*id), xml.as_bytes().to_vec(), Expect::Any)).expect("seeding a song");
         }
         Self::with_storage(storage)
+    }
+
+    /// An engine over storage holding only these PresentSettings bytes (`None`: no settings).
+    pub fn with_present_settings(bytes: Option<&str>) -> Self {
+        let storage = MemoryStorage::new();
+        if let Some(bytes) = bytes {
+            crate::block_on(storage.write_settings(&SettingsId("PresentSettings".into()), bytes.as_bytes().to_vec(), Expect::Any))
+                .expect("seeding settings");
+        }
+        Self::with_storage(storage)
+    }
+
+    /// The bytes of `Settings/PresentSettings` in storage, to check that nothing wrote them.
+    pub fn present_settings(&self) -> Option<Vec<u8>> {
+        crate::block_on(self.storage().read_settings(&SettingsId("PresentSettings".into()))).ok().map(|s| s.bytes)
     }
 
     pub fn with_storage(storage: MemoryStorage) -> Self {
