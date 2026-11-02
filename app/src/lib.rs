@@ -104,6 +104,8 @@ impl<S: Storage + 'static> ControlWindow<S> {
         driver.send(Command::RefreshLibrary);
         // First run: slides look like the congregation's OpenSong from the start.
         driver.send(Command::ImportOpenSongStyles { trigger: ImportTrigger::FirstRun });
+        // And behave like it: logo, output monitor, initial mode, transitions, thumbnail colours.
+        driver.send(Command::ImportOpenSongSettings { trigger: ImportTrigger::FirstRun });
         Self {
             driver,
             thumbnails: thumbnails::Thumbnails::default(),
@@ -163,10 +165,11 @@ impl<S: Storage + 'static> ControlWindow<S> {
                 ui.separator();
                 live_buttons(ui, &state, &mut commands);
                 ui.separator();
-                self.output_controls(ui, &monitors);
+                self.output_controls(ui, &monitors, state.output_settings.monitor);
                 ui.separator();
                 if ui.button(tl!("Re-import styles from OpenSong")).clicked() {
                     commands.push(Command::ImportOpenSongStyles { trigger: ImportTrigger::Manual });
+                    commands.push(Command::ImportOpenSongSettings { trigger: ImportTrigger::Manual });
                 }
             });
         });
@@ -174,11 +177,12 @@ impl<S: Storage + 'static> ControlWindow<S> {
             ui.label(egui::RichText::new(tl!("Output monitor")).strong());
             let size = egui::vec2(MIRROR_WIDTH, MIRROR_WIDTH * 9.0 / 16.0);
             let (rect, _) = ui.allocate_exact_size(size, egui::Sense::hover());
-            self.mirror.paint(ui, rect, &state.output, &state.styles);
+            self.mirror.paint(ui, rect, &state);
             ui.label(match state.output.mode {
                 OutputMode::Normal => "",
                 OutputMode::Blank => tl!("Blank"),
                 OutputMode::Black => tl!("Black"),
+                OutputMode::Logo => tl!("Logo"),
             });
         });
         egui::CentralPanel::default().show(ui, |ui| {
@@ -193,9 +197,9 @@ impl<S: Storage + 'static> ControlWindow<S> {
         });
 
         if self.output_open {
-            let index = monitors::pick(self.prefs.output.monitor.as_ref(), &monitors);
+            let index = monitors::pick(self.prefs.output.monitor.as_ref(), state.output_settings.monitor, &monitors);
             let target = index.and_then(|i| monitors.get(i).map(|m| (i, m)));
-            self.output_open = output::show_window(ui.ctx(), target, &mut self.screen, &state.output, &state.styles, &mut commands);
+            self.output_open = output::show_window(ui.ctx(), target, &mut self.screen, &state, &mut commands);
         }
 
         // Rendering may have had to substitute a style's font; tell the engine so it is shown.
@@ -210,8 +214,8 @@ impl<S: Storage + 'static> ControlWindow<S> {
         }
     }
 
-    fn output_controls(&mut self, ui: &mut egui::Ui, monitors: &[MonitorInfo]) {
-        let current = monitors::pick(self.prefs.output.monitor.as_ref(), monitors);
+    fn output_controls(&mut self, ui: &mut egui::Ui, monitors: &[MonitorInfo], initial: Option<usize>) {
+        let current = monitors::pick(self.prefs.output.monitor.as_ref(), initial, monitors);
         if !monitors.is_empty() {
             let selected = current.map(|i| monitors[i].label(i)).unwrap_or_default();
             egui::ComboBox::from_label(tl!("Output monitor")).selected_text(selected).show_ui(ui, |ui| {
@@ -249,6 +253,9 @@ fn live_buttons(ui: &mut egui::Ui, state: &State, commands: &mut Vec<Command>) {
     if ui.selectable_label(state.output.mode == OutputMode::Black, tl!("Black")).clicked() {
         commands.push(Command::ToggleBlack);
     }
+    if ui.selectable_label(state.output.mode == OutputMode::Logo, tl!("Logo")).clicked() {
+        commands.push(Command::ToggleLogo);
+    }
 }
 
 fn problems(ui: &mut egui::Ui, state: &State) {
@@ -262,6 +269,9 @@ fn problems(ui: &mut egui::Ui, state: &State) {
             }
             Problem::StylesUnreadable { error } => {
                 ui.colored_label(ui.visuals().error_fg_color, format!("{}: {error}", tl!("Could not import the OpenSong styles")));
+            }
+            Problem::SettingsUnreadable { file, error } => {
+                ui.colored_label(ui.visuals().error_fg_color, format!("{} {file}: {error}", tl!("Could not import the OpenSong settings file")));
             }
             Problem::FontSubstituted { requested, used } => {
                 ui.colored_label(
@@ -310,7 +320,18 @@ fn slides(ui: &mut egui::Ui, state: &State, thumbnails: &mut thumbnails::Thumbna
                     if response.clicked() {
                         commands.push(Command::GoLive { index });
                     }
-                    ui.label(egui::RichText::new(&slide.section).weak());
+                    // The label sits on the colour OpenSong gives this kind of section.
+                    match state.slide_colors.for_tag(&slide.section) {
+                        Some(c) => {
+                            egui::Frame::new().fill(egui::Color32::from_rgb(c.r, c.g, c.b)).inner_margin(2.0).show(ui, |ui| {
+                                ui.set_width(THUMBNAIL_WIDTH - 4.0);
+                                ui.label(egui::RichText::new(&slide.section).color(egui::Color32::BLACK));
+                            });
+                        }
+                        None => {
+                            ui.label(egui::RichText::new(&slide.section).weak());
+                        }
+                    }
                 });
             }
         });

@@ -55,10 +55,12 @@ impl MonitorChoice {
     }
 }
 
-/// The monitor to use: the remembered choice if it is connected, else the second monitor (the
-/// first is normally the one the control window is on), else the only one. `None` with no list.
-pub fn pick(choice: Option<&MonitorChoice>, monitors: &[MonitorInfo]) -> Option<usize> {
-    choice.and_then(|c| c.resolve(monitors)).or(match monitors.len() {
+/// The monitor to use: the operator's remembered choice if it is connected, else the monitor
+/// OpenSong's PresentSettings names (`initial`, 0-based; only the first time, before the operator
+/// has chosen), else the second monitor (the first is normally the one the control window is on),
+/// else the only one. `None` with no list.
+pub fn pick(choice: Option<&MonitorChoice>, initial: Option<usize>, monitors: &[MonitorInfo]) -> Option<usize> {
+    choice.and_then(|c| c.resolve(monitors)).or(initial.filter(|i| *i < monitors.len())).or(match monitors.len() {
         0 => None,
         1 => Some(0),
         _ => Some(1),
@@ -91,10 +93,18 @@ mod tests {
     fn a_disconnected_monitor_falls_back_to_the_second_then_the_only_one() {
         let gone = MonitorChoice::of(&monitor("Gone", 5000, 800));
         let two = [monitor("A", 0, 1920), monitor("B", 1920, 1280)];
-        assert_eq!(pick(Some(&gone), &two), Some(1));
-        assert_eq!(pick(None, &two), Some(1));
-        assert_eq!(pick(None, &two[..1]), Some(0));
-        assert_eq!(pick(None, &[]), None);
+        assert_eq!(pick(Some(&gone), None, &two), Some(1));
+        assert_eq!(pick(None, None, &two), Some(1));
+        assert_eq!(pick(None, None, &two[..1]), Some(0));
+        assert_eq!(pick(None, None, &[]), None);
+    }
+
+    #[test]
+    fn the_opensong_monitor_is_the_first_choice_until_the_operator_chooses() {
+        let three = [monitor("A", 0, 1920), monitor("B", 1920, 1280), monitor("C", 3200, 1024)];
+        assert_eq!(pick(None, Some(2), &three), Some(2), "PresentSettings names screen 3");
+        assert_eq!(pick(Some(&MonitorChoice::of(&three[0])), Some(2), &three), Some(0), "the operator's choice wins");
+        assert_eq!(pick(None, Some(7), &three), Some(1), "a screen that is not connected is ignored");
     }
 
     #[test]
