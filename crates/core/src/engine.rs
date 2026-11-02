@@ -169,6 +169,22 @@ impl Engine {
                 }
                 Vec::new()
             }
+            Command::SetLanguageMode(language) => {
+                state.slide_options.language = language;
+                let options = state.slide_options;
+                if let Some(open) = &mut state.song {
+                    *open = OpenSong::new(open.id.clone(), Arc::clone(&open.song), open.hash, &options);
+                }
+                // The live slide is redrawn in the new mode, wherever it came from.
+                if let Some(live) = &mut state.output.live
+                    && let Some(slide) = OpenSong::grid(&live.source, &options).0.get(live.index)
+                    && *slide != live.slide
+                {
+                    live.slide = slide.clone();
+                    state.output.changes += 1;
+                }
+                Vec::new()
+            }
             Command::ToggleBlank => {
                 toggle(state, OutputMode::Blank);
                 Vec::new()

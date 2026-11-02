@@ -111,10 +111,16 @@ pub struct OpenSong {
 impl OpenSong {
     /// Build the grid for `song` with these options.
     pub fn new(id: SongId, song: Arc<Song>, hash: ContentHash, options: &SlideOptions) -> Self {
+        let (slides, in_flow) = Self::grid(&song, options);
+        Self { id, song, hash, slides, in_flow }
+    }
+
+    /// A song's grid: its flow slides, then the greyed ones, and how many are in the flow.
+    pub fn grid(song: &Song, options: &SlideOptions) -> (Vec<Slide>, usize) {
         let mut slides = song.slides(options);
         let in_flow = slides.len();
         slides.extend(song.unused_slides(options));
-        Self { id, song, hash, slides, in_flow }
+        (slides, in_flow)
     }
 
     /// Whether slide `index` follows the presentation order.
