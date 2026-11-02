@@ -92,7 +92,7 @@ impl Element {
 /// `encoding` of the XML declaration; UTF-8; and Windows-1252 for undeclared bytes that are not
 /// valid UTF-8.
 fn decode(bytes: &[u8]) -> Result<String, CodecError> {
-    use encoding_rs::{Encoding, UTF_16BE, UTF_16LE, UTF_8, WINDOWS_1252};
+    use encoding_rs::{Encoding, UTF_8, UTF_16BE, UTF_16LE, WINDOWS_1252};
     if let Some((encoding, bom)) = Encoding::for_bom(bytes) {
         return Ok(encoding.decode_without_bom_handling(&bytes[bom..]).0.into_owned());
     }

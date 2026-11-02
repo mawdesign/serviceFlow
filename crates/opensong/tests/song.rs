@@ -97,7 +97,17 @@ fn amazing_grace_skips_verses_3_and_5_and_keeps_its_unknown_order_of_elements() 
     assert_eq!(song.presentation, ["1", "2", "4", "6"]);
     let sections: Vec<_> = flow(&song, &SlideOptions::default()).into_iter().map(|(tag, _)| tag).collect();
     assert_eq!(sections, ["1", "2", "4", "6"]);
-    assert_eq!(slides_of(&song, "1"), [lines(&["Amazing grace,", "how sweet the sound", "That saved a wretch like me,", "I once was lost,", "but now am found,", "Was blind, but now I see...."])]);
+    assert_eq!(
+        slides_of(&song, "1"),
+        [lines(&[
+            "Amazing grace,",
+            "how sweet the sound",
+            "That saved a wretch like me,",
+            "I once was lost,",
+            "but now am found,",
+            "Was blind, but now I see...."
+        ])]
+    );
     let unused: Vec<_> = song.unused_slides(&SlideOptions::default()).into_iter().map(|s| s.section).collect();
     assert_eq!(unused, ["3", "5"]);
 }
@@ -108,7 +118,12 @@ fn just_a_closer_walk_expands_its_numbered_verse_block_into_verses_sharing_chord
     assert_eq!(tags(&song), ["V", "V1", "V2", "V3", "C"]);
     assert_eq!(
         slides_of(&song, "V2"),
-        [lines(&["Thro' this world of toil and snares,", "If I faulter, Lord  who  cares?", "Who with me my burden   shares?", "None but Thee, dear   Lord, none but  Thee."])]
+        [lines(&[
+            "Thro' this world of toil and snares,",
+            "If I faulter, Lord  who  cares?",
+            "Who with me my burden   shares?",
+            "None but Thee, dear   Lord, none but  Thee."
+        ])]
     );
     let v1 = &song.sections[1];
     assert_eq!(
@@ -244,10 +259,7 @@ fn the_section_type_comes_from_the_first_letter_of_the_tag() {
     let song = song("<song><lyrics>[V1]\n a\n[P]\n a\n[Chorus 2]\n a\n[B]\n a\n[t]\n a\n[Coda]\n a\n[10]\n a</lyrics></song>");
     let kinds: Vec<_> = song.sections.iter().map(|s| (s.tag.as_str(), s.kind())).collect();
     use SectionKind::*;
-    assert_eq!(
-        kinds,
-        [("V1", Verse), ("P", PreChorus), ("Chorus 2", Chorus), ("B", Bridge), ("t", Tag), ("Coda", Chorus), ("10", Verse)]
-    );
+    assert_eq!(kinds, [("V1", Verse), ("P", PreChorus), ("Chorus 2", Chorus), ("B", Bridge), ("t", Tag), ("Coda", Chorus), ("10", Verse)]);
 }
 
 #[test]

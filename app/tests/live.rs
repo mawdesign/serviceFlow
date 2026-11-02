@@ -56,7 +56,15 @@ fn clicking_a_thumbnail_makes_that_slide_live() {
 fn a_greyed_thumbnail_outside_the_presentation_order_can_be_sent_live() {
     let mut driver = Driver::new(MemoryStorage::from_data_root(&opensong_data_root()).unwrap());
     driver.send(Command::OpenSong(SongId::new("God Defend NZ - National Anthem")));
-    let (mut harness, seen) = harness(ControlWindow::new(driver));
+    let mut window = ControlWindow::new(driver);
+    let seen: Seen = Rc::new(RefCell::new(window.state()));
+    let sink = Rc::clone(&seen);
+    // The grid lays out in one wide row here; make the screen wide enough to click every
+    // thumbnail (clicks are pointer events at the node's position).
+    let mut harness = Harness::builder().with_size(egui::vec2(2600.0, 600.0)).build_ui(move |ui| {
+        window.ui(ui);
+        *sink.borrow_mut() = window.state();
+    });
     harness.run();
     // Order 6 1 2 3 4 5: verse 7 is the first greyed thumbnail, after the six in the flow.
     harness.get_by_label_contains("Ōna mano tāngata").click();
