@@ -19,6 +19,17 @@ pub enum Command {
     SongLoaded { id: SongId, song: Arc<Song>, hash: ContentHash },
     /// Storage result: a song requested by [`Effect::LoadSong`] could not be read or parsed.
     SongLoadFailed { id: SongId, error: String },
+    /// Read the list of songs and index them in the background (also after the library changed).
+    RefreshLibrary,
+    /// Storage result: the songs in the library. `generation` identifies the refresh that asked.
+    LibraryListed { generation: u64, songs: Vec<SongId> },
+    /// Storage result: the library could not be listed.
+    LibraryListFailed { generation: u64, error: String },
+    /// Storage result: a chunk of songs was read for the index; `None` = unreadable (stays
+    /// searchable by filename).
+    SongsIndexed { generation: u64, songs: Vec<(SongId, Option<Arc<Song>>)> },
+    /// Set the library search query. A blank query clears the results.
+    Search(String),
     /// Send slide `index` of the open song live. Ignored when there is no such slide.
     GoLive { index: usize },
     /// Go live with the slide after the live one (the first slide when nothing is live). Stays
@@ -46,4 +57,8 @@ impl Command {
 pub enum Effect {
     /// Read and parse a song; answer with [`Command::SongLoaded`] or [`Command::SongLoadFailed`].
     LoadSong(SongId),
+    /// List the library; answer with [`Command::LibraryListed`] or [`Command::LibraryListFailed`].
+    ListLibrary { generation: u64 },
+    /// Read these songs for the search index; answer with [`Command::SongsIndexed`].
+    IndexSongs { generation: u64, ids: Vec<SongId> },
 }

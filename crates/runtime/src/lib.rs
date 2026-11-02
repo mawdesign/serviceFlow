@@ -94,6 +94,21 @@ impl<S: Storage + 'static> Driver<S> {
 /// Perform one effect and return the command that reports its outcome.
 pub async fn perform<S: Storage>(storage: &S, effect: Effect) -> Command {
     match effect {
+        Effect::ListLibrary { generation } => match storage.list_songs().await {
+            Ok(songs) => Command::LibraryListed { generation, songs },
+            Err(e) => Command::LibraryListFailed { generation, error: e.to_string() },
+        },
+        Effect::IndexSongs { generation, ids } => {
+            let mut songs = Vec::with_capacity(ids.len());
+            for id in ids {
+                let song = match storage.read_song(&id).await {
+                    Ok(stored) => serviceflow_opensong::read_song(&stored.bytes).ok().map(Arc::new),
+                    Err(_) => None,
+                };
+                songs.push((id, song));
+            }
+            Command::SongsIndexed { generation, songs }
+        }
         Effect::LoadSong(id) => {
             let parsed = match storage.read_song(&id).await {
                 Ok(stored) => serviceflow_opensong::read_song(&stored.bytes).map(|song| (song, stored.hash)).map_err(|e| e.to_string()),
