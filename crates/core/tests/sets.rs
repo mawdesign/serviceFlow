@@ -138,11 +138,7 @@ fn a_missing_song_item_is_flagged_and_opens_nothing() {
     let mut harness = open();
     let state = harness.state();
     let set = state.set.as_ref().unwrap();
-    assert_eq!(
-        (0..5).filter(|&i| set.is_missing(i)).collect::<Vec<_>>(),
-        [2, 4],
-        "Gone and the renamed Gamma are missing"
-    );
+    assert_eq!((0..5).filter(|&i| set.is_missing(i)).collect::<Vec<_>>(), [2, 4], "Gone and the renamed Gamma are missing");
     harness.send(Command::SelectItem(2));
     assert!(harness.state().song.is_none());
     assert!(harness.state().problems.is_empty());

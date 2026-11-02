@@ -130,14 +130,12 @@ pub(super) fn advance(state: &mut State, forward: bool) -> Vec<Effect> {
 
 /// The song `id` of the selected item gets that item's presentation order, if it has one.
 pub(super) fn with_item_order(state: &State, id: &SongId, song: Arc<Song>) -> Arc<Song> {
-    let order = state
-        .set
-        .as_ref()
-        .and_then(|set| set.set.items.get(set.selected?))
-        .filter(|item| item.song_id().as_ref() == Some(id))
-        .and_then(|item| match &item.kind {
-            ItemKind::Song(s) if !s.presentation.is_empty() => Some(s.presentation.clone()),
-            _ => None,
+    let order =
+        state.set.as_ref().and_then(|set| set.set.items.get(set.selected?)).filter(|item| item.song_id().as_ref() == Some(id)).and_then(|item| {
+            match &item.kind {
+                ItemKind::Song(s) if !s.presentation.is_empty() => Some(s.presentation.clone()),
+                _ => None,
+            }
         });
     match order {
         Some(presentation) => Arc::new(Song { presentation, ..(*song).clone() }),

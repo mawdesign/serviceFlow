@@ -108,7 +108,8 @@ fn sidecars_live_in_a_dot_folder_at_the_data_root() {
     let set = DocumentId::Set(SetId::new("Sunday"));
     block_on(storage.write_sidecar(&set, b"{}".to_vec(), Expect::Any)).unwrap();
     assert!(root.join(".serviceflow/Sets/Sunday.sidecar").is_file());
-    assert_eq!(block_on(storage.list_sets()).unwrap(), []);
+    // The sidecar is not a set: only the fixture sets are listed.
+    assert_eq!(block_on(storage.list_sets()).unwrap(), [SetId::new("Example"), SetId::new("Sunday Service")]);
 }
 
 #[test]

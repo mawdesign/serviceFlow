@@ -27,7 +27,10 @@ pub enum ItemKind {
     /// Anything serviceFlow keeps but cannot present yet (scripture, external, and the custom,
     /// image and style items that later tickets add). `xml` is the whole `slide_group`, so a
     /// later save writes it back unchanged.
-    Placeholder { item_type: String, xml: String },
+    Placeholder {
+        item_type: String,
+        xml: String,
+    },
 }
 
 /// A song item (GLOSSARY "Song item").

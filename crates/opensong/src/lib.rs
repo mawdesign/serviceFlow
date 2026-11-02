@@ -1,8 +1,8 @@
 //! OpenSong codec for songs, sets and settings. Reads leniently and writes canonically
 //! (ADR-0002).
 
-mod settings;
 mod set;
+mod settings;
 mod song;
 mod xml;
 

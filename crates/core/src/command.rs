@@ -18,22 +18,40 @@ pub enum Command {
     OpenSong(SongId),
     /// Storage result: a song requested by [`Effect::LoadSong`] was read and parsed. `hash` is the hash of the
     /// bytes read, kept so a later save can detect that the file changed meanwhile.
-    SongLoaded { id: SongId, song: Arc<Song>, hash: ContentHash },
+    SongLoaded {
+        id: SongId,
+        song: Arc<Song>,
+        hash: ContentHash,
+    },
     /// Storage result: a song requested by [`Effect::LoadSong`] could not be read or parsed.
-    SongLoadFailed { id: SongId, error: String },
+    SongLoadFailed {
+        id: SongId,
+        error: String,
+    },
     /// Read the list of songs and index them in the background (also after the library changed).
     RefreshLibrary,
     /// Storage result: the songs in the library. `generation` identifies the refresh that asked.
-    LibraryListed { generation: u64, songs: Vec<SongId> },
+    LibraryListed {
+        generation: u64,
+        songs: Vec<SongId>,
+    },
     /// Storage result: the library could not be listed.
-    LibraryListFailed { generation: u64, error: String },
+    LibraryListFailed {
+        generation: u64,
+        error: String,
+    },
     /// Storage result: a chunk of songs was read for the index; `None` = unreadable (stays
     /// searchable by filename).
-    SongsIndexed { generation: u64, songs: Vec<(SongId, Option<Arc<Song>>)> },
+    SongsIndexed {
+        generation: u64,
+        songs: Vec<(SongId, Option<Arc<Song>>)>,
+    },
     /// Set the library search query. A blank query clears the results.
     Search(String),
     /// Send slide `index` of the open song live. Ignored when there is no such slide.
-    GoLive { index: usize },
+    GoLive {
+        index: usize,
+    },
     /// Go live with the slide after the live one (the first slide when nothing is live). Stays
     /// put on the last slide.
     NextSlide,
@@ -46,15 +64,24 @@ pub enum Command {
     ToggleBlack,
     /// Read the default and scripture styles from OpenSong's PresentSettings (read-only).
     /// Sent on first run and by the "re-import from OpenSong" action.
-    ImportOpenSongStyles { trigger: ImportTrigger },
+    ImportOpenSongStyles {
+        trigger: ImportTrigger,
+    },
     /// Storage result: PresentSettings was read and parsed.
     StylesImported(Arc<Styles>),
     /// Storage result: PresentSettings could not be read. `missing` is true when the file does
     /// not exist.
-    StylesImportFailed { trigger: ImportTrigger, error: String, missing: bool },
+    StylesImportFailed {
+        trigger: ImportTrigger,
+        error: String,
+        missing: bool,
+    },
     /// The renderer drew `used` instead of the style's font `requested`. Becomes a
     /// [`Problem::FontSubstituted`](crate::state::Problem) the operator sees; repeats are ignored.
-    FontSubstituted { requested: String, used: String },
+    FontSubstituted {
+        requested: String,
+        used: String,
+    },
     /// Change how lyrics become slides (such as OpenSong's `blank_is_slide_change`). The open
     /// song's slides are rebuilt; what is live stays live.
     SetSlideOptions(SlideOptions),
@@ -63,15 +90,26 @@ pub enum Command {
     /// Storage result: the sets in `Sets/`.
     SetsListed(Vec<SetId>),
     /// Storage result: `Sets/` could not be listed.
-    SetsListFailed { error: String },
+    SetsListFailed {
+        error: String,
+    },
     /// Open a set. The current one stays open if this one cannot be read.
     OpenSet(SetId),
     /// Storage result: a set was read and parsed.
-    SetLoaded { id: SetId, set: Arc<Set> },
+    SetLoaded {
+        id: SetId,
+        set: Arc<Set>,
+    },
     /// Storage result: a set could not be read or parsed.
-    SetLoadFailed { id: SetId, error: String },
+    SetLoadFailed {
+        id: SetId,
+        error: String,
+    },
     /// Storage result: of the songs a set refers to, these are not in the library.
-    SongsChecked { set: SetId, missing: Vec<SongId> },
+    SongsChecked {
+        set: SetId,
+        missing: Vec<SongId>,
+    },
     /// Show the slides of item `index` of the open set. Nothing goes live.
     SelectItem(usize),
     /// Select the item after / before the selected one (any kind).
@@ -83,7 +121,10 @@ pub enum Command {
     /// Stop relinking without changing anything.
     CancelRelink,
     /// Point song item `item` at `song` (kept in the item's notes, order and style).
-    RelinkItem { item: usize, song: SongId },
+    RelinkItem {
+        item: usize,
+        song: SongId,
+    },
 }
 
 /// Why styles are being imported.

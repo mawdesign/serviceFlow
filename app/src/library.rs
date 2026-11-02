@@ -69,6 +69,10 @@ impl LibraryView {
 fn song_row(ui: &mut egui::Ui, state: &State, id: &SongId, open: Option<&SongId>, commands: &mut Vec<Command>) {
     let title = state.library.title(id);
     if ui.selectable_label(open == Some(id), title).clicked() {
-        commands.push(Command::OpenSong(id.clone()));
+        // While relinking a set item, a click picks the replacement instead of opening the song.
+        match state.set.as_ref().and_then(|set| set.relinking) {
+            Some(item) => commands.push(Command::RelinkItem { item, song: id.clone() }),
+            None => commands.push(Command::OpenSong(id.clone())),
+        }
     }
 }

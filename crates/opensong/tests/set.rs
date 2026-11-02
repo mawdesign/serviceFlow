@@ -15,7 +15,15 @@ fn opensongs_example_set_reads_every_item() {
     let names: Vec<_> = set.items.iter().map(|i| i.name.as_str()).collect();
     assert_eq!(
         names,
-        ["Announcements", "Colossians 1:11-14", "And Can It Be", "He Leadeth Me", "What A Friend We Have In Jesus", "It Is Well With My Soul", "Philippians 4:6-7"]
+        [
+            "Announcements",
+            "Colossians 1:11-14",
+            "And Can It Be",
+            "He Leadeth Me",
+            "What A Friend We Have In Jesus",
+            "It Is Well With My Soul",
+            "Philippians 4:6-7"
+        ]
     );
     let types: Vec<_> = set
         .items
