@@ -68,7 +68,7 @@ impl Renderer {
     /// Draws logo mode: `logo` centred over the style's background, shrunk to fit but never
     /// enlarged. A logo that cannot be decoded leaves just the background.
     pub fn render_logo(&self, logo: &Logo, style: &Style, size: Size) -> Image {
-        let mut image = self.render(&Slide { section: String::new(), lines: Vec::new() }, style, size);
+        let mut image = self.render(&Slide::default(), style, size);
         if let Some(decoded) = self.logos.get(logo) {
             logo::composite(&mut image, &decoded);
         }

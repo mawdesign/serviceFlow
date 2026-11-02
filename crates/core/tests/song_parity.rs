@@ -90,7 +90,7 @@ fn blank_is_slide_change_splits_the_open_song_at_empty_lines() {
     let mut harness = EngineHarness::with_songs(&[("Blank", "<song><lyrics>[V1]\n one\n\n two</lyrics></song>")]);
     open(&mut harness, "Blank");
     assert_eq!(grid(&harness).len(), 1);
-    harness.send(Command::SetSlideOptions(SlideOptions { blank_is_slide_change: true }));
+    harness.send(Command::SetSlideOptions(SlideOptions { blank_is_slide_change: true, ..SlideOptions::default() }));
     assert_eq!(grid(&harness), [("V1".to_string(), "one".to_string()), ("V1".to_string(), "two".to_string())]);
     // Songs opened later use the setting too.
     open(&mut harness, "Blank");

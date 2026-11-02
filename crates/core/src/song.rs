@@ -47,6 +47,13 @@ pub enum SongWarning {
     /// line-type marker. OpenSong would make it a sub-section; serviceFlow reads the whole line
     /// as lyrics (ADR-0007). `line` is the line number within the lyrics, from 1.
     StrayFirstCharacter { line: usize, character: char },
+    /// A section tag ends in `L` as OpenSong's loose legacy rule would read as multilanguage,
+    /// but is not one of the strict forms serviceFlow recognises (ADR-0007). Add ` (L)` after
+    /// the tag if it is meant to be multilanguage. `line` is the tag's line.
+    MaybeMultilanguage { line: usize, tag: String },
+    /// A `||` slide break on `line` of a multilanguage section falls between a primary line and
+    /// its translation. The break is shown after the translation line instead (ADR-0007).
+    BreakInsidePair { line: usize },
 }
 
 /// A named part of a song's lyrics (GLOSSARY "Section").
@@ -57,6 +64,9 @@ pub struct Section {
     pub tag: String,
     /// The section's lines in file order.
     pub lines: Vec<Line>,
+    /// A multilanguage section (GLOSSARY): its lyric lines alternate between a primary line and
+    /// its translation line, pairing afresh on every slide.
+    pub multilanguage: bool,
 }
 
 /// One line of a section.
@@ -97,21 +107,38 @@ impl SectionKind {
     }
 }
 
+/// Which lines of multilanguage sections are shown (GLOSSARY "Language mode").
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Hash)]
+pub enum LanguageMode {
+    /// Each primary line with its translation line beneath it.
+    #[default]
+    Both,
+    /// Primary lines only, shown like any other lyrics.
+    Primary,
+    /// Translation lines only, shown like any other lyrics.
+    Translation,
+}
+
 /// Settings that change how lyrics become slides.
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
 pub struct SlideOptions {
     /// An empty lyric line is a slide break (OpenSong `blank_is_slide_change`). Off: empty lines
     /// are ignored.
     pub blank_is_slide_change: bool,
+    /// What multilanguage sections show.
+    pub language: LanguageMode,
 }
 
 /// One slide of a song, in presentation order.
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct Slide {
     /// The tag of the section the slide comes from.
     pub section: String,
     /// The lines to show. `|` inside a line is a forced line break, left for the renderer.
     pub lines: Vec<String>,
+    /// The lines alternate primary line, translation line (even indexes are primary lines; a
+    /// last primary line may have no translation). Only set when both languages are shown.
+    pub multilanguage: bool,
 }
 
 impl Section {
@@ -122,29 +149,79 @@ impl Section {
     /// The section's slides as the lines to show (OpenSong `ToSetML`/`DeflateString`): chord
     /// lines dropped, split at `||` (and at empty lines when `blank_is_slide_change`), each
     /// line trimmed with `_` removed. Empty slides are left out.
+    ///
+    /// In a multilanguage section the lines pair up afresh on every slide, and a break that
+    /// would part a primary line from its translation waits until after the translation
+    /// (ADR-0007). With both languages shown, a `|` in both lines of a pair splits them into
+    /// several pairs; otherwise only one language's lines are kept (an empty slide stays, so
+    /// slide numbers do not change with the language mode).
     pub fn slides(&self, options: &SlideOptions) -> Vec<Vec<String>> {
+        let slides = self.split(options).0;
+        if !self.multilanguage {
+            return slides;
+        }
+        slides
+            .into_iter()
+            .map(|slide| {
+                let pairs = slide.chunks(2);
+                match options.language {
+                    LanguageMode::Both => pairs.flat_map(|pair| split_pair(&pair[0], pair.get(1))).collect(),
+                    LanguageMode::Primary => pairs.map(|pair| pair[0].clone()).collect(),
+                    LanguageMode::Translation => pairs.filter_map(|pair| pair.get(1).cloned()).collect(),
+                }
+            })
+            .collect()
+    }
+
+    /// Indexes into [`lines`](Self::lines) of lyric lines whose `||` falls between a primary
+    /// line and its translation (always empty for other sections).
+    pub fn breaks_inside_pairs(&self) -> Vec<usize> {
+        self.split(&SlideOptions::default()).1
+    }
+
+    /// The shown lines per slide (empty slides dropped), and the lines whose break was moved.
+    fn split(&self, options: &SlideOptions) -> (Vec<Vec<String>>, Vec<usize>) {
         let mut slides: Vec<Vec<String>> = vec![Vec::new()];
-        for line in &self.lines {
+        let mut moved = Vec::new();
+        // A break is waiting for the current pair's translation line.
+        let mut waiting = false;
+        // Start a new slide, unless that would part a pair; then wait. True when it waits.
+        let slide_break = |slides: &mut Vec<Vec<String>>, waiting: &mut bool| {
+            let open_pair = self.multilanguage && slides.last().is_some_and(|s| s.len() % 2 == 1);
+            if open_pair {
+                *waiting = true;
+            } else {
+                slides.push(Vec::new());
+            }
+            open_pair
+        };
+        for (index, line) in self.lines.iter().enumerate() {
             match line {
                 Line::Lyric(text) => {
                     for (i, piece) in text.split("||").enumerate() {
-                        if i > 0 {
-                            slides.push(Vec::new());
+                        if i > 0 && slide_break(&mut slides, &mut waiting) && !moved.contains(&index) {
+                            moved.push(index);
                         }
                         let shown = deflate(piece);
-                        if !shown.is_empty()
-                            && let Some(slide) = slides.last_mut()
-                        {
-                            slide.push(shown);
+                        if shown.is_empty() {
+                            continue;
+                        }
+                        let Some(slide) = slides.last_mut() else { continue };
+                        slide.push(shown);
+                        if waiting && slide.len() % 2 == 0 {
+                            waiting = false;
+                            slides.push(Vec::new());
                         }
                     }
                 }
-                Line::Blank if options.blank_is_slide_change => slides.push(Vec::new()),
+                Line::Blank if options.blank_is_slide_change => {
+                    slide_break(&mut slides, &mut waiting);
+                }
                 Line::Blank | Line::Chords(_) => {}
             }
         }
         slides.retain(|slide| !slide.is_empty());
-        slides
+        (slides, moved)
     }
 
     /// Whether a presentation-order token names this section exactly (case-insensitively; a
@@ -155,6 +232,32 @@ impl Section {
     }
 }
 
+/// A primary line and its translation as shown one beneath the other. When both hold `|`, the
+/// pieces pair up in order and the last pair keeps whatever is left of the longer one.
+fn split_pair(primary: &str, translation: Option<&String>) -> Vec<String> {
+    let Some(translation) = translation else { return vec![primary.to_owned()] };
+    let n = primary.matches('|').count().min(translation.matches('|').count()) + 1;
+    let p = primary.splitn(n, '|').map(str::trim);
+    let t = translation.splitn(n, '|').map(str::trim);
+    p.zip(t).flat_map(|(p, t)| [p.to_owned(), t.to_owned()]).collect()
+}
+
+/// The section a strict legacy multilanguage tag (`V1-L`, `C-L`, `V1L`) stands for (`V1`, `C`,
+/// `V1`), or `None` for any other tag (ADR-0007). The type letter must be `V`, `P`, `C`, `B` or
+/// `T` (either case).
+pub fn legacy_multilanguage_base(tag: &str) -> Option<&str> {
+    let (base, digits_needed) = match tag.strip_suffix("-L").or_else(|| tag.strip_suffix("-l")) {
+        Some(base) => (base, false),
+        None => (tag.strip_suffix(['L', 'l'])?, true),
+    };
+    let mut chars = base.chars();
+    let letter = chars.next()?;
+    let digits = chars.as_str();
+    let typed = matches!(letter.to_ascii_uppercase(), 'V' | 'P' | 'C' | 'B' | 'T');
+    let numbered = digits.chars().all(|c| c.is_ascii_digit()) && !(digits_needed && digits.is_empty());
+    (typed && numbered).then_some(base)
+}
+
 /// What a lyric line looks like on screen: trimmed, `_` removed, OpenSong's special spacing
 /// characters (U+02CD, U+203F) turned into spaces.
 fn deflate(text: &str) -> String {
@@ -163,10 +266,12 @@ fn deflate(text: &str) -> String {
 
 impl Song {
     /// The section a presentation-order token refers to. An exact tag wins; otherwise a bare
-    /// number `n` finds verse `Vn`, and `Vn` finds a bare-number section `n`.
+    /// number `n` finds verse `Vn`, and `Vn` finds a bare-number section `n`; a legacy
+    /// multilanguage token (`V1-L`, `V1L`) finds the multilanguage section `V1`, and `V1` finds a
+    /// legacy-tagged one.
     pub fn section(&self, token: &str) -> Option<&Section> {
         let exact = self.sections.iter().find(|s| s.is_named(token));
-        exact.or_else(|| {
+        exact.or_else(|| self.legacy_alias(token)).or_else(|| {
             let alias = if token.chars().all(|c| c.is_ascii_digit()) {
                 format!("V{token}")
             } else {
@@ -178,6 +283,11 @@ impl Song {
             };
             self.sections.iter().find(|s| s.is_named(&alias))
         })
+    }
+
+    fn legacy_alias(&self, token: &str) -> Option<&Section> {
+        let base = legacy_multilanguage_base(token).unwrap_or(token);
+        self.sections.iter().filter(|s| s.multilanguage).find(|s| legacy_multilanguage_base(&s.tag).unwrap_or(&s.tag).eq_ignore_ascii_case(base))
     }
 
     /// The sections in presentation order (GLOSSARY "Presentation order"). An empty order means
@@ -206,7 +316,11 @@ impl Song {
     fn slides_of<'a>(sections: impl IntoIterator<Item = &'a Section>, options: &SlideOptions) -> Vec<Slide> {
         sections
             .into_iter()
-            .flat_map(|section| section.slides(options).into_iter().map(|lines| Slide { section: section.tag.clone(), lines }))
+            .flat_map(|section| section.slides(options).into_iter().map(|lines| Slide {
+                section: section.tag.clone(),
+                lines,
+                multilanguage: section.multilanguage && options.language == LanguageMode::Both,
+            }))
             .collect()
     }
 }

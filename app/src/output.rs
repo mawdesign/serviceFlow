@@ -140,7 +140,7 @@ impl OutputFrame {
             Content::Black => Image { width: 1, height: 1, pixels: vec![0, 0, 0, 255] },
             Content::Logo(Some(logo)) => self.renderer.render_logo(&logo.0, &styles.default, size),
             Content::Logo(None) | Content::Slide(None) => {
-                self.renderer.render(&Slide { section: String::new(), lines: Vec::new() }, &styles.default, size)
+                self.renderer.render(&Slide::default(), &styles.default, size)
             }
             Content::Slide(Some((slide, song))) => {
                 let captions = Captions::for_song(song, &styles.default);

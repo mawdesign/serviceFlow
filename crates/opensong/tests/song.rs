@@ -266,7 +266,7 @@ fn the_section_type_comes_from_the_first_letter_of_the_tag() {
 fn blank_lines_split_slides_only_when_blank_is_slide_change_is_on() {
     let song = song("<song><lyrics>[V1]\n one\n\n two\n \n\n three\n</lyrics></song>");
     assert_eq!(slides_of(&song, "V1"), [lines(&["one", "two", "three"])]);
-    let on = SlideOptions { blank_is_slide_change: true };
+    let on = SlideOptions { blank_is_slide_change: true, ..SlideOptions::default() };
     assert_eq!(song.sections[0].slides(&on), [lines(&["one"]), lines(&["two"]), lines(&["three"])]);
 }
 
