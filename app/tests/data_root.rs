@@ -43,7 +43,7 @@ fn first_run_asks_for_a_folder_then_remembers_it_for_the_next_launch() {
     let answer = root.clone();
     first.dialogs().set_override(Some(Box::new(move |_| Answer::Paths(vec![answer.clone()]))));
     assert!(first.data_root().is_none());
-    let mut harness = Harness::new_ui(|ui| first.ui(ui, None));
+    let mut harness = Harness::builder().allow_missing_glyphs().build_ui(|ui| first.ui(ui, None));
     settle(&mut harness);
     harness.get_by_label_contains("Data root:");
     drop(harness);
@@ -53,7 +53,7 @@ fn first_run_asks_for_a_folder_then_remembers_it_for_the_next_launch() {
     // A second launch opens straight into it: a picker that was asked would panic.
     let mut second = app(&ctx, config.path(), None);
     second.dialogs().set_override(Some(Box::new(|_| panic!("the folder picker must not open"))));
-    let mut harness = Harness::new_ui(|ui| second.ui(ui, None));
+    let mut harness = Harness::builder().allow_missing_glyphs().build_ui(|ui| second.ui(ui, None));
     settle(&mut harness);
     drop(harness);
     assert_eq!(second.data_root(), Some(root.as_path()));
@@ -69,7 +69,7 @@ fn the_operator_can_switch_to_another_data_root_and_it_is_remembered() {
     let mut app1 = app(&ctx, config.path(), None);
     let picks = std::cell::RefCell::new(vec![root_b.clone(), root_a.clone()]);
     app1.dialogs().set_override(Some(Box::new(move |_| Answer::Paths(vec![picks.borrow_mut().pop().unwrap()]))));
-    let mut harness = Harness::new_ui(|ui| app1.ui(ui, None));
+    let mut harness = Harness::builder().allow_missing_glyphs().build_ui(|ui| app1.ui(ui, None));
     settle(&mut harness);
     harness.get_by_label("Change data root…").click();
     settle(&mut harness);
@@ -92,7 +92,7 @@ fn a_folder_without_songs_is_refused_and_the_current_root_stays_open() {
     let bad = not_root.path().to_path_buf();
     app.dialogs().set_override(Some(Box::new(move |_| Answer::Paths(vec![bad.clone()]))));
     app.choose_data_root();
-    let mut harness = Harness::new_ui(|ui| app.ui(ui, None));
+    let mut harness = Harness::builder().allow_missing_glyphs().build_ui(|ui| app.ui(ui, None));
     settle(&mut harness);
     harness.get_by_label_contains("has no Songs folder");
     drop(harness);
@@ -117,7 +117,7 @@ fn a_remembered_root_that_has_gone_is_reported_and_the_picker_opens_again() {
     assert!(matches!(second.problem(), Some(RootProblem::Missing(p)) if *p == root));
     let (_other, other_root) = root_with_song("Song B");
     second.dialogs().set_override(Some(Box::new(move |_| Answer::Paths(vec![other_root.clone()]))));
-    let mut harness = Harness::new_ui(|ui| second.ui(ui, None));
+    let mut harness = Harness::builder().allow_missing_glyphs().build_ui(|ui| second.ui(ui, None));
     settle(&mut harness);
     drop(harness);
     assert!(second.data_root().is_some());
@@ -131,9 +131,10 @@ fn an_opensong_folder_opens_songs_straight_from_disk_and_records_their_hash() {
     let mut app = app(&ctx, config.path(), Some(opensong_data_root()));
     let window = app.window().expect("the fixtures folder is a data root");
     window.driver().send(Command::OpenSong(SongId::new("It Is Well With My Soul")));
-    let mut harness = Harness::new_ui(|ui| app.ui(ui, None));
+    let mut harness = Harness::builder().allow_missing_glyphs().build_ui(|ui| app.ui(ui, None));
     settle(&mut harness);
-    harness.get_by_label("It Is Well With My Soul");
+    // The library entry and the open song's heading.
+    assert_eq!(harness.get_all_by_label("It Is Well With My Soul").count(), 2);
     drop(harness);
     let state = app.window().unwrap().driver().snapshot();
     let open = state.song.as_ref().expect("the song opened from disk");

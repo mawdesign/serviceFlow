@@ -7,6 +7,7 @@
 pub mod data_root;
 pub mod i18n;
 pub mod keys;
+pub mod library;
 pub mod monitors;
 #[cfg(not(target_arch = "wasm32"))]
 pub mod native;
@@ -16,6 +17,8 @@ pub mod thumbnails;
 #[cfg(target_arch = "wasm32")]
 pub mod web;
 
+use craft_ui::docking::{DockArea, DockContent, DockStyle, Layout, Node};
+use craft_ui::layout::{SplitAxis, SplitSize};
 use serviceflow_core::command::Command;
 use serviceflow_core::state::{OutputMode, Problem, State};
 use serviceflow_render::Size;
@@ -38,6 +41,52 @@ pub struct ControlWindow<S> {
     monitors: Monitors,
     prefs: Prefs,
     save_prefs: Option<SavePrefs>,
+    /// Where the dockable panels are. UI-only state.
+    dock: Layout<Panel>,
+    library: library::LibraryView,
+}
+
+/// The control window's dockable panels.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub enum Panel {
+    Library,
+    Slides,
+}
+
+fn default_dock() -> Layout<Panel> {
+    Layout {
+        root: Some(Node::Split {
+            axis: SplitAxis::Horizontal,
+            size: SplitSize::Ratio(0.28),
+            first: Box::new(Node::Tabs { panels: vec![Panel::Library], active: 0 }),
+            second: Box::new(Node::Tabs { panels: vec![Panel::Slides], active: 0 }),
+        }),
+        floating: Vec::new(),
+    }
+}
+
+/// The panels' bodies, borrowing what one frame needs.
+struct Panels<'a> {
+    state: &'a State,
+    thumbnails: &'a mut thumbnails::Thumbnails,
+    library: &'a mut library::LibraryView,
+    commands: &'a mut Vec<Command>,
+}
+
+impl DockContent<Panel> for Panels<'_> {
+    fn body(&mut self, ui: &mut egui::Ui, panel: &Panel) {
+        match panel {
+            Panel::Library => self.library.ui(ui, self.state, self.commands),
+            Panel::Slides => slides(ui, self.state, self.thumbnails, self.commands),
+        }
+    }
+
+    fn logical_label(&self, panel: &Panel) -> String {
+        match panel {
+            Panel::Library => tl!("Library").to_string(),
+            Panel::Slides => tl!("Slides").to_string(),
+        }
+    }
 }
 
 /// Called with the preferences whenever the operator changes them.
@@ -49,7 +98,9 @@ const THUMBNAIL_WIDTH: f32 = 240.0;
 const MIRROR_WIDTH: f32 = 320.0;
 
 impl<S: Storage + 'static> ControlWindow<S> {
-    pub fn new(driver: Driver<S>) -> Self {
+    pub fn new(mut driver: Driver<S>) -> Self {
+        // Start listing and indexing the library in the background; the window is usable meanwhile.
+        driver.send(Command::RefreshLibrary);
         Self {
             driver,
             thumbnails: thumbnails::Thumbnails::default(),
@@ -59,6 +110,8 @@ impl<S: Storage + 'static> ControlWindow<S> {
             monitors: Monitors::default(),
             prefs: Prefs::default(),
             save_prefs: None,
+            dock: default_dock(),
+            library: library::LibraryView::default(),
         }
     }
 
@@ -123,7 +176,13 @@ impl<S: Storage + 'static> ControlWindow<S> {
         });
         egui::CentralPanel::default().show(ui, |ui| {
             problems(ui, &state);
-            slides(ui, &state, &mut self.thumbnails, &mut commands);
+            let style = DockStyle::from_ui(ui);
+            let mut panels = Panels { state: &state, thumbnails: &mut self.thumbnails, library: &mut self.library, commands: &mut commands };
+            let out = DockArea::new(ui.scope_id().with("dock")).show_content(ui, &self.dock, &style, &mut panels);
+            if !out.actions.is_empty() {
+                // A rejected action leaves the layout as it was.
+                let _ = self.dock.apply_all(out.actions, |_| Default::default());
+            }
         });
 
         if self.output_open {
@@ -187,6 +246,9 @@ fn problems(ui: &mut egui::Ui, state: &State) {
         match problem {
             Problem::SongUnreadable { id, error } => {
                 ui.colored_label(ui.visuals().error_fg_color, format!("{} “{id}”: {error}", tl!("Could not open the song")));
+            }
+            Problem::LibraryUnreadable { error } => {
+                ui.colored_label(ui.visuals().error_fg_color, format!("{}: {error}", tl!("Could not read the library")));
             }
         }
     }

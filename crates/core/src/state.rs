@@ -1,9 +1,11 @@
 //! Application state. The engine publishes it as an immutable snapshot (`Arc<State>`); the UI
 //! reads a snapshot each frame and never mutates it.
 
+use std::collections::VecDeque;
 use std::sync::Arc;
 
 use crate::ids::{ContentHash, SongId};
+use crate::search::SearchIndex;
 use crate::song::{Slide, Song};
 
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
@@ -12,6 +14,8 @@ pub struct State {
     pub song: Option<OpenSong>,
     /// A song that has been asked for and is still loading.
     pub loading: Option<SongId>,
+    /// The library: songs, search index and search results.
+    pub library: Library,
     /// What the outputs show.
     pub output: Output,
     /// Problems to show the operator, oldest first.
@@ -23,6 +27,8 @@ pub struct State {
 pub enum Problem {
     /// A song could not be read or parsed. `error` is the technical detail.
     SongUnreadable { id: SongId, error: String },
+    /// The library could not be listed. `error` is the technical detail.
+    LibraryUnreadable { error: String },
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -63,4 +69,30 @@ pub enum OutputMode {
     Blank,
     /// Pure black.
     Black,
+}
+
+/// The library (GLOSSARY "Library") and the search over it.
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct Library {
+    /// Every song, sorted by id (so by category, then filename).
+    pub songs: Vec<SongId>,
+    pub index: Arc<SearchIndex>,
+    /// `true` while songs are still being read for the index.
+    pub indexing: bool,
+    /// Songs read so far.
+    pub indexed: usize,
+    /// The current query, as typed.
+    pub query: String,
+    /// Songs matching `query`, best first. Empty when the query is blank.
+    pub results: Vec<SongId>,
+    /// Which refresh the in-flight results belong to; older results are dropped.
+    pub generation: u64,
+    pub(crate) queue: VecDeque<SongId>,
+}
+
+impl Library {
+    /// The title to show for a song (its filename until the song has been read).
+    pub fn title<'a>(&'a self, id: &'a SongId) -> &'a str {
+        self.index.title(id)
+    }
 }

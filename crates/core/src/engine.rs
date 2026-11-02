@@ -3,7 +3,8 @@
 use std::sync::Arc;
 
 use crate::command::{Command, Effect};
-use crate::state::{LiveSlide, OpenSong, OutputMode, Problem, State};
+use crate::search::SearchIndex;
+use crate::state::{Library, LiveSlide, OpenSong, OutputMode, Problem, State};
 
 #[derive(Debug, Default)]
 pub struct Engine {
@@ -43,6 +44,55 @@ impl Engine {
                     state.loading = None;
                 }
                 state.problems.push(Problem::SongUnreadable { id, error });
+                Vec::new()
+            }
+            Command::RefreshLibrary => {
+                state.library.generation += 1;
+                state.library.queue.clear();
+                state.library.indexing = true;
+                vec![Effect::ListLibrary { generation: state.library.generation }]
+            }
+            Command::LibraryListed { generation, mut songs } => {
+                let lib = &mut state.library;
+                if generation != lib.generation {
+                    return Vec::new();
+                }
+                songs.sort();
+                songs.dedup();
+                let mut index = SearchIndex::default();
+                index.reset(&songs);
+                lib.index = Arc::new(index);
+                lib.queue = songs.iter().cloned().collect();
+                lib.songs = songs;
+                lib.indexed = 0;
+                refresh_results(lib);
+                next_chunk(lib)
+            }
+            Command::LibraryListFailed { generation, error } => {
+                if generation == state.library.generation {
+                    state.library.indexing = false;
+                    state.problems.push(Problem::LibraryUnreadable { error });
+                }
+                Vec::new()
+            }
+            Command::SongsIndexed { generation, songs } => {
+                let lib = &mut state.library;
+                if generation != lib.generation {
+                    return Vec::new();
+                }
+                let index = Arc::make_mut(&mut lib.index);
+                for (id, song) in &songs {
+                    if let Some(song) = song {
+                        index.insert(id, song);
+                    }
+                }
+                lib.indexed += songs.len();
+                refresh_results(lib);
+                next_chunk(lib)
+            }
+            Command::Search(query) => {
+                state.library.query = query;
+                refresh_results(&mut state.library);
                 Vec::new()
             }
             Command::GoLive { index } => {
@@ -92,4 +142,21 @@ fn go_live(state: &mut State, index: usize) {
 /// Switch `mode` on, or back to normal when it is already on. Blank and black replace each other.
 fn toggle(state: &mut State, mode: OutputMode) {
     state.output.mode = if state.output.mode == mode { OutputMode::Normal } else { mode };
+}
+
+/// Songs read per background step: small enough that the window stays responsive.
+const INDEX_CHUNK: usize = 25;
+
+fn next_chunk(lib: &mut Library) -> Vec<Effect> {
+    let n = lib.queue.len().min(INDEX_CHUNK);
+    if n == 0 {
+        lib.indexing = false;
+        return Vec::new();
+    }
+    let ids: Vec<_> = lib.queue.drain(..n).collect();
+    vec![Effect::IndexSongs { generation: lib.generation, ids }]
+}
+
+fn refresh_results(lib: &mut Library) {
+    lib.results = lib.index.search(&lib.query);
 }

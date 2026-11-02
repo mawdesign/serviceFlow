@@ -16,7 +16,7 @@ fn empty_window() -> ControlWindow<MemoryStorage> {
 #[test]
 fn the_empty_control_window_shows_the_app_name_and_that_no_song_is_open() {
     let mut window = empty_window();
-    let harness = Harness::new_ui(|ui| window.ui(ui));
+    let harness = Harness::builder().allow_missing_glyphs().build_ui(|ui| window.ui(ui));
     harness.get_by_label("serviceFlow");
     harness.get_by_label("No song is open.");
 }
@@ -26,9 +26,10 @@ fn the_control_window_shows_the_loaded_songs_slides_as_rendered_thumbnails() {
     let mut driver = Driver::new(MemoryStorage::from_data_root(&opensong_data_root()).unwrap());
     driver.send(Command::OpenSong(SongId::new("It Is Well With My Soul")));
     let mut window = ControlWindow::new(driver);
-    let harness = Harness::new_ui(|ui| window.ui(ui));
+    let harness = Harness::builder().allow_missing_glyphs().build_ui(|ui| window.ui(ui));
 
-    harness.get_by_label("It Is Well With My Soul");
+    // Once as the library entry, once as the open song's heading.
+    assert_eq!(harness.get_all_by_label("It Is Well With My Soul").count(), 2);
     // Twelve slides in presentation order: V1 has two, the chorus appears four times. Each
     // thumbnail is an image whose alternative text is the slide's lyrics.
     assert_eq!(harness.get_all_by_label_contains("It is well (it is well)").count(), 4);

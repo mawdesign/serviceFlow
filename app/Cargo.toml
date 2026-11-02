@@ -19,6 +19,7 @@ serviceflow-runtime = { workspace = true }
 serviceflow-render = { workspace = true }
 egui = { workspace = true }
 craft-window = { workspace = true }
+craft-ui = { workspace = true }
 craft-i18n = { workspace = true }
 serde = { workspace = true }
 
