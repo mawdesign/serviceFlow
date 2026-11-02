@@ -2,9 +2,11 @@
 //! (ADR-0002).
 
 mod settings;
+mod set;
 mod song;
 mod xml;
 
+pub use set::read_set;
 pub use settings::read_present_settings;
 pub use song::read_song;
 
