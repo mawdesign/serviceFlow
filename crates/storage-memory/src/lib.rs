@@ -8,7 +8,7 @@ use futures::StreamExt as _;
 use futures::channel::mpsc;
 use serviceflow_storage::{
     AssetId, AssetRepository, ChangeEvent, ChangeEvents, ChangeKind, ChangeStream, ContentHash, DocumentId, Expect, Key, Result, SetId,
-    SetRepository, SettingsId, SettingsRepository, SidecarRepository, SongId, SongRepository, StorageError, Stored,
+    SetRepository, SettingsId, SettingsRepository, SidecarRepository, SongId, SongRepository, StorageError, Stored, check_path, is_ignored_path, key_path,
 };
 
 /// Storage held in memory. Every write is announced on [`ChangeEvents::changes`].
@@ -25,7 +25,7 @@ impl MemoryStorage {
     }
 
     /// Storage holding a copy of an OpenSong data root: `Songs/` (subfolders are categories),
-    /// `Sets/`, `Settings/` and `Backgrounds/`. Names starting with `.` are skipped.
+    /// `Sets/`, `Settings/` and `Backgrounds/`. Names starting with `.` or `_` are skipped.
     pub fn from_data_root(root: &Path) -> std::io::Result<Self> {
         let storage = Self::new();
         {
@@ -53,10 +53,12 @@ impl MemoryStorage {
     }
 
     fn read(&self, key: Key) -> Result<Stored> {
+        check_path(key_path(&key))?;
         self.lock_documents().get(&key).cloned().ok_or(StorageError::NotFound(key))
     }
 
     fn write(&self, key: Key, bytes: Vec<u8>, expect: Expect) -> Result<ContentHash> {
+        check_path(key_path(&key))?;
         let stored = Stored::new(bytes);
         let hash = stored.hash;
         {
@@ -78,7 +80,7 @@ impl MemoryStorage {
 
     fn list<T>(&self, pick: impl Fn(&Key) -> Option<T>) -> Vec<T> {
         // BTreeMap order is id order, so the result is sorted.
-        self.lock_documents().keys().filter_map(pick).collect()
+        self.lock_documents().keys().filter(|k| !matches!(k, Key::Sidecar(_)) && !is_ignored_path(key_path(k))).filter_map(pick).collect()
     }
 
     fn announce(&self, event: ChangeEvent) {
@@ -98,7 +100,7 @@ fn collect_files(dir: &Path, prefix: &str, out: &mut Vec<(String, Vec<u8>)>) -> 
     for entry in entries {
         let entry = entry?;
         let name = entry.file_name().to_string_lossy().into_owned();
-        if name.starts_with('.') {
+        if name.starts_with(['.', '_']) {
             continue;
         }
         let path = format!("{prefix}{name}");
@@ -164,7 +166,9 @@ impl AssetRepository for MemoryStorage {
 
 impl SidecarRepository for MemoryStorage {
     async fn read_sidecar(&self, owner: &DocumentId) -> Result<Option<Stored>> {
-        Ok(self.lock_documents().get(&Key::Sidecar(owner.clone())).cloned())
+        let key = Key::Sidecar(owner.clone());
+        check_path(key_path(&key))?;
+        Ok(self.lock_documents().get(&key).cloned())
     }
 
     async fn write_sidecar(&self, owner: &DocumentId, bytes: Vec<u8>, expect: Expect) -> Result<ContentHash> {
