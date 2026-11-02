@@ -1,9 +1,7 @@
 //! `Settings/PresentSettings` (opensong.md §9, §10, §13): read-only import of the default and
 //! scripture styles. serviceFlow never writes OpenSong's settings files.
 
-use serviceflow_core::style::{
-    Align, ImagePosition, ImageSource, Margins, Rgba, Style, Styles, SubtitleField, TextStyle, VAlign,
-};
+use serviceflow_core::style::{Align, ImagePosition, ImageSource, Margins, Rgba, Style, Styles, SubtitleField, TextStyle, VAlign};
 
 use crate::CodecError;
 use crate::xml::{self, Element};
@@ -102,12 +100,9 @@ fn text_style(e: &Element, t: &mut TextStyle) {
     t.outline = flag(e, "border", t.outline);
     t.shadow = flag(e, "shadow", t.shadow);
     t.fill = flag(e, "fill", t.fill);
-    for (attr, slot) in [
-        ("color", &mut t.color),
-        ("border_color", &mut t.outline_color),
-        ("shadow_color", &mut t.shadow_color),
-        ("fill_color", &mut t.fill_color),
-    ] {
+    for (attr, slot) in
+        [("color", &mut t.color), ("border_color", &mut t.outline_color), ("shadow_color", &mut t.shadow_color), ("fill_color", &mut t.fill_color)]
+    {
         if let Some(c) = colour(e, attr) {
             *slot = c;
         }

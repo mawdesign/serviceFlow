@@ -42,7 +42,8 @@ impl EngineHarness {
     pub fn with_present_settings(bytes: Option<&str>) -> Self {
         let storage = MemoryStorage::new();
         if let Some(bytes) = bytes {
-            crate::block_on(storage.write_settings(&SettingsId("PresentSettings".into()), bytes.as_bytes().to_vec(), Expect::Any)).expect("seeding settings");
+            crate::block_on(storage.write_settings(&SettingsId("PresentSettings".into()), bytes.as_bytes().to_vec(), Expect::Any))
+                .expect("seeding settings");
         }
         Self::with_storage(storage)
     }

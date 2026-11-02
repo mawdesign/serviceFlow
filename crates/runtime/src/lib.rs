@@ -101,7 +101,11 @@ pub async fn perform<S: Storage>(storage: &S, effect: Effect) -> Command {
                     Ok(styles) => Command::StylesImported(Arc::new(styles)),
                     Err(e) => Command::StylesImportFailed { trigger, error: e.to_string(), missing: false },
                 },
-                Err(e) => Command::StylesImportFailed { trigger, error: e.to_string(), missing: matches!(e, serviceflow_storage::StorageError::NotFound(_)) },
+                Err(e) => Command::StylesImportFailed {
+                    trigger,
+                    error: e.to_string(),
+                    missing: matches!(e, serviceflow_storage::StorageError::NotFound(_)),
+                },
             }
         }
         Effect::LoadSong(id) => {

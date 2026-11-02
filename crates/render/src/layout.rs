@@ -180,11 +180,9 @@ pub(crate) fn layout(fonts: &Fonts, slide: &Slide, captions: &Captions, style: &
 
     let (mut top, mut bottom) = (0.0_f32, h);
     let mut placed: Vec<TextBox> = Vec::new();
-    let count = shown.len();
     // Top-aligned boxes stack downwards in order; bottom-aligned ones stack upwards, so the
     // last one (the subtitle) sits lowest.
-    for i in 0..count {
-        let (role, st, lines, block) = &mut shown[i];
+    for (role, st, lines, block) in shown.iter_mut() {
         if st.valign == VAlign::Bottom {
             continue;
         }
@@ -193,8 +191,7 @@ pub(crate) fn layout(fonts: &Fonts, slide: &Slide, captions: &Captions, style: &
         top = y + *block + m.bottom * scale;
         placed.push(finish(fonts, *role, st, std::mem::take(lines), rect_at(m.left * scale, y, w - (m.left + m.right) * scale, *block), scale));
     }
-    for i in (0..count).rev() {
-        let (role, st, lines, block) = &mut shown[i];
+    for (role, st, lines, block) in shown.iter_mut().rev() {
         if st.valign != VAlign::Bottom {
             continue;
         }
