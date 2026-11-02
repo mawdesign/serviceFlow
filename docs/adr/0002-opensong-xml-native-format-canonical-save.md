@@ -9,7 +9,7 @@ Files are read leniently, accepting every legacy variant. They are written in a 
 - Section tags are written as `[V1]` and `[V1] (L)`. OpenSong deprecates the `[V1-L]` form, so it is converted on write.
 - Presentation-order tokens are rewritten to match the renamed tags.
 - Element order is fixed. Unknown elements are kept.
-- Files are written as UTF-8 with CRLF line endings, which is what OpenSong itself writes.
+- Files are written as UTF-8 with CRLF line endings. OpenSong writes CRLF on Windows (LF elsewhere) and the existing shared libraries are CRLF, so this keeps diffs minimal for mixed teams.
 - Numbered verse blocks stay compact.
 
 ## Considered Options
