@@ -22,6 +22,7 @@ pub mod web;
 use craft_ui::docking::{DockArea, DockContent, DockStyle, Layout, Node};
 use craft_ui::layout::{SplitAxis, SplitSize};
 use serviceflow_core::command::{Command, ImportTrigger};
+use serviceflow_core::song::LanguageMode;
 use serviceflow_core::state::{OutputMode, Problem, State};
 use serviceflow_render::Size;
 use serviceflow_runtime::Driver;
@@ -265,6 +266,16 @@ fn live_buttons(ui: &mut egui::Ui, state: &State, commands: &mut Vec<Command>) {
     }
     if ui.selectable_label(state.output.mode == OutputMode::Logo, tl!("Logo")).clicked() {
         commands.push(Command::ToggleLogo);
+    }
+    ui.separator();
+    // The language mode of multilanguage sections (GLOSSARY "Language mode").
+    let language = state.slide_options.language;
+    for (mode, label) in
+        [(LanguageMode::Both, tl!("Both languages")), (LanguageMode::Primary, tl!("Primary only")), (LanguageMode::Translation, tl!("Translation only"))]
+    {
+        if ui.selectable_label(language == mode, label).clicked() && language != mode {
+            commands.push(Command::SetLanguageMode(mode));
+        }
     }
 }
 
