@@ -3,6 +3,7 @@
 use std::sync::Arc;
 
 use crate::command::{Command, Effect, ImportTrigger};
+use crate::output::InitialMode;
 use crate::search::SearchIndex;
 use crate::state::{Library, LiveSlide, OpenSong, OutputMode, Problem, State};
 
@@ -111,7 +112,16 @@ impl Engine {
                 let target = live_index(state).map_or(0, |i| i + 1);
                 if target < in_flow {
                     go_live(state, target);
+                } else if state.output_settings.blanks && live_index(state).is_some_and(|i| i + 1 == in_flow) &&state.output.mode == OutputMode::Normal {
+                    // OpenSong puts a blank after each item.
+                    toggle(state, OutputMode::Blank);
+                    state.output.blank_after_end = true;
                 }
+                Vec::new()
+            }
+            Command::PreviousSlide if state.output.blank_after_end && state.output.mode == OutputMode::Blank => {
+                // Back from the blank after the last slide: that slide again.
+                toggle(state, OutputMode::Blank);
                 Vec::new()
             }
             Command::PreviousSlide => {
@@ -135,6 +145,35 @@ impl Engine {
             }
             Command::ToggleBlack => {
                 toggle(state, OutputMode::Black);
+                Vec::new()
+            }
+            Command::ToggleLogo => {
+                toggle(state, OutputMode::Logo);
+                Vec::new()
+            }
+            Command::ImportOpenSongSettings { trigger } => vec![Effect::ReadOpenSongSettings(trigger)],
+            Command::SettingsImported { trigger, output, colors, faults } => {
+                if let Some(colors) = colors {
+                    state.slide_colors = colors;
+                }
+                if let Some(output) = output {
+                    // The initial mode applies once; after that the operator's choice wins.
+                    if !state.initial_mode_applied {
+                        state.initial_mode_applied = true;
+                        match output.initial_mode {
+                            InitialMode::Normal => {}
+                            InitialMode::Black => toggle(state, OutputMode::Black),
+                            InitialMode::Blank => toggle(state, OutputMode::Blank),
+                            InitialMode::Logo => toggle(state, OutputMode::Logo),
+                        }
+                    }
+                    state.output_settings = output;
+                }
+                for fault in faults {
+                    if trigger == ImportTrigger::Manual || !fault.missing {
+                        state.problems.push(Problem::SettingsUnreadable { file: fault.file, error: fault.error });
+                    }
+                }
                 Vec::new()
             }
             Command::ImportOpenSongStyles { trigger } => vec![Effect::ReadOpenSongStyles(trigger)],
@@ -164,11 +203,15 @@ fn go_live(state: &mut State, index: usize) {
     let Some(slide) = open.slides.get(index) else { return };
     state.output.live = Some(LiveSlide { song: open.id.clone(), index, slide: slide.clone(), source: Arc::clone(&open.song) });
     state.output.mode = OutputMode::Normal;
+    state.output.blank_after_end = false;
+    state.output.changes += 1;
 }
 
 /// Switch `mode` on, or back to normal when it is already on. Blank and black replace each other.
 fn toggle(state: &mut State, mode: OutputMode) {
     state.output.mode = if state.output.mode == mode { OutputMode::Normal } else { mode };
+    state.output.blank_after_end = false;
+    state.output.changes += 1;
 }
 
 /// Songs read per background step: small enough that the window stays responsive.
