@@ -12,6 +12,10 @@ publish = false
 workspace = true
 
 [dependencies]
+serviceflow-core = { workspace = true }
+serviceflow-storage = { workspace = true }
+serviceflow-storage-memory = { workspace = true }
+serviceflow-runtime = { workspace = true }
 egui = { workspace = true }
 craft-window = { workspace = true }
 craft-i18n = { workspace = true }
@@ -28,3 +32,4 @@ web-sys = { workspace = true, features = ["Window", "Document", "Element", "Html
 
 [dev-dependencies]
 egui_kittest = { workspace = true }
+serviceflow-testkit = { workspace = true }

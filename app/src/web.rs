@@ -12,7 +12,13 @@ pub fn start() {
         let canvas =
             document.get_element_by_id(CANVAS_ID).expect("no canvas").dyn_into::<web_sys::HtmlCanvasElement>().expect("not a canvas element");
         let result = eframe::WebRunner::new()
-            .start(canvas, eframe::WebOptions::default(), Box::new(|_cc| Ok(Box::new(crate::ControlWindow::default()))))
+            .start(
+                canvas,
+                eframe::WebOptions::default(),
+                Box::new(|_cc| {
+                    Ok(Box::new(crate::ControlWindow::new(serviceflow_runtime::Driver::new(serviceflow_storage_memory::MemoryStorage::new()))))
+                }),
+            )
             .await;
         if let Some(loading) = document.get_element_by_id("serviceflow_loading") {
             match result {
