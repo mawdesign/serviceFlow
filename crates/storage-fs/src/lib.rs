@@ -26,8 +26,8 @@ use futures::StreamExt as _;
 use futures::channel::mpsc;
 use serviceflow_storage::{
     AssetId, AssetRepository, ChangeEvent, ChangeEvents, ChangeKind, ChangeStream, ContentHash, DocumentId, Expect, Key, Result, SetId,
-    SetRepository, SettingsId, SettingsRepository, SidecarRepository, SongId, SongRepository, StorageError, Stored, check_path,
-    is_ignored_path, key_path,
+    SetRepository, SettingsId, SettingsRepository, SidecarRepository, SongId, SongRepository, StorageError, Stored, check_path, is_ignored_path,
+    key_path,
 };
 
 /// Storage over an OpenSong data root on disk.

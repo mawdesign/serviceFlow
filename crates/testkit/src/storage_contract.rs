@@ -12,9 +12,7 @@
 //! [`storage_contract!`](crate::storage_contract).
 
 use futures::StreamExt as _;
-use serviceflow_storage::{
-    AssetId, ChangeEvent, ChangeKind, ContentHash, DocumentId, Expect, Key, SetId, SettingsId, SongId, Storage, StorageError,
-};
+use serviceflow_storage::{AssetId, ChangeEvent, ChangeKind, ContentHash, DocumentId, Expect, Key, SetId, SettingsId, SongId, Storage, StorageError};
 
 const SONG: &[u8] = b"<song><title>Contract</title></song>";
 

@@ -197,7 +197,9 @@ impl DesktopApp {
 
 fn problem_text(problem: &RootProblem) -> String {
     match problem {
-        RootProblem::NotADataRoot(path) => format!("{} {}", tl!("This folder has no Songs folder, so it is not an OpenSong data root:"), path.display()),
+        RootProblem::NotADataRoot(path) => {
+            format!("{} {}", tl!("This folder has no Songs folder, so it is not an OpenSong data root:"), path.display())
+        }
         RootProblem::Missing(path) => format!("{} {}", tl!("This data root cannot be found:"), path.display()),
         RootProblem::NoDialog(why) => format!("{} {why}", tl!("The folder picker could not be shown:")),
     }
