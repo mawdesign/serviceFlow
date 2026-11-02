@@ -2,7 +2,7 @@
 
 use std::sync::Arc;
 
-use crate::command::{Command, Effect};
+use crate::command::{Command, Effect, ImportTrigger};
 use crate::state::{LiveSlide, OpenSong, OutputMode, Problem, State};
 
 #[derive(Debug, Default)]
@@ -71,6 +71,17 @@ impl Engine {
                 toggle(state, OutputMode::Black);
                 Vec::new()
             }
+            Command::ImportOpenSongStyles { trigger } => vec![Effect::ReadOpenSongStyles(trigger)],
+            Command::StylesImported(styles) => {
+                state.styles = styles;
+                Vec::new()
+            }
+            Command::StylesImportFailed { trigger, error, missing } => {
+                if trigger == ImportTrigger::Manual || !missing {
+                    state.problems.push(Problem::StylesUnreadable { error });
+                }
+                Vec::new()
+            }
         }
     }
 }
@@ -85,7 +96,7 @@ fn live_index(state: &State) -> Option<usize> {
 fn go_live(state: &mut State, index: usize) {
     let Some(open) = &state.song else { return };
     let Some(slide) = open.slides.get(index) else { return };
-    state.output.live = Some(LiveSlide { song: open.id.clone(), index, slide: slide.clone() });
+    state.output.live = Some(LiveSlide { song: open.id.clone(), index, slide: slide.clone(), source: Arc::clone(&open.song) });
     state.output.mode = OutputMode::Normal;
 }
 

@@ -94,6 +94,16 @@ impl<S: Storage + 'static> Driver<S> {
 /// Perform one effect and return the command that reports its outcome.
 pub async fn perform<S: Storage>(storage: &S, effect: Effect) -> Command {
     match effect {
+        Effect::ReadOpenSongStyles(trigger) => {
+            let id = serviceflow_storage::SettingsId("PresentSettings".to_owned());
+            match storage.read_settings(&id).await {
+                Ok(stored) => match serviceflow_opensong::read_present_settings(&stored.bytes) {
+                    Ok(styles) => Command::StylesImported(Arc::new(styles)),
+                    Err(e) => Command::StylesImportFailed { trigger, error: e.to_string(), missing: false },
+                },
+                Err(e) => Command::StylesImportFailed { trigger, error: e.to_string(), missing: matches!(e, serviceflow_storage::StorageError::NotFound(_)) },
+            }
+        }
         Effect::LoadSong(id) => {
             let parsed = match storage.read_song(&id).await {
                 Ok(stored) => serviceflow_opensong::read_song(&stored.bytes).map(|song| (song, stored.hash)).map_err(|e| e.to_string()),
