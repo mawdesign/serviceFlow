@@ -3,6 +3,8 @@
 //! The shell is thin (ADR-0001): each frame it pumps the runtime, reads one immutable state
 //! snapshot, draws it, and turns operator actions into commands.
 
+#[cfg(not(target_arch = "wasm32"))]
+pub mod data_root;
 pub mod i18n;
 pub mod thumbnails;
 #[cfg(target_arch = "wasm32")]
@@ -25,6 +27,11 @@ const THUMBNAIL_WIDTH: f32 = 240.0;
 impl<S: Storage + 'static> ControlWindow<S> {
     pub fn new(driver: Driver<S>) -> Self {
         Self { driver, thumbnails: thumbnails::Thumbnails::default() }
+    }
+
+    /// The runtime behind the window, to send commands to it.
+    pub fn driver(&mut self) -> &mut Driver<S> {
+        &mut self.driver
     }
 
     pub fn ui(&mut self, ui: &mut egui::Ui) {
