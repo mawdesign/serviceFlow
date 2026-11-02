@@ -4,7 +4,7 @@
 use std::sync::Arc;
 
 use crate::ids::{ContentHash, SongId};
-use crate::song::{Slide, Song};
+use crate::song::{Slide, SlideOptions, Song};
 
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct State {
@@ -16,6 +16,8 @@ pub struct State {
     pub output: Output,
     /// Problems to show the operator, oldest first.
     pub problems: Vec<Problem>,
+    /// How lyrics become slides, for every song opened.
+    pub slide_options: SlideOptions,
 }
 
 /// Something that went wrong, for the operator. Structured so the UI words it (through i18n).
@@ -31,8 +33,27 @@ pub struct OpenSong {
     pub song: Arc<Song>,
     /// Hash of the file bytes this song was parsed from, recorded on read (conflict detection).
     pub hash: ContentHash,
-    /// The song's slides in presentation order.
+    /// The slides of the control window's grid: the first [`in_flow`](Self::in_flow) follow the
+    /// presentation order; the rest come from sections the order leaves out (shown greyed,
+    /// skipped by next/previous, but can be sent live by hand; ADR-0007).
     pub slides: Vec<Slide>,
+    /// How many of [`slides`](Self::slides) are in the flow.
+    pub in_flow: usize,
+}
+
+impl OpenSong {
+    /// Build the grid for `song` with these options.
+    pub fn new(id: SongId, song: Arc<Song>, hash: ContentHash, options: &SlideOptions) -> Self {
+        let mut slides = song.slides(options);
+        let in_flow = slides.len();
+        slides.extend(song.unused_slides(options));
+        Self { id, song, hash, slides, in_flow }
+    }
+
+    /// Whether slide `index` follows the presentation order.
+    pub fn is_in_flow(&self, index: usize) -> bool {
+        index < self.in_flow
+    }
 }
 
 /// What the outputs show (GLOSSARY "Output", "Live"). Live actions change only this.

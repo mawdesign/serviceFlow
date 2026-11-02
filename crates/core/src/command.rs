@@ -8,7 +8,7 @@
 use std::sync::Arc;
 
 use crate::ids::{ContentHash, SongId};
-use crate::song::Song;
+use crate::song::{SlideOptions, Song};
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum Command {
@@ -31,6 +31,9 @@ pub enum Command {
     ToggleBlank,
     /// Toggle black mode (pure black).
     ToggleBlack,
+    /// Change how lyrics become slides (such as OpenSong's `blank_is_slide_change`). The open
+    /// song's slides are rebuilt; what is live stays live.
+    SetSlideOptions(SlideOptions),
 }
 
 impl Command {

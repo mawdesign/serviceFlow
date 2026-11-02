@@ -11,6 +11,7 @@ publish = false
 [dependencies]
 serviceflow-core = { workspace = true }
 quick-xml = { workspace = true }
+encoding_rs = { workspace = true }
 
 [dev-dependencies]
 serviceflow-testkit = { workspace = true }

@@ -207,8 +207,17 @@ fn slides(ui: &mut egui::Ui, state: &State, thumbnails: &mut thumbnails::Thumbna
         ui.horizontal_wrapped(|ui| {
             for (index, (slide, texture)) in open.slides.iter().zip(textures).enumerate() {
                 ui.vertical(|ui| {
-                    let image = egui::Image::from_texture((texture.id(), points)).alt_text(slide.lines.join("\n")).sense(egui::Sense::click());
-                    let response = ui.add(image);
+                    let mut image = egui::Image::from_texture((texture.id(), points)).alt_text(slide.lines.join("\n")).sense(egui::Sense::click());
+                    // Sections outside the presentation order: greyed, out of next/previous, but
+                    // still clickable (ADR-0007).
+                    let in_flow = open.is_in_flow(index);
+                    if !in_flow {
+                        image = image.tint(egui::Color32::from_gray(110));
+                    }
+                    let mut response = ui.add(image);
+                    if !in_flow {
+                        response = response.on_hover_text(tl!("Not in the presentation order"));
+                    }
                     if live == Some(index) {
                         ui.painter().rect_stroke(
                             response.rect,

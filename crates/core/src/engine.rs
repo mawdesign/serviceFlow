@@ -33,8 +33,7 @@ impl Engine {
                 // A result for a song that is no longer wanted (another was opened since) is dropped.
                 if state.loading.as_ref() == Some(&id) {
                     state.loading = None;
-                    let slides = song.slides();
-                    state.song = Some(OpenSong { id, song, hash, slides });
+                    state.song = Some(OpenSong::new(id, song, hash, &state.slide_options));
                 }
                 Vec::new()
             }
@@ -50,16 +49,26 @@ impl Engine {
                 Vec::new()
             }
             Command::NextSlide => {
-                let target = match live_index(state) {
-                    Some(i) => i + 1,
-                    None => 0,
-                };
-                go_live(state, target);
+                // Only slides in the flow; a greyed slide is past its end.
+                let in_flow = state.song.as_ref().map_or(0, |open| open.in_flow);
+                let target = live_index(state).map_or(0, |i| i + 1);
+                if target < in_flow {
+                    go_live(state, target);
+                }
                 Vec::new()
             }
             Command::PreviousSlide => {
-                if let Some(i) = live_index(state).and_then(|i| i.checked_sub(1)) {
+                // From a greyed slide, back to the last slide of the flow.
+                let in_flow = state.song.as_ref().map_or(0, |open| open.in_flow);
+                if let Some(i) = live_index(state).and_then(|i| i.min(in_flow).checked_sub(1)) {
                     go_live(state, i);
+                }
+                Vec::new()
+            }
+            Command::SetSlideOptions(options) => {
+                state.slide_options = options;
+                if let Some(open) = &mut state.song {
+                    *open = OpenSong::new(open.id.clone(), Arc::clone(&open.song), open.hash, &options);
                 }
                 Vec::new()
             }
