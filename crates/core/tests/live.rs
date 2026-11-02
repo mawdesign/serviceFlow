@@ -5,10 +5,8 @@ use serviceflow_core::ids::SongId;
 use serviceflow_core::state::OutputMode;
 use serviceflow_testkit::EngineHarness;
 
-const SONGS: &[(&str, &str)] = &[
-    ("Three", "<song><lyrics>[V1]\n one\n[V2]\n two\n[C]\n three</lyrics></song>"),
-    ("Other", "<song><lyrics>[V1]\n other</lyrics></song>"),
-];
+const SONGS: &[(&str, &str)] =
+    &[("Three", "<song><lyrics>[V1]\n one\n[V2]\n two\n[C]\n three</lyrics></song>"), ("Other", "<song><lyrics>[V1]\n other</lyrics></song>")];
 
 fn open(name: &str) -> EngineHarness {
     let mut harness = EngineHarness::with_songs(SONGS);
