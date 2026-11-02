@@ -7,15 +7,16 @@
 
 use std::sync::Arc;
 
-use crate::ids::SongId;
+use crate::ids::{ContentHash, SongId};
 use crate::song::Song;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum Command {
     /// Open a song from the library and show its slides.
     OpenSong(SongId),
-    /// Storage result: a song requested by [`Effect::LoadSong`] was read and parsed.
-    SongLoaded { id: SongId, song: Arc<Song> },
+    /// Storage result: a song requested by [`Effect::LoadSong`] was read and parsed. `hash` is the hash of the
+    /// bytes read, kept so a later save can detect that the file changed meanwhile.
+    SongLoaded { id: SongId, song: Arc<Song>, hash: ContentHash },
     /// Storage result: a song requested by [`Effect::LoadSong`] could not be read or parsed.
     SongLoadFailed { id: SongId, error: String },
 }

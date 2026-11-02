@@ -89,3 +89,12 @@ fn snapshots_are_immutable_once_taken() {
     assert!(before.song.is_none());
     assert!(harness.state().song.is_some());
 }
+
+#[test]
+fn opening_a_song_records_the_hash_of_the_bytes_that_were_read() {
+    let mut harness = EngineHarness::with_fixtures();
+    harness.send(Command::OpenSong(SongId::new("It Is Well With My Soul")));
+    let state = harness.state();
+    let open = state.song.as_ref().expect("a song is open");
+    assert_eq!(open.hash, serviceflow_core::ids::ContentHash::of(&serviceflow_testkit::fixture_song("It Is Well With My Soul")));
+}

@@ -11,7 +11,7 @@
 #![allow(async_fn_in_trait)]
 
 use futures::stream::LocalBoxStream;
-pub use serviceflow_core::ids::{SetId, SongId};
+pub use serviceflow_core::ids::{ContentHash, SetId, SongId};
 
 /// An image or other media file: its path under the data root's `Backgrounds/` folder, with `/`
 /// between folders.
@@ -37,23 +37,6 @@ pub enum Key {
     Asset(AssetId),
     Sidecar(DocumentId),
     Settings(SettingsId),
-}
-
-/// A hash of a document's bytes, recorded on read so a later write can detect that the
-/// document changed underneath it.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
-pub struct ContentHash(pub u64);
-
-impl ContentHash {
-    /// FNV-1a over the bytes. Stable across platforms and runs.
-    pub fn of(bytes: &[u8]) -> Self {
-        let mut hash: u64 = 0xcbf2_9ce4_8422_2325;
-        for b in bytes {
-            hash ^= u64::from(*b);
-            hash = hash.wrapping_mul(0x0000_0100_0000_01b3);
-        }
-        Self(hash)
-    }
 }
 
 /// A document's bytes as read, with the hash of those bytes.

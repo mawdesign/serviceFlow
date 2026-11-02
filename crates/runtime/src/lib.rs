@@ -96,11 +96,11 @@ pub async fn perform<S: Storage>(storage: &S, effect: Effect) -> Command {
     match effect {
         Effect::LoadSong(id) => {
             let parsed = match storage.read_song(&id).await {
-                Ok(stored) => serviceflow_opensong::read_song(&stored.bytes).map_err(|e| e.to_string()),
+                Ok(stored) => serviceflow_opensong::read_song(&stored.bytes).map(|song| (song, stored.hash)).map_err(|e| e.to_string()),
                 Err(e) => Err(e.to_string()),
             };
             match parsed {
-                Ok(song) => Command::SongLoaded { id, song: Arc::new(song) },
+                Ok((song, hash)) => Command::SongLoaded { id, song: Arc::new(song), hash },
                 Err(error) => Command::SongLoadFailed { id, error },
             }
         }
