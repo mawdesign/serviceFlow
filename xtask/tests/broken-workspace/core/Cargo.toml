@@ -1,0 +1,10 @@
+[package]
+name = "serviceflow-core"
+version = "0.0.0"
+edition = "2024"
+publish = false
+
+[dependencies]
+egui = "0.37"
+craft-ui = { git = "https://github.com/storytold/craft-libs", rev = "14d5dbb50c317b8747a9cf9eb35ab8a22515f137" }
+serviceflow-storage-fs = { path = "../storage-fs" }

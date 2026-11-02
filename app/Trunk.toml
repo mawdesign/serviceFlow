@@ -1,0 +1,10 @@
+[build]
+target = "index.html"
+dist = "../dist/web"
+# Relative URLs so the build works under the GitHub Pages sub-path (/serviceFlow/).
+public_url = "./"
+filehash = true
+
+[serve]
+addresses = ["127.0.0.1"]
+port = 8770

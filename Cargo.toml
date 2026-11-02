@@ -1,0 +1,81 @@
+[workspace]
+resolver = "3"
+members = ["crates/*", "app", "xtask"]
+
+[workspace.package]
+version = "0.1.0"
+edition = "2024"
+license = "MIT OR Apache-2.0"
+rust-version = "1.95"
+repository = "https://github.com/mawdesign/serviceFlow"
+
+[workspace.dependencies]
+# internal
+serviceflow-core = { path = "crates/core" }
+serviceflow-storage = { path = "crates/storage" }
+serviceflow-storage-memory = { path = "crates/storage-memory" }
+serviceflow-storage-fs = { path = "crates/storage-fs" }
+serviceflow-storage-web = { path = "crates/storage-web" }
+serviceflow-opensong = { path = "crates/opensong" }
+serviceflow-render = { path = "crates/render" }
+serviceflow-testkit = { path = "crates/testkit" }
+
+# ui
+egui = "0.37"
+eframe = { version = "0.37", default-features = false, features = ["default_fonts", "glow", "wgpu", "persistence"] }
+egui_kittest = "0.37"
+winit = "0.30"
+
+# craft-libs (ADR-0006): git dependencies pinned to one rev. Never use `craft-ui` from crates.io
+# (a third-party fork). Move the rev forward only as a deliberate, standalone change, and copy
+# craft-libs' egui/winit [patch.crates-io] entries below at the same time.
+craft-ui = { git = "https://github.com/storytold/craft-libs", rev = "14d5dbb50c317b8747a9cf9eb35ab8a22515f137" }
+craft-window = { git = "https://github.com/storytold/craft-libs", rev = "14d5dbb50c317b8747a9cf9eb35ab8a22515f137", features = ["egui"] }
+craft-text = { git = "https://github.com/storytold/craft-libs", rev = "14d5dbb50c317b8747a9cf9eb35ab8a22515f137" }
+craft-fonts-build = { git = "https://github.com/storytold/craft-libs", rev = "14d5dbb50c317b8747a9cf9eb35ab8a22515f137" }
+craft-font-catalog = { git = "https://github.com/storytold/craft-libs", rev = "14d5dbb50c317b8747a9cf9eb35ab8a22515f137" }
+craft-atomic = { git = "https://github.com/storytold/craft-libs", rev = "14d5dbb50c317b8747a9cf9eb35ab8a22515f137" }
+craft-settings = { git = "https://github.com/storytold/craft-libs", rev = "14d5dbb50c317b8747a9cf9eb35ab8a22515f137" }
+craft-dialogs = { git = "https://github.com/storytold/craft-libs", rev = "14d5dbb50c317b8747a9cf9eb35ab8a22515f137" } # native only
+craft-keymap = { git = "https://github.com/storytold/craft-libs", rev = "14d5dbb50c317b8747a9cf9eb35ab8a22515f137" }
+craft-i18n = { git = "https://github.com/storytold/craft-libs", rev = "14d5dbb50c317b8747a9cf9eb35ab8a22515f137" }
+
+# web
+wasm-bindgen = "0.2"
+wasm-bindgen-futures = "0.4"
+web-sys = "0.3"
+
+# tooling
+serde_json = "1"
+
+[workspace.lints.rust]
+unsafe_code = "forbid"
+
+[workspace.lints.clippy]
+dbg_macro = "warn"
+todo = "warn"
+
+[profile.dev.package."*"]
+opt-level = 2
+debug = false
+
+[profile.release]
+lto = "thin"
+
+# Copied from craft-libs' Cargo.toml at the pinned rev (ADR-0006): Cargo does not propagate a
+# dependency's [patch], so the forks of egui, eframe and winit must be patched here too.
+# Omitted because nothing here uses them (Cargo warns about unused patches): egui_extras,
+# egui_system_font_provider, egui_demo_lib, egui_inspection. Add the matching line from
+# craft-libs before depending on any of them, or two copies of egui end up in the graph.
+[patch.crates-io]
+ecolor = { git = "https://github.com/storytold/egui.git", rev = "6d518fc799681571963842f95b55a6b68431b15a" }
+emath = { git = "https://github.com/storytold/egui.git", rev = "6d518fc799681571963842f95b55a6b68431b15a" }
+epaint = { git = "https://github.com/storytold/egui.git", rev = "6d518fc799681571963842f95b55a6b68431b15a" }
+epaint_default_fonts = { git = "https://github.com/storytold/egui.git", rev = "6d518fc799681571963842f95b55a6b68431b15a" }
+egui = { git = "https://github.com/storytold/egui.git", rev = "6d518fc799681571963842f95b55a6b68431b15a" }
+egui-winit = { git = "https://github.com/storytold/egui.git", rev = "6d518fc799681571963842f95b55a6b68431b15a" }
+egui-wgpu = { git = "https://github.com/storytold/egui.git", rev = "6d518fc799681571963842f95b55a6b68431b15a" }
+egui_glow = { git = "https://github.com/storytold/egui.git", rev = "6d518fc799681571963842f95b55a6b68431b15a" }
+egui_kittest = { git = "https://github.com/storytold/egui.git", rev = "6d518fc799681571963842f95b55a6b68431b15a" }
+eframe = { git = "https://github.com/storytold/egui.git", rev = "6d518fc799681571963842f95b55a6b68431b15a" }
+winit = { git = "https://github.com/storytold/winit.git", rev = "a517b3846ee8457d84ee4975110bfda6797c44dc" }

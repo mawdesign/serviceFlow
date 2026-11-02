@@ -3,7 +3,9 @@
 </p>
 <h2 align=center><em>Media & Worship presentation. Sorted.</em></h2>
 
-[![License](https://img.shields.io/badge/License-CC--BY--SA%204.0-lightgrey.svg)](LICENSE.md)
+[![CI](https://github.com/mawdesign/serviceFlow/actions/workflows/ci.yml/badge.svg)](https://github.com/mawdesign/serviceFlow/actions/workflows/ci.yml)
+[![Code licence: MIT OR Apache-2.0](https://img.shields.io/badge/code-MIT%20OR%20Apache--2.0-blue.svg)](LICENSE)
+[![Docs licence: CC BY-SA 4.0](https://img.shields.io/badge/docs%20%26%20assets-CC--BY--SA%204.0-lightgrey.svg)](LICENSE-CC-BY-SA)
 [![Claude](https://img.shields.io/badge/Claude-D97757?logo=claude&logoColor=fff)](https://claude.ai)
 [![stability-wip](https://img.shields.io/badge/stability-wip-lightgrey.svg)](https://github.com/mkenney/software-guides/blob/master/STABILITY-BADGES.md#work-in-progress)
 
@@ -25,3 +27,19 @@ Built natively in pure Rust, it delivers ultra-low latency, robust multi-screen 
 *   **🎶 Built-in Transposition & Chords:** Display chords above lyrics with instant, on-the-fly key transposition, integrating directly with the Lyric Sanctuary online ecosystem.
 *   **🖼️ Dual-Screen & Output Orchestration:** Advanced, dual-screen output management with support for overlays, lower-thirds, and stage displays.
 *   **📂 OpenSong & XML Compatibility:** Full legacy support to easily import your existing OpenSong databases, with an updated, modern presentation flow.
+
+---
+
+### 🛠️ Building
+
+```sh
+cargo run -p serviceflow          # desktop app
+cargo test                        # tests
+cargo xtask layers                # architectural layering check
+cargo xtask ci                    # fmt, clippy, tests, layering and wasm check, as CI runs them
+cd app && trunk serve             # browser build (needs `rustup target add wasm32-unknown-unknown` and trunk)
+```
+
+### 📜 Licence
+
+The code is licensed under either of [MIT](LICENSE-MIT) or [Apache-2.0](LICENSE-APACHE), at your option. Documentation and assets are licensed under [CC BY-SA 4.0](LICENSE-CC-BY-SA). See [LICENSE](LICENSE) for details.

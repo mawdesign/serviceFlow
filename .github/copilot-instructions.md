@@ -4,18 +4,17 @@
 
 - `serviceFlow` is a Rust-based media and worship presentation engine for the Lyric Sanctuary ecosystem.
 - The product is not a generic app; it is designed to run a full church service, from notices and videos to sermon slides, chord sheets, and live presentation output.
-- The repo currently appears documentation-first and lightweight; there are no checked-in build/test/lint configs in the current working tree.
+- The repo is a Cargo workspace: `crates/` (core, storage, storage-memory, storage-fs, storage-web, opensong, render, testkit), `app/` (the egui shell for desktop and wasm) and `xtask/`.
 
 ## Build, test, and lint commands
-
-No project manifest or CI configuration is present in the current repository snapshot (no `Cargo.toml`, `package.json`, `Makefile`, or similar files were found in the checked-out tree). That means there is no verified local build/test/lint command to run yet.
-
-When this project becomes a Rust workspace, the expected commands are the standard Cargo commands:
 
 - `cargo build`
 - `cargo test`
 - `cargo test <test_name>` for a single test
-- `cargo clippy --all-targets --all-features -- -D warnings`
+- `cargo clippy --workspace --all-targets -- -D warnings`
+- `cargo fmt --all -- --check`
+- `cargo xtask layers` (layering check) and `cargo xtask wasm` (wasm32 check); `cargo xtask ci` runs everything
+- `cd app && trunk serve` for the browser build
 
 Do not invent repo-specific commands that are not present in the working tree.
 

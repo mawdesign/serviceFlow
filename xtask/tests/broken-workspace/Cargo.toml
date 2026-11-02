@@ -1,0 +1,6 @@
+# A deliberately broken workspace: `cargo xtask layers --manifest-path` must reject it.
+# The core depends on egui, a craft UI crate and a concrete storage implementation.
+# It is never built; only `cargo metadata --no-deps` reads it.
+[workspace]
+resolver = "3"
+members = ["core", "storage-fs"]
