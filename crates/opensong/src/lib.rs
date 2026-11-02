@@ -5,7 +5,7 @@ mod settings;
 mod song;
 mod xml;
 
-pub use settings::read_present_settings;
+pub use settings::{read_output_settings, read_present_settings, read_slide_colors};
 pub use song::read_song;
 
 /// Why bytes could not be read as an OpenSong document.
