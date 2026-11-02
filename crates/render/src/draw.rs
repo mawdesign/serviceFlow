@@ -70,7 +70,8 @@ pub(crate) fn draw(fonts: &Fonts, outlines: &Outlines, frame: &Frame) -> Image {
 }
 
 fn outline(fonts: &Fonts, font: FontId, glyph: u32) -> BezPath {
-    let font_ref = fonts.font_ref(font);
+    let face = fonts.face(font);
+    let font_ref = face.font_ref();
     let mut pen = Pen(BezPath::new());
     if let Some(g) = font_ref.outline_glyphs().get(GlyphId::new(glyph)) {
         let _ = g.draw(DrawSettings::unhinted(FontSize::unscaled(), LocationRef::default()), &mut pen);

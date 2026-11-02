@@ -35,7 +35,7 @@ pub struct OutputFrame {
 
 impl OutputFrame {
     pub fn new(name: &'static str) -> Self {
-        Self { name, renderer: Renderer::default(), style: Style::default(), texture: None }
+        Self { name, renderer: Renderer::with_fonts(crate::fonts::shared()), style: Style::default(), texture: None }
     }
 
     /// Paint `output` filling `rect` of `ui`.

@@ -23,6 +23,9 @@ pub struct State {
 pub enum Problem {
     /// A song could not be read or parsed. `error` is the technical detail.
     SongUnreadable { id: SongId, error: String },
+    /// A style names a font that is not installed, so slides use `used` instead (which may wrap
+    /// text differently if it does not have the same measurements).
+    FontSubstituted { requested: String, used: String },
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]

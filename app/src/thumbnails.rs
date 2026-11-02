@@ -15,12 +15,17 @@ pub fn color_image(image: &Image) -> egui::ColorImage {
 }
 
 /// The thumbnails of the open song.
-#[derive(Default)]
 pub struct Thumbnails {
     renderer: Renderer,
     style: Style,
     key: Option<(Arc<Song>, Size)>,
     textures: Vec<egui::TextureHandle>,
+}
+
+impl Default for Thumbnails {
+    fn default() -> Self {
+        Self { renderer: Renderer::with_fonts(crate::fonts::shared()), style: Style::default(), key: None, textures: Vec::new() }
+    }
 }
 
 impl Thumbnails {

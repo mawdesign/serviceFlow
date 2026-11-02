@@ -249,16 +249,16 @@ fn place_line(fonts: &Fonts, font: FontId, paragraph: &str, range: Range<usize>,
     let mut runs = Vec::new();
     for run in bidi.visual_runs(range.clone()) {
         let rtl = run.is_rtl();
-        let glyphs = fonts
-            .shape(font, &paragraph[run.range], rtl, px)
-            .into_iter()
-            .map(|g| {
-                let glyph = Glyph { id: g.id, x: pen + g.x_offset, y: -g.y_offset };
-                pen += g.advance;
-                glyph
-            })
-            .collect();
-        runs.push(GlyphRun { font, font_size: px, color, rtl, glyphs });
+        // Characters the font lacks are shaped with a fallback face, so one bidi run can become
+        // several glyph runs, one per face.
+        for shaped in fonts.shape(font, &paragraph[run.range], rtl, px) {
+            let glyph = Glyph { id: shaped.id, x: pen + shaped.x_offset, y: -shaped.y_offset };
+            pen += shaped.advance;
+            match runs.last_mut() {
+                Some(GlyphRun { font: f, rtl: r, glyphs, .. }) if *f == shaped.font && *r == rtl => glyphs.push(glyph),
+                _ => runs.push(GlyphRun { font: shaped.font, font_size: px, color, rtl, glyphs: vec![glyph] }),
+            }
+        }
     }
     Line { role, text: paragraph[range].to_owned(), font_size: px, x: 0.0, baseline: 0.0, width: pen, runs }
 }

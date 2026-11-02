@@ -31,6 +31,9 @@ pub enum Command {
     ToggleBlank,
     /// Toggle black mode (pure black).
     ToggleBlack,
+    /// The renderer drew `used` instead of the style's font `requested`. Becomes a
+    /// [`Problem::FontSubstituted`](crate::state::Problem) the operator sees; repeats are ignored.
+    FontSubstituted { requested: String, used: String },
 }
 
 impl Command {

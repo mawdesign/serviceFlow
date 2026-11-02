@@ -16,7 +16,7 @@ mod style;
 use serviceflow_core::song::Slide;
 
 pub use draw::{Image, MAX_SIDE};
-pub use fonts::{BUILTIN_FAMILY, FontId, Fonts};
+pub use fonts::{BUILTIN_FAMILY, Bundled, FontId, Fonts, Substitution, SystemFonts};
 pub use layout::{BoxRole, Frame, Glyph, GlyphRun, LINE_PITCH, Line, LineRole, Rect, Size, TextBox};
 pub use style::{Align, Margins, REFERENCE_HEIGHT, Rgba, Style, TextStyle, VAlign};
 
