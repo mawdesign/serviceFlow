@@ -2,7 +2,10 @@
 
 use std::path::PathBuf;
 
+mod engine;
 pub mod storage_contract;
+
+pub use engine::EngineHarness;
 
 /// Run a future to completion on the current thread. Storage and engine futures are not `Send`.
 pub use futures::executor::block_on;

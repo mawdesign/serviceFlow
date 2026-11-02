@@ -11,6 +11,8 @@ publish = false
 [dependencies]
 serviceflow-core = { workspace = true }
 serviceflow-storage = { workspace = true }
+serviceflow-storage-memory = { workspace = true }
+serviceflow-runtime = { workspace = true }
 futures = { workspace = true }
 
 [lints]

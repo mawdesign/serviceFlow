@@ -2527,6 +2527,9 @@ dependencies = [
 [[package]]
 name = "serviceflow-core"
 version = "0.1.0"
+dependencies = [
+ "serviceflow-testkit",
+]
 
 [[package]]
 name = "serviceflow-opensong"
@@ -2540,6 +2543,16 @@ dependencies = [
 [[package]]
 name = "serviceflow-render"
 version = "0.1.0"
+
+[[package]]
+name = "serviceflow-runtime"
+version = "0.1.0"
+dependencies = [
+ "futures",
+ "serviceflow-core",
+ "serviceflow-opensong",
+ "serviceflow-storage",
+]
 
 [[package]]
 name = "serviceflow-storage"
@@ -2572,7 +2585,9 @@ version = "0.1.0"
 dependencies = [
  "futures",
  "serviceflow-core",
+ "serviceflow-runtime",
  "serviceflow-storage",
+ "serviceflow-storage-memory",
 ]
 
 [[package]]

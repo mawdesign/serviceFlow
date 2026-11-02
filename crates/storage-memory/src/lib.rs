@@ -30,7 +30,8 @@ impl MemoryStorage {
         let storage = Self::new();
         {
             let mut documents = storage.lock_documents();
-            let folders: [(&str, fn(String) -> Key); 4] = [
+            type MakeKey = fn(String) -> Key;
+            let folders: [(&str, MakeKey); 4] = [
                 ("Songs", |p| Key::Song(SongId(p))),
                 ("Sets", |p| Key::Set(SetId(p))),
                 ("Settings", |p| Key::Settings(SettingsId(p))),

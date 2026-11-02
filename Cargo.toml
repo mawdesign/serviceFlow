@@ -18,6 +18,7 @@ serviceflow-storage-fs = { path = "crates/storage-fs" }
 serviceflow-storage-web = { path = "crates/storage-web" }
 serviceflow-opensong = { path = "crates/opensong" }
 serviceflow-render = { path = "crates/render" }
+serviceflow-runtime = { path = "crates/runtime" }
 serviceflow-testkit = { path = "crates/testkit" }
 
 # ui

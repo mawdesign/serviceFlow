@@ -1,0 +1,18 @@
+[package]
+name = "serviceflow-runtime"
+description = "serviceFlow runtime: drives the engine, performing its effects against storage and the codec."
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+rust-version.workspace = true
+repository.workspace = true
+publish = false
+
+[dependencies]
+serviceflow-core = { workspace = true }
+serviceflow-storage = { workspace = true }
+serviceflow-opensong = { workspace = true }
+futures = { workspace = true }
+
+[lints]
+workspace = true

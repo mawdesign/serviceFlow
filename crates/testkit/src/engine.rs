@@ -1,0 +1,62 @@
+//! Seam 1: the engine harness. A real engine, runtime and codec over in-memory storage.
+//!
+//! ```ignore
+//! let mut harness = EngineHarness::with_fixtures();
+//! harness.send(Command::OpenSong(SongId::new("It Is Well With My Soul")));
+//! assert_eq!(harness.state().song.as_ref().unwrap().slides.len(), 12);
+//! ```
+//!
+//! [`send`](EngineHarness::send) applies the command and runs every effect it causes to
+//! completion, so the snapshot afterwards is final. Inspect what was written through
+//! [`storage`](EngineHarness::storage).
+
+use std::sync::Arc;
+
+use serviceflow_core::command::Command;
+use serviceflow_core::state::State;
+use serviceflow_runtime::Driver;
+use serviceflow_storage::{Expect, SongId, SongRepository as _};
+use serviceflow_storage_memory::MemoryStorage;
+
+pub struct EngineHarness {
+    driver: Driver<MemoryStorage>,
+}
+
+impl EngineHarness {
+    /// An engine over a copy of the OpenSong fixtures data root (`tests/fixtures/opensong`).
+    pub fn with_fixtures() -> Self {
+        let storage = MemoryStorage::from_data_root(&crate::opensong_data_root()).expect("seeding storage from the OpenSong fixtures");
+        Self::with_storage(storage)
+    }
+
+    /// An engine over storage holding only these songs, given as (song id, file contents).
+    pub fn with_songs(songs: &[(&str, &str)]) -> Self {
+        let storage = MemoryStorage::new();
+        for (id, xml) in songs {
+            crate::block_on(storage.write_song(&SongId::new(*id), xml.as_bytes().to_vec(), Expect::Any)).expect("seeding a song");
+        }
+        Self::with_storage(storage)
+    }
+
+    pub fn with_storage(storage: MemoryStorage) -> Self {
+        Self { driver: Driver::new(storage) }
+    }
+
+    /// Send a command and run everything it causes until the engine is idle.
+    pub fn send(&mut self, command: Command) -> &mut Self {
+        self.driver.send(command);
+        self.driver.pump();
+        assert!(self.driver.is_idle(), "in-memory storage finished without the engine becoming idle");
+        self
+    }
+
+    /// The current state snapshot.
+    pub fn state(&self) -> Arc<State> {
+        self.driver.snapshot()
+    }
+
+    /// The storage, to check what was written.
+    pub fn storage(&self) -> &MemoryStorage {
+        self.driver.storage()
+    }
+}
