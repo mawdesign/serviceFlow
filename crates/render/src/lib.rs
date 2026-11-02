@@ -11,7 +11,9 @@
 mod draw;
 mod fonts;
 mod layout;
+mod logo;
 
+use serviceflow_core::output::Logo;
 use serviceflow_core::song::Slide;
 use serviceflow_core::style::Captions;
 
@@ -26,6 +28,7 @@ pub use serviceflow_core::style::{Align, BUILTIN_FAMILY, Margins, REFERENCE_HEIG
 pub struct Renderer {
     fonts: Fonts,
     outlines: draw::Outlines,
+    logos: logo::LogoCache,
 }
 
 impl Renderer {
@@ -35,7 +38,7 @@ impl Renderer {
     }
 
     pub fn with_fonts(fonts: Fonts) -> Self {
-        Renderer { fonts, outlines: draw::Outlines::default() }
+        Renderer { fonts, outlines: draw::Outlines::default(), logos: logo::LogoCache::default() }
     }
 
     pub fn fonts(&self) -> &Fonts {
@@ -60,6 +63,16 @@ impl Renderer {
     /// Lays out and draws `slide`.
     pub fn render(&self, slide: &Slide, style: &Style, size: Size) -> Image {
         self.draw(&self.layout(slide, style, size))
+    }
+
+    /// Draws logo mode: `logo` centred over the style's background, shrunk to fit but never
+    /// enlarged. A logo that cannot be decoded leaves just the background.
+    pub fn render_logo(&self, logo: &Logo, style: &Style, size: Size) -> Image {
+        let mut image = self.render(&Slide { section: String::new(), lines: Vec::new() }, style, size);
+        if let Some(decoded) = self.logos.get(logo) {
+            logo::composite(&mut image, &decoded);
+        }
+        image
     }
 
     /// Lays out and draws `slide` with its title and subtitle.
