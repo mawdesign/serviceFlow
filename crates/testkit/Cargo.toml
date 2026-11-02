@@ -1,0 +1,12 @@
+[package]
+name = "serviceflow-testkit"
+description = "serviceFlow test support: fixture locations and helpers. Use only as a dev-dependency."
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+rust-version.workspace = true
+repository.workspace = true
+publish = false
+
+[lints]
+workspace = true

@@ -1,0 +1,12 @@
+[package]
+name = "serviceflow-storage-memory"
+description = "serviceFlow in-memory storage, for tests and seeding."
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+rust-version.workspace = true
+repository.workspace = true
+publish = false
+
+[lints]
+workspace = true
