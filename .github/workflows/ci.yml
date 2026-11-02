@@ -82,7 +82,7 @@ jobs:
             target/aarch64-apple-darwin/release/serviceflow \
             target/x86_64-apple-darwin/release/serviceflow
           lipo -info out/serviceflow
-          lipo -verify_arch out/serviceflow x86_64 arm64
+          lipo out/serviceflow -verify_arch x86_64 arm64
       - name: Package unsigned zip
         run: ditto -c -k out/serviceflow serviceflow-macos-universal.zip
       - uses: actions/upload-artifact@v4
