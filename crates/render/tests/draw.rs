@@ -6,8 +6,7 @@ use serviceflow_render::{Renderer, Rgba, Size, Style};
 #[test]
 fn drawing_fills_the_background_and_paints_text_in_the_body_colour() {
     let renderer = Renderer::new();
-    let mut style = Style::default();
-    style.background = Rgba::rgb(0, 0, 128);
+    let mut style = Style { background: Rgba::rgb(0, 0, 128), ..Style::default() };
     style.body.color = Rgba::rgb(255, 255, 0);
     let slide = Slide { section: "V1".into(), lines: vec!["IIIIIIII".into()] };
     let size = Size { width: 1280, height: 720 };

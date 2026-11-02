@@ -111,8 +111,16 @@ impl Frame {
         for b in &self.boxes {
             let _ = writeln!(out, "box {:?} at ({}, {}) size {}x{}", b.role, r(b.rect.x), r(b.rect.y), r(b.rect.width), r(b.rect.height));
             for l in &b.lines {
-                let _ =
-                    writeln!(out, "  line {:?} {:?} size {} x {} baseline {} width {}", l.role, l.text, r(l.font_size), r(l.x), r(l.baseline), r(l.width));
+                let _ = writeln!(
+                    out,
+                    "  line {:?} {:?} size {} x {} baseline {} width {}",
+                    l.role,
+                    l.text,
+                    r(l.font_size),
+                    r(l.x),
+                    r(l.baseline),
+                    r(l.width)
+                );
                 for run in &l.runs {
                     let glyphs: Vec<String> = run.glyphs.iter().map(|g| format!("{}@{}", g.id, r(g.x))).collect();
                     let _ = writeln!(out, "    run font {} rtl {} color {:?}: {}", run.font.0, run.rtl, run.color, glyphs.join(" "));
@@ -182,7 +190,7 @@ fn text_box(fonts: &Fonts, role: BoxRole, line_role: LineRole, lines: &[String],
 /// without trailing spaces. An empty paragraph is one empty line.
 fn break_lines(fonts: &Fonts, font: FontId, text: &str, px: f32, measure: f32) -> Vec<Range<usize>> {
     if text.trim().is_empty() {
-        return vec![0..0];
+        return std::iter::once(0..0).collect();
     }
     let mut pieces = Vec::new();
     let mut start = 0;
