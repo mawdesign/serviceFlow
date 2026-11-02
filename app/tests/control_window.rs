@@ -3,13 +3,36 @@
 use egui_kittest::Harness;
 use egui_kittest::kittest::Queryable as _;
 use serviceflow::ControlWindow;
+use serviceflow_core::command::Command;
+use serviceflow_core::ids::SongId;
+use serviceflow_runtime::Driver;
+use serviceflow_storage_memory::MemoryStorage;
+use serviceflow_testkit::opensong_data_root;
+
+fn empty_window() -> ControlWindow<MemoryStorage> {
+    ControlWindow::new(Driver::new(MemoryStorage::new()))
+}
 
 #[test]
-fn the_empty_control_window_shows_the_app_name_and_that_no_data_root_is_open() {
-    let mut window = ControlWindow::default();
+fn the_empty_control_window_shows_the_app_name_and_that_no_song_is_open() {
+    let mut window = empty_window();
     let harness = Harness::new_ui(|ui| window.ui(ui));
     harness.get_by_label("serviceFlow");
-    harness.get_by_label("No data root is open.");
+    harness.get_by_label("No song is open.");
+}
+
+#[test]
+fn the_control_window_lists_the_slides_of_the_loaded_song() {
+    let mut driver = Driver::new(MemoryStorage::from_data_root(&opensong_data_root()).unwrap());
+    driver.send(Command::OpenSong(SongId::new("It Is Well With My Soul")));
+    let mut window = ControlWindow::new(driver);
+    let harness = Harness::new_ui(|ui| window.ui(ui));
+
+    harness.get_by_label("It Is Well With My Soul");
+    // Twelve slides in presentation order: V1 has two, the chorus appears four times.
+    assert_eq!(harness.get_all_by_label_contains("It is well (it is well)").count(), 4);
+    assert_eq!(harness.get_all_by_label_contains("When peace like a river").count(), 1);
+    assert_eq!(harness.get_all_by_label_contains("Even so, it is well with my soul...").count(), 1);
 }
 
 #[test]

@@ -18,6 +18,7 @@ serviceflow-storage-fs = { path = "crates/storage-fs" }
 serviceflow-storage-web = { path = "crates/storage-web" }
 serviceflow-opensong = { path = "crates/opensong" }
 serviceflow-render = { path = "crates/render" }
+serviceflow-runtime = { path = "crates/runtime" }
 serviceflow-testkit = { path = "crates/testkit" }
 
 # ui
@@ -44,6 +45,10 @@ craft-i18n = { git = "https://github.com/storytold/craft-libs", rev = "14d5dbb50
 wasm-bindgen = "0.2"
 wasm-bindgen-futures = "0.4"
 web-sys = "0.3"
+
+# libraries
+futures = { version = "0.3", default-features = false, features = ["std", "executor"] }
+quick-xml = "0.41"
 
 # tooling
 serde_json = "1"
