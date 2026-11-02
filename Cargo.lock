@@ -2466,6 +2466,7 @@ dependencies = [
  "eframe",
  "egui",
  "egui_kittest",
+ "log",
  "wasm-bindgen",
  "wasm-bindgen-futures",
  "web-sys",
