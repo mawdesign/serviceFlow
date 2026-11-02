@@ -139,27 +139,14 @@ impl OutputFrame {
         match &shown.content {
             Content::Black => Image { width: 1, height: 1, pixels: vec![0, 0, 0, 255] },
             Content::Logo(Some(logo)) => self.renderer.render_logo(&logo.0, &styles.default, size),
-            Content::Logo(None) | Content::Slide(None) => self.renderer.render(&Slide { section: String::new(), lines: Vec::new() }, &styles.default, size),
+            Content::Logo(None) | Content::Slide(None) => {
+                self.renderer.render(&Slide { section: String::new(), lines: Vec::new() }, &styles.default, size)
+            }
             Content::Slide(Some((slide, song))) => {
                 let captions = Captions::for_song(song, &styles.default);
                 self.renderer.render_captioned(slide, &captions, &styles.default, size)
             }
         }
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn a_fade_runs_from_nothing_to_everything_over_its_duration() {
-        let fade = Fade { start: 10.0, duration: 0.4 };
-        assert_eq!(fade.progress(9.0), 0.0);
-        assert_eq!(fade.progress(10.0), 0.0);
-        assert!((fade.progress(10.1) - 0.25).abs() < 1e-6);
-        assert_eq!(fade.progress(10.4), 1.0);
-        assert_eq!(fade.progress(99.0), 1.0);
     }
 }
 
@@ -193,4 +180,19 @@ pub fn show_window(
         });
     });
     open
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn a_fade_runs_from_nothing_to_everything_over_its_duration() {
+        let fade = Fade { start: 10.0, duration: 0.4 };
+        assert_eq!(fade.progress(9.0), 0.0);
+        assert_eq!(fade.progress(10.0), 0.0);
+        assert!((fade.progress(10.1) - 0.25).abs() < 1e-6);
+        assert_eq!(fade.progress(10.4), 1.0);
+        assert_eq!(fade.progress(99.0), 1.0);
+    }
 }

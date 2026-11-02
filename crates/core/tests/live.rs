@@ -141,7 +141,9 @@ fn opening_another_song_keeps_the_live_slide() {
 
 #[test]
 fn live_actions_are_not_undoable() {
-    for command in [Command::GoLive { index: 0 }, Command::NextSlide, Command::PreviousSlide, Command::ToggleBlank, Command::ToggleBlack, Command::ToggleLogo] {
+    for command in
+        [Command::GoLive { index: 0 }, Command::NextSlide, Command::PreviousSlide, Command::ToggleBlank, Command::ToggleBlack, Command::ToggleLogo]
+    {
         assert!(command.is_live_action(), "{command:?}");
     }
     assert!(!Command::OpenSong(SongId::new("x")).is_live_action());

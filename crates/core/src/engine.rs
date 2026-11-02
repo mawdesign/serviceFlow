@@ -112,7 +112,10 @@ impl Engine {
                 let target = live_index(state).map_or(0, |i| i + 1);
                 if target < in_flow {
                     go_live(state, target);
-                } else if state.output_settings.blanks && live_index(state).is_some_and(|i| i + 1 == in_flow) &&state.output.mode == OutputMode::Normal {
+                } else if state.output_settings.blanks
+                    && live_index(state).is_some_and(|i| i + 1 == in_flow)
+                    && state.output.mode == OutputMode::Normal
+                {
                     // OpenSong puts a blank after each item.
                     toggle(state, OutputMode::Blank);
                     state.output.blank_after_end = true;

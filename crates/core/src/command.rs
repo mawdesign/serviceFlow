@@ -92,7 +92,10 @@ impl Command {
     /// Live actions are transient: they never enter undo history (ADR-0001). Only document edits
     /// do, and none exist yet.
     pub fn is_live_action(&self) -> bool {
-        matches!(self, Command::GoLive { .. } | Command::NextSlide | Command::PreviousSlide | Command::ToggleBlank | Command::ToggleBlack | Command::ToggleLogo)
+        matches!(
+            self,
+            Command::GoLive { .. } | Command::NextSlide | Command::PreviousSlide | Command::ToggleBlank | Command::ToggleBlack | Command::ToggleLogo
+        )
     }
 }
 

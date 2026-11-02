@@ -16,7 +16,10 @@ pub(crate) struct Decoded {
 
 /// Caches the last decoded logo, so redrawing it for another size does not decode it again.
 #[derive(Default)]
-pub(crate) struct LogoCache(Mutex<Option<(Arc<str>, Option<Arc<Decoded>>)>>);
+pub(crate) struct LogoCache(Mutex<Option<Cached>>);
+
+/// The logo text a decode was made from, and its result (`None`: undecodable).
+type Cached = (Arc<str>, Option<Arc<Decoded>>);
 
 impl LogoCache {
     pub(crate) fn get(&self, logo: &Logo) -> Option<Arc<Decoded>> {
@@ -81,8 +84,8 @@ pub(crate) fn composite(frame: &mut Image, logo: &Decoded) {
                 for sx in sx0..sx1 {
                     let i = ((sy * logo.width + sx) * 4) as usize;
                     let a = u64::from(logo.rgba[i + 3]);
-                    for c in 0..3 {
-                        sum[c] += u64::from(logo.rgba[i + c]) * a / 255;
+                    for (c, total) in sum.iter_mut().take(3).enumerate() {
+                        *total += u64::from(logo.rgba[i + c]) * a / 255;
                     }
                     sum[3] += a;
                 }
@@ -90,9 +93,9 @@ pub(crate) fn composite(frame: &mut Image, logo: &Decoded) {
             let n = u64::from((sy1 - sy0) * (sx1 - sx0));
             let (src, alpha) = ([sum[0] / n, sum[1] / n, sum[2] / n], sum[3] / n);
             let i = (((y0 + ty) * frame.width + x0 + tx) * 4) as usize;
-            for c in 0..3 {
+            for (c, value) in src.iter().enumerate() {
                 let under = u64::from(frame.pixels[i + c]);
-                frame.pixels[i + c] = (src[c] + under * (255 - alpha) / 255).min(255) as u8;
+                frame.pixels[i + c] = (value + under * (255 - alpha) / 255).min(255) as u8;
             }
             let under_a = u64::from(frame.pixels[i + 3]);
             frame.pixels[i + 3] = (alpha + under_a * (255 - alpha) / 255).min(255) as u8;
