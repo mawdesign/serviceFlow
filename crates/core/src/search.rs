@@ -44,7 +44,8 @@ impl Entry {
     }
 
     fn from_song(id: &SongId, song: &Song) -> Self {
-        let lyrics: Vec<&str> = song.sections.iter().flat_map(|s| s.slides.iter().flatten()).map(String::as_str).collect();
+        let options = crate::song::SlideOptions::default();
+        let lyrics: Vec<String> = song.sections.iter().flat_map(|s| s.slides(&options)).flatten().collect();
         let title = if song.title.trim().is_empty() { filename(id).to_string() } else { song.title.trim().to_string() };
         Self {
             title_lc: title.to_lowercase(),

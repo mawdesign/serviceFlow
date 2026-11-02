@@ -56,9 +56,86 @@ fn err(e: impl std::fmt::Display) -> CodecError {
     CodecError(format!("invalid XML: {e}"))
 }
 
-/// Parse a document and return its root element. Line endings in text are normalised to `\n`.
+impl Element {
+    /// This element as XML text: start tag, children and end tag (`<name/>` when it has no
+    /// children). Text and attribute values are escaped.
+    pub fn to_xml(&self) -> String {
+        let mut out = String::new();
+        self.write_xml(&mut out);
+        out
+    }
+
+    fn write_xml(&self, out: &mut String) {
+        out.push('<');
+        out.push_str(&self.name);
+        for (key, value) in &self.attributes {
+            out.push(' ');
+            out.push_str(key);
+            out.push_str("=\"");
+            out.push_str(&quick_xml::escape::escape(value.as_str()));
+            out.push('"');
+        }
+        if self.children.is_empty() {
+            out.push_str("/>");
+            return;
+        }
+        out.push('>');
+        for child in &self.children {
+            match child {
+                Node::Element(e) => e.write_xml(out),
+                Node::Text(t) => out.push_str(&quick_xml::escape::partial_escape(t.as_str())),
+            }
+        }
+        out.push_str("</");
+        out.push_str(&self.name);
+        out.push('>');
+    }
+}
+
+/// The document as text (opensong.md §1). In order: a byte-order mark (which wins over the
+/// declaration, as in OnSong's UTF-16 files that claim UTF-8); UTF-16 without a mark; the
+/// `encoding` of the XML declaration; UTF-8; and Windows-1252 for undeclared bytes that are not
+/// valid UTF-8.
+fn decode(bytes: &[u8]) -> Result<String, CodecError> {
+    use encoding_rs::{Encoding, UTF_8, UTF_16BE, UTF_16LE, WINDOWS_1252};
+    if let Some((encoding, bom)) = Encoding::for_bom(bytes) {
+        return Ok(encoding.decode_without_bom_handling(&bytes[bom..]).0.into_owned());
+    }
+    match bytes {
+        [b'<', 0, ..] => return Ok(UTF_16LE.decode_without_bom_handling(bytes).0.into_owned()),
+        [0, b'<', ..] => return Ok(UTF_16BE.decode_without_bom_handling(bytes).0.into_owned()),
+        _ => {}
+    }
+    let declared = declared_encoding(bytes)
+        .map(|label| Encoding::for_label(label.as_bytes()).ok_or_else(|| CodecError(format!("unsupported encoding \"{label}\""))))
+        .transpose()?;
+    match declared {
+        Some(encoding) if encoding != UTF_8 => Ok(encoding.decode_without_bom_handling(bytes).0.into_owned()),
+        _ => match std::str::from_utf8(bytes) {
+            Ok(text) => Ok(text.to_owned()),
+            Err(_) => Ok(WINDOWS_1252.decode_without_bom_handling(bytes).0.into_owned()),
+        },
+    }
+}
+
+/// The `encoding` named in a leading `<?xml …?>` declaration.
+fn declared_encoding(bytes: &[u8]) -> Option<String> {
+    let start = bytes.iter().position(|b| !b.is_ascii_whitespace())?;
+    let rest = bytes[start..].strip_prefix(b"<?xml")?;
+    let end = rest.windows(2).position(|w| w == b"?>")?;
+    let decl = std::str::from_utf8(&rest[..end]).ok()?;
+    let after = &decl[decl.find("encoding")? + "encoding".len()..];
+    let after = after.trim_start().strip_prefix('=')?.trim_start();
+    let quote = after.chars().next().filter(|c| *c == '"' || *c == '\'')?;
+    let value = &after[1..];
+    Some(value[..value.find(quote)?].trim().to_owned())
+}
+
+/// Parse a document and return its root element. Any encoding [`decode`] knows is accepted;
+/// line endings in text are normalised to `\n`.
 pub(crate) fn parse(bytes: &[u8]) -> Result<Element, CodecError> {
-    let mut reader = Reader::from_reader(bytes);
+    let text = decode(bytes)?;
+    let mut reader = Reader::from_reader(text.as_bytes());
     let mut buf = Vec::new();
     // The open elements; index 0 is a synthetic document node.
     let mut stack: Vec<Element> = vec![Element::default()];

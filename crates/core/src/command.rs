@@ -8,7 +8,7 @@
 use std::sync::Arc;
 
 use crate::ids::{ContentHash, SongId};
-use crate::song::Song;
+use crate::song::{SlideOptions, Song};
 use crate::style::Styles;
 
 #[derive(Debug, Clone, PartialEq)]
@@ -54,6 +54,9 @@ pub enum Command {
     /// The renderer drew `used` instead of the style's font `requested`. Becomes a
     /// [`Problem::FontSubstituted`](crate::state::Problem) the operator sees; repeats are ignored.
     FontSubstituted { requested: String, used: String },
+    /// Change how lyrics become slides (such as OpenSong's `blank_is_slide_change`). The open
+    /// song's slides are rebuilt; what is live stays live.
+    SetSlideOptions(SlideOptions),
 }
 
 /// Why styles are being imported.
