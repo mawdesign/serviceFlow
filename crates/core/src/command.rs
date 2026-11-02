@@ -51,6 +51,9 @@ pub enum Command {
     /// Storage result: PresentSettings could not be read. `missing` is true when the file does
     /// not exist.
     StylesImportFailed { trigger: ImportTrigger, error: String, missing: bool },
+    /// The renderer drew `used` instead of the style's font `requested`. Becomes a
+    /// [`Problem::FontSubstituted`](crate::state::Problem) the operator sees; repeats are ignored.
+    FontSubstituted { requested: String, used: String },
 }
 
 /// Why styles are being imported.

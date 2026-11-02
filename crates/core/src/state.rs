@@ -35,6 +35,9 @@ pub enum Problem {
     LibraryUnreadable { error: String },
     /// OpenSong's PresentSettings could not be read when the operator asked for a re-import.
     StylesUnreadable { error: String },
+    /// A style names a font that is not installed, so slides use `used` instead (which may wrap
+    /// text differently if it does not have the same measurements).
+    FontSubstituted { requested: String, used: String },
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]

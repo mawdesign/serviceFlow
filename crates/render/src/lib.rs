@@ -16,7 +16,7 @@ use serviceflow_core::song::Slide;
 use serviceflow_core::style::Captions;
 
 pub use draw::{Image, MAX_SIDE};
-pub use fonts::{FontId, Fonts};
+pub use fonts::{Bundled, FontId, Fonts, Substitution, SystemFonts};
 pub use layout::{BoxRole, Effects, Frame, Glyph, GlyphRun, LINE_PITCH, Line, LineRole, Rect, Size, TextBox};
 pub use serviceflow_core::style::{Align, BUILTIN_FAMILY, Margins, REFERENCE_HEIGHT, Rgba, Style, TextStyle, VAlign};
 

@@ -95,6 +95,13 @@ impl Engine {
                 refresh_results(&mut state.library);
                 Vec::new()
             }
+            Command::FontSubstituted { requested, used } => {
+                let problem = Problem::FontSubstituted { requested, used };
+                if !state.problems.contains(&problem) {
+                    state.problems.push(problem);
+                }
+                Vec::new()
+            }
             Command::GoLive { index } => {
                 go_live(state, index);
                 Vec::new()

@@ -26,6 +26,7 @@ serde = { workspace = true }
 [target.'cfg(not(target_arch = "wasm32"))'.dependencies]
 serviceflow-storage-fs = { workspace = true }
 craft-dialogs = { workspace = true }
+craft-font-catalog = { workspace = true }
 craft-settings = { workspace = true }
 eframe = { workspace = true, features = ["x11", "wayland"] }
 winit = { workspace = true }

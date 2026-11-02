@@ -5,6 +5,7 @@
 
 #[cfg(not(target_arch = "wasm32"))]
 pub mod data_root;
+pub mod fonts;
 pub mod i18n;
 pub mod keys;
 pub mod library;
@@ -197,6 +198,9 @@ impl<S: Storage + 'static> ControlWindow<S> {
             self.output_open = output::show_window(ui.ctx(), target, &mut self.screen, &state.output, &state.styles, &mut commands);
         }
 
+        // Rendering may have had to substitute a style's font; tell the engine so it is shown.
+        commands.extend(fonts::substitution_commands());
+
         let changed = sent || !commands.is_empty();
         for command in commands {
             self.driver.send(command);
@@ -258,6 +262,12 @@ fn problems(ui: &mut egui::Ui, state: &State) {
             }
             Problem::StylesUnreadable { error } => {
                 ui.colored_label(ui.visuals().error_fg_color, format!("{}: {error}", tl!("Could not import the OpenSong styles")));
+            }
+            Problem::FontSubstituted { requested, used } => {
+                ui.colored_label(
+                    ui.visuals().warn_fg_color,
+                    format!("{} “{requested}”, {} “{used}”. {}", tl!("Font not installed:"), tl!("showing"), tl!("Line breaks may differ.")),
+                );
             }
         }
     }
