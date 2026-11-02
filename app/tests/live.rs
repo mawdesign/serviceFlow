@@ -31,7 +31,7 @@ type Seen = Rc<RefCell<Arc<State>>>;
 fn harness(mut window: ControlWindow<MemoryStorage>) -> (Harness<'static>, Seen) {
     let seen: Seen = Rc::new(RefCell::new(window.state()));
     let sink = Rc::clone(&seen);
-    let harness = Harness::new_ui(move |ui| {
+    let harness = Harness::builder().with_size(egui::vec2(1200.0, 800.0)).allow_missing_glyphs().build_ui(move |ui| {
         window.ui(ui);
         *sink.borrow_mut() = window.state();
     });
