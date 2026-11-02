@@ -10,3 +10,14 @@ publish = false
 
 [lints]
 workspace = true
+
+[dependencies]
+serviceflow-core = { workspace = true }
+craft-text = { workspace = true }
+harfrust = { workspace = true }
+skrifa = { workspace = true }
+vello_cpu = { workspace = true }
+
+[dev-dependencies]
+serviceflow-testkit = { workspace = true }
+insta = { workspace = true }

@@ -49,6 +49,11 @@ web-sys = "0.3"
 # libraries
 futures = { version = "0.3", default-features = false, features = ["std", "executor"] }
 quick-xml = "0.41"
+# renderer (ADR-0005). harfrust and skrifa must share one read-fonts version.
+harfrust = "0.12"
+skrifa = "0.44"
+vello_cpu = { version = "0.2", default-features = false, features = ["std", "u8_pipeline"] }
+insta = "1"
 
 # tooling
 serde_json = "1"
