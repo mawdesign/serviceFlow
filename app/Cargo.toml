@@ -16,6 +16,7 @@ serviceflow-core = { workspace = true }
 serviceflow-storage = { workspace = true }
 serviceflow-storage-memory = { workspace = true }
 serviceflow-runtime = { workspace = true }
+serviceflow-render = { workspace = true }
 egui = { workspace = true }
 craft-window = { workspace = true }
 craft-i18n = { workspace = true }
