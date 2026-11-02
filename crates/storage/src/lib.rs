@@ -11,7 +11,7 @@
 #![allow(async_fn_in_trait)]
 
 use futures::stream::LocalBoxStream;
-pub use serviceflow_core::ids::{SetId, SongId};
+pub use serviceflow_core::ids::{ContentHash, SetId, SongId};
 
 /// An image or other media file: its path under the data root's `Backgrounds/` folder, with `/`
 /// between folders.
@@ -37,23 +37,6 @@ pub enum Key {
     Asset(AssetId),
     Sidecar(DocumentId),
     Settings(SettingsId),
-}
-
-/// A hash of a document's bytes, recorded on read so a later write can detect that the
-/// document changed underneath it.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
-pub struct ContentHash(pub u64);
-
-impl ContentHash {
-    /// FNV-1a over the bytes. Stable across platforms and runs.
-    pub fn of(bytes: &[u8]) -> Self {
-        let mut hash: u64 = 0xcbf2_9ce4_8422_2325;
-        for b in bytes {
-            hash ^= u64::from(*b);
-            hash = hash.wrapping_mul(0x0000_0100_0000_01b3);
-        }
-        Self(hash)
-    }
 }
 
 /// A document's bytes as read, with the hash of those bytes.
@@ -170,3 +153,25 @@ pub trait ChangeEvents {
 pub trait Storage: SongRepository + SetRepository + AssetRepository + SidecarRepository + SettingsRepository + ChangeEvents {}
 
 impl<T> Storage for T where T: SongRepository + SetRepository + AssetRepository + SidecarRepository + SettingsRepository + ChangeEvents {}
+
+/// `true` when OpenSong would ignore this path: any `/`-separated part starts with `.` or `_`.
+/// Hidden documents are never listed. Sidecars and temporary files rely on this (ADR-0003).
+pub fn is_ignored_path(path: &str) -> bool {
+    path.split('/').any(|part| part.starts_with('.') || part.starts_with('_'))
+}
+
+/// Check that an id is a plain relative path inside its folder: no empty, `.` or `..` parts, no
+/// backslash, colon or NUL, so it cannot name anything outside the data root. Every
+/// implementation applies this to the ids it is given.
+pub fn check_path(path: &str) -> Result<()> {
+    let bad = path.is_empty() || path.contains(['\\', '\0', ':']) || path.split('/').any(|part| part.is_empty() || part == "." || part == "..");
+    if bad { Err(StorageError::Other(format!("not a valid path inside the data root: {path:?}"))) } else { Ok(()) }
+}
+
+/// The path part of a key, for [`check_path`]. A sidecar is named by its owner's path.
+pub fn key_path(key: &Key) -> &str {
+    match key {
+        Key::Song(SongId(p)) | Key::Set(SetId(p)) | Key::Asset(AssetId(p)) | Key::Settings(SettingsId(p)) => p,
+        Key::Sidecar(DocumentId::Song(SongId(p))) | Key::Sidecar(DocumentId::Set(SetId(p))) => p,
+    }
+}

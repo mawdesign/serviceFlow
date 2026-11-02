@@ -3,7 +3,7 @@
 
 use std::sync::Arc;
 
-use crate::ids::SongId;
+use crate::ids::{ContentHash, SongId};
 use crate::song::{Slide, Song};
 
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
@@ -29,6 +29,8 @@ pub enum Problem {
 pub struct OpenSong {
     pub id: SongId,
     pub song: Arc<Song>,
+    /// Hash of the file bytes this song was parsed from, recorded on read (conflict detection).
+    pub hash: ContentHash,
     /// The song's slides in presentation order.
     pub slides: Vec<Slide>,
 }

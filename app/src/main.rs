@@ -1,28 +1,25 @@
 //! serviceFlow entry point: a native window on desktop, a canvas in the browser (trunk).
 //!
-//! Until filesystem storage lands (#4), the desktop build can preview a song from an OpenSong
-//! data root copied into memory: `serviceflow [DATA_ROOT [SONG]]`.
+//! Desktop: `serviceflow [DATA_ROOT [SONG]]`. Without arguments it opens the data root chosen
+//! last time, or asks for one on first run. `DATA_ROOT` is used for that run only. Set
+//! `SERVICEFLOW_CONFIG_DIR=` (empty) to keep settings in memory only.
 
 #[cfg(not(target_arch = "wasm32"))]
 fn main() -> Result<(), Box<dyn std::error::Error>> {
+    use serviceflow::data_root::DesktopApp;
     use serviceflow_core::command::Command;
     use serviceflow_core::ids::SongId;
-    use serviceflow_runtime::Driver;
-    use serviceflow_storage_memory::MemoryStorage;
 
     let mut args = std::env::args().skip(1);
-    let storage = match args.next() {
-        Some(root) => MemoryStorage::from_data_root(std::path::Path::new(&root)).unwrap_or_else(|e| {
-            eprintln!("serviceflow: cannot read data root {root}: {e}");
-            std::process::exit(2);
-        }),
-        None => MemoryStorage::new(),
-    };
-    let mut driver = Driver::new(storage);
-    if let Some(song) = args.next() {
-        driver.send(Command::OpenSong(SongId::new(song)));
-    }
-    serviceflow::native::run(driver)
+    let root = args.next().map(std::path::PathBuf::from);
+    let song = args.next();
+    serviceflow::native::run(move |ctx, monitors| {
+        let mut app = DesktopApp::new(ctx, craft_settings::Location::Auto, root).with_monitors(monitors);
+        if let (Some(song), Some(window)) = (song, app.window()) {
+            window.driver().send(Command::OpenSong(SongId::new(song)));
+        }
+        app
+    })
 }
 
 #[cfg(target_arch = "wasm32")]

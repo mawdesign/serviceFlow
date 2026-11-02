@@ -29,12 +29,12 @@ impl Engine {
                 state.loading = Some(id.clone());
                 vec![Effect::LoadSong(id)]
             }
-            Command::SongLoaded { id, song } => {
+            Command::SongLoaded { id, song, hash } => {
                 // A result for a song that is no longer wanted (another was opened since) is dropped.
                 if state.loading.as_ref() == Some(&id) {
                     state.loading = None;
                     let slides = song.slides();
-                    state.song = Some(OpenSong { id, song, slides });
+                    state.song = Some(OpenSong { id, song, hash, slides });
                 }
                 Vec::new()
             }

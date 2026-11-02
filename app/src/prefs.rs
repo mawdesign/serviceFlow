@@ -9,6 +9,14 @@ use crate::monitors::MonitorChoice;
 #[serde(default)]
 pub struct Prefs {
     pub output: OutputPrefs,
+    pub library: LibraryPrefs,
+}
+
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(default)]
+pub struct LibraryPrefs {
+    /// The OpenSong data root last chosen by the operator.
+    pub data_root: Option<std::path::PathBuf>,
 }
 
 #[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]

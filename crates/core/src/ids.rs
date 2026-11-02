@@ -41,3 +41,20 @@ impl std::fmt::Display for SetId {
         f.write_str(&self.0)
     }
 }
+
+/// A hash of a document's bytes, recorded on read so a later write can detect that the
+/// document changed underneath it.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub struct ContentHash(pub u64);
+
+impl ContentHash {
+    /// FNV-1a over the bytes. Stable across platforms and runs.
+    pub fn of(bytes: &[u8]) -> Self {
+        let mut hash: u64 = 0xcbf2_9ce4_8422_2325;
+        for b in bytes {
+            hash ^= u64::from(*b);
+            hash = hash.wrapping_mul(0x0000_0100_0000_01b3);
+        }
+        Self(hash)
+    }
+}

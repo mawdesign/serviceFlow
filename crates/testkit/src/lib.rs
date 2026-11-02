@@ -10,6 +10,14 @@ pub use engine::EngineHarness;
 /// Run a future to completion on the current thread. Storage and engine futures are not `Send`.
 pub use futures::executor::block_on;
 
+/// A fresh temporary folder, removed when dropped. Use it as an empty data root.
+pub use tempfile::TempDir;
+
+/// Make a new empty [`TempDir`].
+pub fn temp_dir() -> TempDir {
+    tempfile::tempdir().expect("creating a temporary folder")
+}
+
 /// The workspace `tests/fixtures` folder, located relative to this crate's manifest so tests
 /// work from any crate and any working directory.
 pub fn fixtures_dir() -> PathBuf {

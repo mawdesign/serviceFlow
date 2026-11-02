@@ -3,6 +3,8 @@
 //! The shell is thin (ADR-0001): each frame it pumps the runtime, reads one immutable state
 //! snapshot, draws it, and turns operator actions into commands.
 
+#[cfg(not(target_arch = "wasm32"))]
+pub mod data_root;
 pub mod i18n;
 pub mod keys;
 pub mod monitors;
@@ -76,6 +78,11 @@ impl<S: Storage + 'static> ControlWindow<S> {
     /// The current state snapshot.
     pub fn state(&self) -> std::sync::Arc<State> {
         self.driver.snapshot()
+    }
+
+    /// The runtime behind the window, to send commands to it.
+    pub fn driver(&mut self) -> &mut Driver<S> {
+        &mut self.driver
     }
 
     pub fn ui(&mut self, ui: &mut egui::Ui) {
