@@ -14,6 +14,7 @@ pub mod monitors;
 pub mod native;
 pub mod output;
 pub mod prefs;
+pub mod set_panel;
 pub mod thumbnails;
 #[cfg(target_arch = "wasm32")]
 pub mod web;
@@ -51,6 +52,7 @@ pub struct ControlWindow<S> {
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum Panel {
     Library,
+    Set,
     Slides,
 }
 
@@ -59,7 +61,12 @@ fn default_dock() -> Layout<Panel> {
         root: Some(Node::Split {
             axis: SplitAxis::Horizontal,
             size: SplitSize::Ratio(0.28),
-            first: Box::new(Node::Tabs { panels: vec![Panel::Library], active: 0 }),
+            first: Box::new(Node::Split {
+                axis: SplitAxis::Vertical,
+                size: SplitSize::Ratio(0.5),
+                first: Box::new(Node::Tabs { panels: vec![Panel::Set], active: 0 }),
+                second: Box::new(Node::Tabs { panels: vec![Panel::Library], active: 0 }),
+            }),
             second: Box::new(Node::Tabs { panels: vec![Panel::Slides], active: 0 }),
         }),
         floating: Vec::new(),
@@ -78,6 +85,7 @@ impl DockContent<Panel> for Panels<'_> {
     fn body(&mut self, ui: &mut egui::Ui, panel: &Panel) {
         match panel {
             Panel::Library => self.library.ui(ui, self.state, self.commands),
+            Panel::Set => set_panel::ui(ui, self.state, self.commands),
             Panel::Slides => slides(ui, self.state, self.thumbnails, self.commands),
         }
     }
@@ -85,6 +93,7 @@ impl DockContent<Panel> for Panels<'_> {
     fn logical_label(&self, panel: &Panel) -> String {
         match panel {
             Panel::Library => tl!("Library").to_string(),
+            Panel::Set => tl!("Set").to_string(),
             Panel::Slides => tl!("Slides").to_string(),
         }
     }
@@ -102,6 +111,7 @@ impl<S: Storage + 'static> ControlWindow<S> {
     pub fn new(mut driver: Driver<S>) -> Self {
         // Start listing and indexing the library in the background; the window is usable meanwhile.
         driver.send(Command::RefreshLibrary);
+        driver.send(Command::RefreshSets);
         // First run: slides look like the congregation's OpenSong from the start.
         driver.send(Command::ImportOpenSongStyles { trigger: ImportTrigger::FirstRun });
         Self {
@@ -263,6 +273,9 @@ fn problems(ui: &mut egui::Ui, state: &State) {
             Problem::StylesUnreadable { error } => {
                 ui.colored_label(ui.visuals().error_fg_color, format!("{}: {error}", tl!("Could not import the OpenSong styles")));
             }
+            Problem::SetUnreadable { id, error } => {
+                ui.colored_label(ui.visuals().error_fg_color, format!("{} “{id}”: {error}", tl!("Could not open the set")));
+            }
             Problem::FontSubstituted { requested, used } => {
                 ui.colored_label(
                     ui.visuals().warn_fg_color,
@@ -274,8 +287,27 @@ fn problems(ui: &mut egui::Ui, state: &State) {
 }
 
 fn slides(ui: &mut egui::Ui, state: &State, thumbnails: &mut thumbnails::Thumbnails, commands: &mut Vec<Command>) {
+    // Operator notes of the selected set item sit under the grid and are never projected.
+    let notes = state.set.as_ref().and_then(|set| set.set.items.get(set.selected?)).map(|item| item.notes.as_str()).filter(|n| !n.trim().is_empty());
+    ui.with_layout(egui::Layout::bottom_up(egui::Align::Min), |ui| {
+        if let Some(notes) = notes {
+            ui.group(|ui| {
+                ui.set_width(ui.available_width());
+                ui.label(egui::RichText::new(tl!("Notes")).weak());
+                ui.label(notes);
+            });
+        }
+        ui.with_layout(egui::Layout::top_down(egui::Align::Min), |ui| slide_grid(ui, state, thumbnails, commands));
+    });
+}
+
+fn slide_grid(ui: &mut egui::Ui, state: &State, thumbnails: &mut thumbnails::Thumbnails, commands: &mut Vec<Command>) {
     let Some(open) = &state.song else {
-        ui.label(if state.loading.is_some() { tl!("Loading…") } else { tl!("No song is open.") });
+        if state.set.as_ref().is_some_and(|set| set.selected.is_some()) && state.loading.is_none() {
+            set_panel::placeholder(ui, state, commands);
+        } else {
+            ui.label(if state.loading.is_some() { tl!("Loading…") } else { tl!("No song is open.") });
+        }
         return;
     };
     ui.label(egui::RichText::new(&open.song.title).strong());

@@ -1,0 +1,19 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<set name="Sunday Service">
+  <slide_groups>
+    <slide_group name="It Is Well With My Soul" type="song" path="" presentation="V1 C V4 C">
+      <notes>Start softly. Band joins at the chorus.</notes>
+    </slide_group>
+    <slide_group name="Amazing Grace HOF#50" type="song" path=""/>
+    <slide_group name="Psalm 23" type="scripture">
+      <title>Psalm 23</title>
+      <subtitle>NIV</subtitle>
+      <slides><slide><body>The Lord is my shepherd.</body></slide></slides>
+      <notes>Read by Sam.</notes>
+    </slide_group>
+    <slide_group name="Old Hymn That Was Renamed" type="song" path="Hymns/">
+      <notes>Check the key.</notes>
+    </slide_group>
+    <slide_group name="Slides" type="external" application="presentation" filename="talk.pptx"/>
+  </slide_groups>
+</set>

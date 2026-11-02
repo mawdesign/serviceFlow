@@ -4,8 +4,9 @@
 use std::collections::VecDeque;
 use std::sync::Arc;
 
-use crate::ids::{ContentHash, SongId};
+use crate::ids::{ContentHash, SetId, SongId};
 use crate::search::SearchIndex;
+use crate::set::Set;
 use crate::song::{Slide, SlideOptions, Song};
 use crate::style::Styles;
 
@@ -26,6 +27,46 @@ pub struct State {
     pub problems: Vec<Problem>,
     /// How lyrics become slides, for every song opened.
     pub slide_options: SlideOptions,
+    /// Every set in `Sets/`, sorted.
+    pub sets: Vec<SetId>,
+    /// The open set (GLOSSARY "Set"), if any.
+    pub set: Option<OpenSet>,
+    /// A set that has been asked for and is still loading.
+    pub loading_set: Option<SetId>,
+}
+
+/// The open set and where the operator is in it.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct OpenSet {
+    pub id: SetId,
+    pub set: Arc<Set>,
+    /// The item whose slides are shown. Opening a song straight from the library clears it.
+    pub selected: Option<usize>,
+    /// Songs the set refers to that are not in the library (known once the check has run).
+    pub missing: Vec<SongId>,
+    /// The song item being relinked: the library search is for its replacement.
+    pub relinking: Option<usize>,
+    /// What to send live once the selected item's song has loaded (moving on from the end of
+    /// the previous item).
+    pub(crate) pending: Option<Pending>,
+}
+
+/// Which slide to send live when a song loads.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) enum Pending {
+    First,
+    Last,
+}
+
+impl OpenSet {
+    pub(crate) fn new(id: SetId, set: Arc<Set>) -> Self {
+        Self { id, set, selected: None, missing: Vec::new(), relinking: None, pending: None }
+    }
+
+    /// Whether item `index` is a song item whose song is not in the library.
+    pub fn is_missing(&self, index: usize) -> bool {
+        self.set.items.get(index).and_then(|item| item.song_id()).is_some_and(|id| self.missing.contains(&id))
+    }
 }
 
 /// Something that went wrong, for the operator. Structured so the UI words it (through i18n).
@@ -40,6 +81,8 @@ pub enum Problem {
     /// A style names a font that is not installed, so slides use `used` instead (which may wrap
     /// text differently if it does not have the same measurements).
     FontSubstituted { requested: String, used: String },
+    /// A set could not be read or parsed.
+    SetUnreadable { id: SetId, error: String },
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
