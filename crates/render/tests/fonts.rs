@@ -157,7 +157,7 @@ fn fixture_frames(song: &str, style: &Style) -> (Renderer, Vec<Frame>) {
 
 #[test]
 fn the_cjk_fixture_songs_have_no_missing_glyphs_in_any_style() {
-    for song in ["一件礼物 A Gift","How Deep the Fathers Love + Chinese"] {
+    for song in ["一件礼物 A Gift", "How Deep the Fathers Love + Chinese"] {
         for font in ["Liberation Sans", "Calibri", "Times New Roman", "Not Installed Anywhere"] {
             let (_, frames) = fixture_frames(song, &style_with(font));
             assert!(!frames.is_empty(), "{song}");
