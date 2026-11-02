@@ -8,5 +8,13 @@ rust-version.workspace = true
 repository.workspace = true
 publish = false
 
+[dependencies]
+serviceflow-storage = { workspace = true }
+craft-atomic = { workspace = true }
+futures = { workspace = true }
+
+[dev-dependencies]
+serviceflow-testkit = { workspace = true }
+
 [lints]
 workspace = true
