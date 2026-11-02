@@ -10,8 +10,7 @@ use harfrust::{Direction, FontRef, ShapeOptions, ShaperData, UnicodeBuffer};
 use skrifa::MetadataProvider as _;
 use skrifa::instance::{LocationRef, Size};
 
-/// The family name of the built-in face.
-pub const BUILTIN_FAMILY: &str = "Liberation Sans";
+use serviceflow_core::style::BUILTIN_FAMILY;
 
 static LIBERATION_SANS: &[u8] = include_bytes!("../fonts/LiberationSans-Regular.ttf");
 

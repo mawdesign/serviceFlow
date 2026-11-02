@@ -1,0 +1,20 @@
+---
+source: crates/render/tests/style.rs
+expression: frame.snapshot()
+---
+frame 1920x1080 background Rgba { r: 255, g: 255, b: 255, a: 255 }
+box Title at (38.4, 792.0) size 1843.2x100.8
+  line Title "It Is Well With My Soul" size 84.0 x 540.7 baseline 871.5 width 838.6
+    run font 0 rtl false color Rgba { r: 0, g: 0, b: 0, a: 255 } fx Effects { outline: Some((Rgba { r: 252, g: 252, b: 252, a: 255 }, 6.0)), shadow: None, fill: None, underline: true }: 44@540.7 87@564.0 3@587.4 44@610.7 86@634.0 3@676.0 58@699.4 72@777.2 79@823.9 79@842.5 3@861.2 58@884.5 76@963.8 87@982.5 75@1005.8 3@1052.5 48@1075.9 92@1145.8 3@1187.8 54@1211.2 82@1267.2 88@1313.9 79@1360.6
+box Subtitle at (38.4, 969.6) size 1843.2x72.0
+  line Subtitle "Horatio Spafford and Philip Bliss" size 60.0 x 530.3 baseline 1026.4 width 859.4
+    run font 0 rtl false color Rgba { r: 0, g: 0, b: 0, a: 255 }: 43@530.3 82@573.6 85@607.0 68@627.0 87@660.4 76@677.0 82@690.4 3@723.7 54@740.4 83@780.4 68@813.8 73@847.2 73@862.7 82@879.4 85@912.8 71@932.8 3@966.1 68@982.8 81@1016.2 71@1049.5 3@1082.9 51@1099.6 75@1139.6 76@1173.0 79@1186.3 76@1199.6 83@1213.0 3@1246.3 37@1263.0 79@1303.0 76@1316.4 86@1329.7 86@1359.7
+box Body at (38.4, 38.4) size 1843.2x715.2
+  line Lyric "When peace like a river" size 108.0 x 395.7 baseline 140.6 width 1128.5
+    run font 0 rtl false color Rgba { r: 0, g: 0, b: 0, a: 255 } fx Effects { outline: Some((Rgba { r: 252, g: 252, b: 252, a: 255 }, 6.0)), shadow: None, fill: None, underline: false }: 58@395.7 75@497.7 72@557.7 81@617.8 3@677.9 83@707.9 72@767.9 68@828.0 70@888.1 72@942.1 3@1002.1 79@1032.1 76@1056.1 78@1080.1 72@1134.1 3@1194.2 68@1224.2 3@1284.3 85@1314.3 76@1350.2 89@1374.2 72@1428.2 85@1488.3
+  line Lyric "attendeth my way," size 108.0 x 525.8 baseline 270.2 width 868.4
+    run font 0 rtl false color Rgba { r: 0, g: 0, b: 0, a: 255 } fx Effects { outline: Some((Rgba { r: 252, g: 252, b: 252, a: 255 }, 6.0)), shadow: None, fill: None, underline: false }: 68@525.8 87@585.8 87@615.9 72@645.9 81@705.9 71@766.0 72@826.1 87@886.1 75@916.1 3@976.2 80@1006.2 92@1096.2 3@1150.2 90@1180.2 68@1258.2 92@1318.2 15@1364.2
+  line Lyric "When sorrows like" size 108.0 x 518.9 baseline 399.8 width 882.2
+    run font 0 rtl false color Rgba { r: 0, g: 0, b: 0, a: 255 } fx Effects { outline: Some((Rgba { r: 252, g: 252, b: 252, a: 255 }, 6.0)), shadow: None, fill: None, underline: false }: 58@518.9 75@620.8 72@680.9 81@740.9 3@801.0 86@831.0 82@885.0 85@945.1 85@981.0 82@1017.0 90@1077.1 86@1155.1 3@1209.1 79@1239.1 76@1263.1 78@1287.1 72@1341.1
+  line Lyric "sea billows roll..." size 108.0 x 563.9 baseline 529.4 width 792.3
+    run font 0 rtl false color Rgba { r: 0, g: 0, b: 0, a: 255 } fx Effects { outline: Some((Rgba { r: 252, g: 252, b: 252, a: 255 }, 6.0)), shadow: None, fill: None, underline: false }: 86@563.9 72@617.9 68@677.9 3@738.0 69@768.0 76@828.1 79@852.1 79@876.0 82@900.0 90@960.1 86@1038.1 3@1092.1 85@1122.1 82@1158.1 79@1218.1 79@1242.1 17@1266.1 17@1296.1 17@1326.1

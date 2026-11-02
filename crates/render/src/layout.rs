@@ -10,9 +10,9 @@ use craft_text::bidi::{Direction, Paragraph};
 use craft_text::linebreak::{Item, Params, Rag, break_paragraph};
 use craft_text::segment::{Options, line_breaks};
 use serviceflow_core::song::Slide;
+use serviceflow_core::style::{Align, Captions, REFERENCE_HEIGHT, Rgba, Style, TextStyle, VAlign};
 
 use crate::fonts::{FontId, Fonts};
-use crate::style::{Align, REFERENCE_HEIGHT, Rgba, Style, TextStyle, VAlign};
 
 /// Distance between baselines, as a multiple of the font size.
 pub const LINE_PITCH: f32 = 1.2;
@@ -45,6 +45,10 @@ pub struct Frame {
 pub enum BoxRole {
     /// The slide's lyrics.
     Body,
+    /// The song title.
+    Title,
+    /// The song subtitle (author and so on).
+    Subtitle,
 }
 
 /// A box of lines placed on the frame.
@@ -60,6 +64,8 @@ pub struct TextBox {
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub enum LineRole {
     Lyric,
+    Title,
+    Subtitle,
 }
 
 /// One line of text as placed.
@@ -91,7 +97,20 @@ pub struct GlyphRun {
     pub font_size: f32,
     pub color: Rgba,
     pub rtl: bool,
+    pub effects: Effects,
     pub glyphs: Vec<Glyph>,
+}
+
+/// What is drawn around and behind a run's glyphs. Lengths are output pixels.
+#[derive(Clone, Copy, Debug, Default, PartialEq)]
+pub struct Effects {
+    /// Outline colour and thickness (the stroke grows this far outside the glyph).
+    pub outline: Option<(Rgba, f32)>,
+    /// Drop shadow colour. Its offset is derived from the font size at draw time.
+    pub shadow: Option<Rgba>,
+    /// A solid box behind the line.
+    pub fill: Option<Rgba>,
+    pub underline: bool,
 }
 
 /// A glyph's origin (on the baseline).
@@ -123,7 +142,8 @@ impl Frame {
                 );
                 for run in &l.runs {
                     let glyphs: Vec<String> = run.glyphs.iter().map(|g| format!("{}@{}", g.id, r(g.x))).collect();
-                    let _ = writeln!(out, "    run font {} rtl {} color {:?}: {}", run.font.0, run.rtl, run.color, glyphs.join(" "));
+                    let fx = if run.effects == Effects::default() { String::new() } else { format!(" fx {:?}", run.effects) };
+                    let _ = writeln!(out, "    run font {} rtl {} color {:?}{}: {}", run.font.0, run.rtl, run.color, fx, glyphs.join(" "));
                 }
             }
         }
@@ -132,31 +152,132 @@ impl Frame {
 }
 
 /// Lays out `slide` with `style` for a frame of `size`.
-pub(crate) fn layout(fonts: &Fonts, slide: &Slide, style: &Style, size: Size) -> Frame {
+///
+/// The title and subtitle boxes are placed first, stacked from the top or the bottom of the frame
+/// as their vertical alignment says; the body gets what is left. With auto-scale on, the body's
+/// text shrinks (never grows) until it fits.
+pub(crate) fn layout(fonts: &Fonts, slide: &Slide, captions: &Captions, style: &Style, size: Size) -> Frame {
     let scale = size.height as f32 / REFERENCE_HEIGHT;
-    let body = text_box(fonts, BoxRole::Body, LineRole::Lyric, &slide.lines, &style.body, size, scale);
-    Frame { size, background: style.background, boxes: vec![body] }
-}
+    let (w, h) = (size.width as f32, size.height as f32);
+    let thickness = style.outline_thickness * scale;
 
-fn text_box(fonts: &Fonts, role: BoxRole, line_role: LineRole, lines: &[String], style: &TextStyle, size: Size, scale: f32) -> TextBox {
-    let m = style.margins;
-    let rect = Rect {
-        x: m.left * scale,
-        y: m.top * scale,
-        width: (size.width as f32 - (m.left + m.right) * scale).max(0.0),
-        height: (size.height as f32 - (m.top + m.bottom) * scale).max(0.0),
-    };
-    let font = fonts.resolve(&style.font);
-    let px = style.size * scale;
-
-    // Each lyric line is a paragraph; `|` inside it forces a break.
-    let mut placed: Vec<Line> = Vec::new();
-    for paragraph in lines.iter().flat_map(|l| l.split('|')) {
-        for range in break_lines(fonts, font, paragraph, px, rect.width) {
-            placed.push(place_line(fonts, font, paragraph, range, px, style.color, line_role));
+    let caption_boxes: [(BoxRole, LineRole, &TextStyle, &str); 2] = [
+        (BoxRole::Title, LineRole::Title, &style.title.text, &captions.title),
+        (BoxRole::Subtitle, LineRole::Subtitle, &style.subtitle.text, &captions.subtitle),
+    ];
+    // Shape each shown caption; its block height decides where it goes.
+    let mut shown: Vec<(BoxRole, &TextStyle, Vec<Line>, f32)> = Vec::new();
+    for (role, line_role, text_style, text) in caption_boxes {
+        if !text_style.enabled || text.trim().is_empty() {
+            continue;
         }
+        let m = text_style.margins;
+        let width = (w - (m.left + m.right) * scale).max(0.0);
+        let lines = shape(fonts, line_role, std::slice::from_ref(&text.to_owned()), text_style, text_style.size * scale, width, thickness);
+        let block = lines.len() as f32 * text_style.size * scale * LINE_PITCH;
+        shown.push((role, text_style, lines, block));
     }
 
+    let (mut top, mut bottom) = (0.0_f32, h);
+    let mut placed: Vec<TextBox> = Vec::new();
+    let count = shown.len();
+    // Top-aligned boxes stack downwards in order; bottom-aligned ones stack upwards, so the
+    // last one (the subtitle) sits lowest.
+    for i in 0..count {
+        let (role, st, lines, block) = &mut shown[i];
+        if st.valign == VAlign::Bottom {
+            continue;
+        }
+        let m = st.margins;
+        let y = top + m.top * scale;
+        top = y + *block + m.bottom * scale;
+        placed.push(finish(fonts, *role, st, std::mem::take(lines), rect_at(m.left * scale, y, w - (m.left + m.right) * scale, *block), scale));
+    }
+    for i in (0..count).rev() {
+        let (role, st, lines, block) = &mut shown[i];
+        if st.valign != VAlign::Bottom {
+            continue;
+        }
+        let m = st.margins;
+        let y = bottom - m.bottom * scale - *block;
+        bottom = y - m.top * scale;
+        placed.push(finish(fonts, *role, st, std::mem::take(lines), rect_at(m.left * scale, y, w - (m.left + m.right) * scale, *block), scale));
+    }
+    placed.sort_by_key(|b| b.role != BoxRole::Title);
+
+    // The body: what remains between the captions, inside its own margins.
+    let m = style.body.text.margins;
+    let top = top.max(m.top * scale);
+    let bottom = bottom.min(h - m.bottom * scale);
+    let rect = rect_at(m.left * scale, top, w - (m.left + m.right) * scale, (bottom - top).max(0.0));
+    placed.push(body_box(fonts, &slide.lines, style, rect, scale, thickness));
+    Frame { size, background: style.background.color, boxes: placed }
+}
+
+fn rect_at(x: f32, y: f32, width: f32, height: f32) -> Rect {
+    Rect { x, y, width: width.max(0.0), height: height.max(0.0) }
+}
+
+/// The smallest factor auto-scale will shrink text to.
+const MIN_AUTO_SCALE: f32 = 0.1;
+
+/// Lay the body's lines out in `rect`, shrinking them to fit when the style auto-scales.
+fn body_box(fonts: &Fonts, lines: &[String], style: &Style, rect: Rect, scale: f32, thickness: f32) -> TextBox {
+    let text = &style.body.text;
+    let at = |factor: f32| shape(fonts, LineRole::Lyric, lines, text, text.size * scale * factor, rect.width, thickness);
+    let fits = |shaped: &[Line], factor: f32| {
+        let height = shaped.len() as f32 * text.size * scale * factor * LINE_PITCH;
+        height <= rect.height + 0.01 && shaped.iter().all(|l| l.width <= rect.width + 0.5)
+    };
+    let mut factor = 1.0_f32;
+    let mut shaped = at(factor);
+    if style.body.auto_scale && !fits(&shaped, factor) {
+        // Binary search for the largest factor that fits (DeckCraft's 12 steps).
+        let (mut lo, mut hi) = (MIN_AUTO_SCALE, 1.0_f32);
+        let mut best = None;
+        for _ in 0..12 {
+            let mid = (lo + hi) / 2.0;
+            let candidate = at(mid);
+            if fits(&candidate, mid) {
+                best = Some((mid, candidate));
+                lo = mid;
+            } else {
+                hi = mid;
+            }
+        }
+        (factor, shaped) = best.unwrap_or_else(|| (MIN_AUTO_SCALE, at(MIN_AUTO_SCALE)));
+    }
+    place(fonts, &mut shaped, text, rect, text.size * scale * factor);
+    TextBox { role: BoxRole::Body, rect, lines: shaped }
+}
+
+/// Place a caption's lines in a rect that is exactly as tall as they are.
+fn finish(fonts: &Fonts, role: BoxRole, style: &TextStyle, mut lines: Vec<Line>, rect: Rect, scale: f32) -> TextBox {
+    place(fonts, &mut lines, style, rect, style.size * scale);
+    TextBox { role, rect, lines }
+}
+
+/// Breaks and shapes lines at `px`, relative to each line's own origin. `|` forces a break.
+fn shape(fonts: &Fonts, role: LineRole, lines: &[String], style: &TextStyle, px: f32, measure: f32, thickness: f32) -> Vec<Line> {
+    let font = fonts.resolve(&style.font);
+    let effects = Effects {
+        outline: style.outline.then_some((style.outline_color, thickness)),
+        shadow: style.shadow.then_some(style.shadow_color),
+        fill: style.fill.then_some(style.fill_color),
+        underline: style.underline,
+    };
+    let mut placed = Vec::new();
+    for paragraph in lines.iter().flat_map(|l| l.split('|')) {
+        for range in break_lines(fonts, font, paragraph, px, measure) {
+            placed.push(place_line(fonts, font, paragraph, range, px, style.color, role, effects));
+        }
+    }
+    placed
+}
+
+/// Put shaped lines in `rect`: the block by the vertical alignment, each line by the horizontal.
+fn place(fonts: &Fonts, placed: &mut [Line], style: &TextStyle, rect: Rect, px: f32) {
+    let font = fonts.resolve(&style.font);
     let pitch = px * LINE_PITCH;
     let block = pitch * placed.len() as f32;
     let top = match style.valign {
@@ -182,7 +303,6 @@ fn text_box(fonts: &Fonts, role: BoxRole, line_role: LineRole, lines: &[String],
             }
         }
     }
-    TextBox { role, rect, lines: placed }
 }
 
 /// Breaks one paragraph into lines no wider than `measure` (except single words that are
@@ -243,7 +363,8 @@ fn break_lines(fonts: &Fonts, font: FontId, text: &str, px: f32, measure: f32) -
 
 /// Shapes one line in visual order, relative to its own origin (x 0 at the left of the line,
 /// y 0 on the baseline).
-fn place_line(fonts: &Fonts, font: FontId, paragraph: &str, range: Range<usize>, px: f32, color: Rgba, role: LineRole) -> Line {
+#[allow(clippy::too_many_arguments)]
+fn place_line(fonts: &Fonts, font: FontId, paragraph: &str, range: Range<usize>, px: f32, color: Rgba, role: LineRole, effects: Effects) -> Line {
     let bidi = Paragraph::new(paragraph, Direction::Auto);
     let mut pen = 0.0;
     let mut runs = Vec::new();
@@ -258,7 +379,7 @@ fn place_line(fonts: &Fonts, font: FontId, paragraph: &str, range: Range<usize>,
                 glyph
             })
             .collect();
-        runs.push(GlyphRun { font, font_size: px, color, rtl, glyphs });
+        runs.push(GlyphRun { font, font_size: px, color, rtl, effects, glyphs });
     }
     Line { role, text: paragraph[range].to_owned(), font_size: px, x: 0.0, baseline: 0.0, width: pen, runs }
 }
