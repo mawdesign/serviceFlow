@@ -4,21 +4,27 @@
 //! snapshot, draws it, and turns operator actions into commands.
 
 pub mod i18n;
+pub mod thumbnails;
 #[cfg(target_arch = "wasm32")]
 pub mod web;
 
 use serviceflow_core::state::{Problem, State};
+use serviceflow_render::Size;
 use serviceflow_runtime::Driver;
 use serviceflow_storage::Storage;
 
 /// The control window: where the operator builds and runs the service.
 pub struct ControlWindow<S> {
     driver: Driver<S>,
+    thumbnails: thumbnails::Thumbnails,
 }
+
+/// Thumbnail width in points; thumbnails are 16:9.
+const THUMBNAIL_WIDTH: f32 = 240.0;
 
 impl<S: Storage + 'static> ControlWindow<S> {
     pub fn new(driver: Driver<S>) -> Self {
-        Self { driver }
+        Self { driver, thumbnails: thumbnails::Thumbnails::default() }
     }
 
     pub fn ui(&mut self, ui: &mut egui::Ui) {
@@ -31,7 +37,7 @@ impl<S: Storage + 'static> ControlWindow<S> {
         egui::CentralPanel::default().show(ui, |ui| {
             ui.heading(tl!("serviceFlow"));
             problems(ui, &state);
-            slides(ui, &state);
+            slides(ui, &state, &mut self.thumbnails);
         });
     }
 }
@@ -46,19 +52,25 @@ fn problems(ui: &mut egui::Ui, state: &State) {
     }
 }
 
-fn slides(ui: &mut egui::Ui, state: &State) {
+fn slides(ui: &mut egui::Ui, state: &State, thumbnails: &mut thumbnails::Thumbnails) {
     let Some(open) = &state.song else {
         ui.label(if state.loading.is_some() { tl!("Loading…") } else { tl!("No song is open.") });
         return;
     };
     ui.label(egui::RichText::new(&open.song.title).strong());
+    let points = egui::vec2(THUMBNAIL_WIDTH, THUMBNAIL_WIDTH * 9.0 / 16.0);
+    let pixels = points * ui.ctx().pixels_per_point();
+    let size = Size { width: pixels.x.round() as u32, height: pixels.y.round() as u32 };
+    let textures = thumbnails.for_song(ui.ctx(), open, size);
     egui::ScrollArea::vertical().show(ui, |ui| {
-        for slide in &open.slides {
-            ui.group(|ui| {
-                ui.label(egui::RichText::new(&slide.section).weak());
-                ui.label(slide.lines.join("\n"));
-            });
-        }
+        ui.horizontal_wrapped(|ui| {
+            for (slide, texture) in open.slides.iter().zip(textures) {
+                ui.vertical(|ui| {
+                    ui.add(egui::Image::from_texture((texture.id(), points)).alt_text(slide.lines.join("\n")));
+                    ui.label(egui::RichText::new(&slide.section).weak());
+                });
+            }
+        });
     });
 }
 
