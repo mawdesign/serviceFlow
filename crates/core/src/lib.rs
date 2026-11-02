@@ -3,3 +3,5 @@
 //!
 //! Layering: must not depend on egui, eframe, winit, UI craft crates or any concrete storage
 //! implementation (`cargo xtask layers`).
+
+pub mod song;

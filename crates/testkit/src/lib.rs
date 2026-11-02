@@ -13,3 +13,9 @@ pub fn fixtures_dir() -> PathBuf {
 pub fn opensong_data_root() -> PathBuf {
     fixtures_dir().join("opensong")
 }
+
+/// The bytes of a fixture song, by its song filename under `tests/fixtures/opensong/Songs`.
+pub fn fixture_song(filename: &str) -> Vec<u8> {
+    let path = opensong_data_root().join("Songs").join(filename);
+    std::fs::read(&path).unwrap_or_else(|e| panic!("reading fixture song {}: {e}", path.display()))
+}

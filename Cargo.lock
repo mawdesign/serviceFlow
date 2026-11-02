@@ -2479,6 +2479,11 @@ version = "0.1.0"
 [[package]]
 name = "serviceflow-opensong"
 version = "0.1.0"
+dependencies = [
+ "quick-xml",
+ "serviceflow-core",
+ "serviceflow-testkit",
+]
 
 [[package]]
 name = "serviceflow-render"
