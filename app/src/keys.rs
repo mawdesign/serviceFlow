@@ -18,6 +18,7 @@ const BINDINGS: &[(Key, Command)] = &[
     (Key::PageUp, Command::PreviousSlide),
     (Key::B, Command::ToggleBlack),
     (Key::W, Command::ToggleBlank),
+    (Key::L, Command::ToggleLogo),
 ];
 
 /// The live commands for the keys pressed this frame in the current viewport. The keys are

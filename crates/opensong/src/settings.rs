@@ -1,6 +1,9 @@
 //! `Settings/PresentSettings` (opensong.md §9, §10, §13): read-only import of the default and
 //! scripture styles. serviceFlow never writes OpenSong's settings files.
 
+use std::sync::Arc;
+
+use serviceflow_core::output::{InitialMode, Logo, OutputSettings, SlideColors, SlideKind};
 use serviceflow_core::style::{Align, ImagePosition, ImageSource, Margins, Rgba, Style, Styles, SubtitleField, TextStyle, VAlign};
 
 use crate::CodecError;
@@ -153,4 +156,65 @@ fn parse_colour(text: &str) -> Option<Rgba> {
     let byte = |i: usize| u8::from_str_radix(&hex[i..i + 2], 16).ok();
     let alpha = if hex.len() == 8 { 255 - byte(6)? } else { 255 };
     Some(Rgba { r: byte(0)?, g: byte(2)?, b: byte(4)?, a: alpha })
+}
+
+/// Read how the output behaves from PresentSettings: logo, initial monitor and mode,
+/// transitions and blanks. A missing element or attribute keeps the default.
+pub fn read_output_settings(bytes: &[u8]) -> Result<OutputSettings, CodecError> {
+    let root = xml::parse(bytes)?;
+    if root.name != "present_settings" {
+        return Err(CodecError(format!("not present settings: root element is <{}>", root.name)));
+    }
+    let mut s = OutputSettings::default();
+    if let Some(style) = root.child("style") {
+        s.initial_mode = match style.attr("initial_mode").map(|m| m.trim().to_ascii_uppercase()).as_deref() {
+            Some("B") => InitialMode::Black,
+            Some("H") => InitialMode::Blank,
+            Some("L") => InitialMode::Logo,
+            _ => InitialMode::Normal,
+        };
+        s.blanks = flag(style, "blanks", s.blanks);
+        s.blank_uses_next = flag(style, "blank_uses_next", s.blank_uses_next);
+        s.transition = flag(style, "transition", s.transition);
+        // OpenSong treats a time of 0 as 100 ms.
+        s.transition_ms = number(style, "transition_time").filter(|t| *t >= 1.0).map_or(100, |t| t as u32);
+    }
+    // Screen numbers are 1-based.
+    s.monitor = root.child("monitors").and_then(|m| number(m, "present")).filter(|n| *n >= 1.0).map(|n| n as usize - 1);
+    let data = |name: &str| {
+        let text: String = root.child(name).map(Element::text).unwrap_or_default().split_whitespace().collect();
+        (!text.is_empty()).then(|| Arc::<str>::from(text))
+    };
+    s.logo = data("logo").map(|image| Logo { image, mask: data("logo_mask") });
+    Ok(s)
+}
+
+/// Read the thumbnail colours by slide kind from MainSettings (`slide_style_color`).
+pub fn read_slide_colors(bytes: &[u8]) -> Result<SlideColors, CodecError> {
+    let root = xml::parse(bytes)?;
+    if root.name != "main_settings" {
+        return Err(CodecError(format!("not main settings: root element is <{}>", root.name)));
+    }
+    let mut colors = SlideColors::default();
+    if let Some(section) = root.child("slide_style_color") {
+        colors.enabled = flag(section, "enabled", true);
+        for (name, kind) in [
+            ("verse", SlideKind::Verse),
+            ("pre-chorus", SlideKind::PreChorus),
+            ("chorus", SlideKind::Chorus),
+            ("bridge", SlideKind::Bridge),
+            ("tag", SlideKind::Tag),
+            ("custom", SlideKind::Custom),
+            ("scripture", SlideKind::Scripture),
+            ("style", SlideKind::Style),
+            ("image", SlideKind::Image),
+            ("external", SlideKind::External),
+            ("blank", SlideKind::Blank),
+        ] {
+            if let Some(c) = section.child(name).and_then(|e| colour(e, "color")) {
+                colors.set(kind, c);
+            }
+        }
+    }
+    Ok(colors)
 }

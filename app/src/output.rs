@@ -7,10 +7,11 @@
 use serviceflow_core::command::Command;
 use std::sync::Arc;
 
+use serviceflow_core::output::Logo;
 use serviceflow_core::song::{Slide, Song};
-use serviceflow_core::state::{Output, OutputMode};
-use serviceflow_core::style::{Captions, Styles};
-use serviceflow_render::{Renderer, Size};
+use serviceflow_core::state::{OutputMode, State};
+use serviceflow_core::style::Captions;
+use serviceflow_render::{Image, Renderer, Size};
 
 use crate::monitors::MonitorInfo;
 use crate::thumbnails::color_image;
@@ -20,65 +21,131 @@ pub fn viewport_id() -> egui::ViewportId {
     egui::ViewportId::from_hash_of("serviceflow output")
 }
 
+/// The logo, compared by identity (it is a large text).
+#[derive(Debug, Clone)]
+struct SameLogo(Logo);
+
+impl PartialEq for SameLogo {
+    fn eq(&self, other: &Self) -> bool {
+        Arc::ptr_eq(&self.0.image, &other.0.image)
+    }
+}
+
 /// What is on screen, so a frame that has not changed renders nothing.
-#[derive(Debug, Clone, PartialEq, Eq)]
-struct Shown {
+#[derive(Debug, Clone, PartialEq)]
+enum Content {
+    Black,
+    /// The logo; `None` when none is configured (the background alone).
+    Logo(Option<SameLogo>),
     /// `None` is the background alone (blank, or nothing live yet).
-    slide: Option<(Slide, Arc<Song>)>,
+    Slide(Option<(Slide, Arc<Song>)>),
+}
+
+#[derive(Debug, Clone, PartialEq)]
+struct Shown {
+    content: Content,
     size: Size,
 }
 
-/// Renders the output state into one texture, re-rendering only when it changes.
+/// A crossfade in progress: `start` and `duration` are in seconds of egui time.
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct Fade {
+    pub start: f64,
+    pub duration: f64,
+}
+
+impl Fade {
+    /// How far the new picture has faded in at `now`: 0 at the start, 1 once done.
+    pub fn progress(&self, now: f64) -> f32 {
+        ((now - self.start) / self.duration).clamp(0.0, 1.0) as f32
+    }
+}
+
+/// Renders the output state into a texture, re-rendering only when it changes, and crossfades
+/// from the previous picture when the slide changes and transitions are on.
 pub struct OutputFrame {
     name: &'static str,
     renderer: Renderer,
-    styles: Option<Arc<Styles>>,
+    styles: Option<Arc<serviceflow_core::style::Styles>>,
     texture: Option<(Shown, egui::TextureHandle)>,
+    /// `Output::changes` when the texture was last made.
+    changes: u64,
+    fading: Option<(egui::TextureHandle, Fade)>,
 }
 
 impl OutputFrame {
     pub fn new(name: &'static str) -> Self {
-        Self { name, renderer: Renderer::with_fonts(crate::fonts::shared()), styles: None, texture: None }
+        Self { name, renderer: Renderer::with_fonts(crate::fonts::shared()), styles: None, texture: None, changes: 0, fading: None }
     }
 
-    /// Paint `output` filling `rect` of `ui`.
-    pub fn paint(&mut self, ui: &egui::Ui, rect: egui::Rect, output: &Output, styles: &Arc<Styles>) {
-        let painter = ui.painter();
-        let slide = match output.mode {
-            OutputMode::Black => {
-                painter.rect_filled(rect, 0.0, egui::Color32::BLACK);
-                return;
-            }
-            OutputMode::Blank => None,
-            OutputMode::Normal => output.live.as_ref().map(|live| (live.slide.clone(), Arc::clone(&live.source))),
+    /// Paint what the outputs show in `state`, filling `rect` of `ui`.
+    pub fn paint(&mut self, ui: &egui::Ui, rect: egui::Rect, state: &State) {
+        let (output, styles) = (&state.output, &state.styles);
+        let content = match output.mode {
+            OutputMode::Black => Content::Black,
+            OutputMode::Logo => Content::Logo(state.output_settings.logo.clone().map(SameLogo)),
+            OutputMode::Blank => Content::Slide(None),
+            OutputMode::Normal => Content::Slide(output.live.as_ref().map(|live| (live.slide.clone(), Arc::clone(&live.source)))),
         };
         let pixels = rect.size() * ui.ctx().pixels_per_point();
         let size = Size { width: (pixels.x.round() as u32).max(1), height: (pixels.y.round() as u32).max(1) };
-        let shown = Shown { slide, size };
+        let shown = Shown { content, size };
         let same_styles = self.styles.as_ref().is_some_and(|s| Arc::ptr_eq(s, styles));
-        if !(same_styles && matches!(&self.texture, Some((current, _)) if *current == shown)) {
+        let changed = output.changes != self.changes;
+        if changed || !(same_styles && matches!(&self.texture, Some((current, _)) if *current == shown)) {
             self.styles = Some(Arc::clone(styles));
-            let image = match &shown.slide {
-                Some((slide, song)) => {
-                    let captions = Captions::for_song(song, &styles.default);
-                    self.renderer.render_captioned(slide, &captions, &styles.default, size)
+            let image = color_image(&self.render(&shown, styles));
+            // A slide change starts a crossfade from what was on screen; a resize or restyle
+            // just redraws.
+            let fade = if changed { state.output_settings.fade_ms() } else { None };
+            match (&mut self.texture, fade) {
+                (Some((_, old)), Some(ms)) => {
+                    let old = old.clone();
+                    let handle = ui.ctx().load_texture(self.name, image, egui::TextureOptions::LINEAR);
+                    self.fading = Some((old, Fade { start: ui.ctx().input(|i| i.time), duration: f64::from(ms) / 1000.0 }));
+                    self.texture = Some((shown, handle));
                 }
-                None => {
-                    let empty = Slide { section: String::new(), lines: Vec::new() };
-                    self.renderer.render(&empty, &styles.default, size)
-                }
-            };
-            let image = color_image(&image);
-            match &mut self.texture {
-                Some((current, handle)) => {
+                (Some((current, handle)), None) => {
                     handle.set(image, egui::TextureOptions::LINEAR);
                     *current = shown;
+                    self.fading = None;
                 }
-                None => self.texture = Some((shown, ui.ctx().load_texture(self.name, image, egui::TextureOptions::LINEAR))),
+                (None, _) => self.texture = Some((shown, ui.ctx().load_texture(self.name, image, egui::TextureOptions::LINEAR))),
+            }
+            self.changes = output.changes;
+        }
+        let whole = egui::Rect::from_min_max(egui::pos2(0.0, 0.0), egui::pos2(1.0, 1.0));
+        let painter = ui.painter();
+        let mut alpha = 1.0;
+        if let Some((old, fade)) = &self.fading {
+            let now = ui.ctx().input(|i| i.time);
+            let progress = fade.progress(now);
+            if progress < 1.0 {
+                painter.image(old.id(), rect, whole, egui::Color32::WHITE);
+                alpha = progress;
+                ui.ctx().request_repaint();
+            } else {
+                self.fading = None;
             }
         }
         if let Some((_, handle)) = &self.texture {
-            painter.image(handle.id(), rect, egui::Rect::from_min_max(egui::pos2(0.0, 0.0), egui::pos2(1.0, 1.0)), egui::Color32::WHITE);
+            // The textures are premultiplied, so fading in is scaling every channel.
+            painter.image(handle.id(), rect, whole, egui::Color32::from_white_alpha((alpha * 255.0).round() as u8));
+        }
+    }
+
+    fn render(&self, shown: &Shown, styles: &serviceflow_core::style::Styles) -> Image {
+        let size = shown.size;
+        match &shown.content {
+            Content::Black => Image { width: 1, height: 1, pixels: vec![0, 0, 0, 255] },
+            Content::Logo(Some(logo)) => self.renderer.render_logo(&logo.0, &styles.default, size),
+            Content::Logo(None) | Content::Slide(None) => {
+                self.renderer.render(&Slide { section: String::new(), lines: Vec::new() }, &styles.default, size)
+            }
+            Content::Slide(Some((slide, song))) => {
+                let captions = Captions::for_song(song, &styles.default);
+                self.renderer.render_captioned(slide, &captions, &styles.default, size)
+            }
         }
     }
 }
@@ -93,8 +160,7 @@ pub fn show_window(
     ctx: &egui::Context,
     monitor: Option<(usize, &MonitorInfo)>,
     frame: &mut OutputFrame,
-    output: &Output,
-    styles: &Arc<Styles>,
+    state: &State,
     commands: &mut Vec<Command>,
 ) -> bool {
     let mut builder = egui::ViewportBuilder::default().with_title("serviceFlow output").with_inner_size([960.0, 540.0]);
@@ -110,8 +176,23 @@ pub fn show_window(
         ui.ctx().set_cursor_icon(egui::CursorIcon::None);
         egui::CentralPanel::default().frame(egui::Frame::NONE.fill(egui::Color32::BLACK)).show(ui, |ui| {
             let rect = ui.max_rect();
-            frame.paint(ui, rect, output, styles);
+            frame.paint(ui, rect, state);
         });
     });
     open
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn a_fade_runs_from_nothing_to_everything_over_its_duration() {
+        let fade = Fade { start: 10.0, duration: 0.4 };
+        assert_eq!(fade.progress(9.0), 0.0);
+        assert_eq!(fade.progress(10.0), 0.0);
+        assert!((fade.progress(10.1) - 0.25).abs() < 1e-6);
+        assert_eq!(fade.progress(10.4), 1.0);
+        assert_eq!(fade.progress(99.0), 1.0);
+    }
 }

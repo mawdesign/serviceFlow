@@ -8,6 +8,7 @@
 use std::sync::Arc;
 
 use crate::ids::{ContentHash, SetId, SongId};
+use crate::output::{OutputSettings, SlideColors};
 use crate::set::Set;
 use crate::song::{SlideOptions, Song};
 use crate::style::Styles;
@@ -62,6 +63,22 @@ pub enum Command {
     ToggleBlank,
     /// Toggle black mode (pure black).
     ToggleBlack,
+    /// Toggle logo mode (the configured logo image).
+    ToggleLogo,
+    /// Read the output behaviour (PresentSettings: logo, monitor, initial mode, transitions) and the
+    /// thumbnail colours (MainSettings) from OpenSong, read-only. Sent on first run and by the
+    /// "re-import from OpenSong" action.
+    ImportOpenSongSettings {
+        trigger: ImportTrigger,
+    },
+    /// Storage result of [`Effect::ReadOpenSongSettings`]: what could be read (`None` where the file
+    /// is missing or unreadable) and what went wrong.
+    SettingsImported {
+        trigger: ImportTrigger,
+        output: Option<Arc<OutputSettings>>,
+        colors: Option<Arc<SlideColors>>,
+        faults: Vec<SettingsFault>,
+    },
     /// Read the default and scripture styles from OpenSong's PresentSettings (read-only).
     /// Sent on first run and by the "re-import from OpenSong" action.
     ImportOpenSongStyles {
@@ -127,6 +144,16 @@ pub enum Command {
     },
 }
 
+/// A settings file that could not be imported.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct SettingsFault {
+    /// The file under `Settings/`.
+    pub file: String,
+    pub error: String,
+    /// The file does not exist.
+    pub missing: bool,
+}
+
 /// Why styles are being imported.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum ImportTrigger {
@@ -140,7 +167,10 @@ impl Command {
     /// Live actions are transient: they never enter undo history (ADR-0001). Only document edits
     /// do, and none exist yet.
     pub fn is_live_action(&self) -> bool {
-        matches!(self, Command::GoLive { .. } | Command::NextSlide | Command::PreviousSlide | Command::ToggleBlank | Command::ToggleBlack)
+        matches!(
+            self,
+            Command::GoLive { .. } | Command::NextSlide | Command::PreviousSlide | Command::ToggleBlank | Command::ToggleBlack | Command::ToggleLogo
+        )
     }
 }
 
@@ -150,6 +180,9 @@ pub enum Effect {
     /// Read and parse `Settings/PresentSettings`; answer with [`Command::StylesImported`] or
     /// [`Command::StylesImportFailed`]. Never writes.
     ReadOpenSongStyles(ImportTrigger),
+    /// Read `Settings/PresentSettings` and `Settings/MainSettings` for the output behaviour and slide
+    /// colours; answer with [`Command::SettingsImported`]. Never writes.
+    ReadOpenSongSettings(ImportTrigger),
     /// Read and parse a song; answer with [`Command::SongLoaded`] or [`Command::SongLoadFailed`].
     LoadSong(SongId),
     /// List the library; answer with [`Command::LibraryListed`] or [`Command::LibraryListFailed`].

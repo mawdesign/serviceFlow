@@ -11,7 +11,7 @@ use std::sync::Arc;
 use futures::channel::mpsc;
 use futures::executor::{LocalPool, LocalSpawner};
 use futures::task::LocalSpawnExt as _;
-use serviceflow_core::command::{Command, Effect};
+use serviceflow_core::command::{Command, Effect, SettingsFault};
 use serviceflow_core::engine::Engine;
 use serviceflow_core::state::State;
 use serviceflow_storage::Storage;
@@ -91,6 +91,19 @@ impl<S: Storage + 'static> Driver<S> {
     }
 }
 
+/// Read and parse one file of `Settings/`; a failure says which file and whether it was missing.
+async fn read_settings_file<S: Storage, T>(
+    storage: &S,
+    file: &str,
+    parse: fn(&[u8]) -> Result<T, serviceflow_opensong::CodecError>,
+) -> Result<T, SettingsFault> {
+    let fault = |error: String, missing| SettingsFault { file: file.to_owned(), error, missing };
+    match storage.read_settings(&serviceflow_storage::SettingsId(file.to_owned())).await {
+        Ok(stored) => parse(&stored.bytes).map_err(|e| fault(e.to_string(), false)),
+        Err(e) => Err(fault(e.to_string(), matches!(e, serviceflow_storage::StorageError::NotFound(_)))),
+    }
+}
+
 /// Perform one effect and return the command that reports its outcome.
 pub async fn perform<S: Storage>(storage: &S, effect: Effect) -> Command {
     match effect {
@@ -144,6 +157,20 @@ pub async fn perform<S: Storage>(storage: &S, effect: Effect) -> Command {
                 Err(_) => Vec::new(),
             };
             Command::SongsChecked { set, missing }
+        }
+        Effect::ReadOpenSongSettings(trigger) => {
+            let mut faults = Vec::new();
+            let mut output = None;
+            let mut colors = None;
+            match read_settings_file(storage, "PresentSettings", serviceflow_opensong::read_output_settings).await {
+                Ok(settings) => output = Some(Arc::new(settings)),
+                Err(fault) => faults.push(fault),
+            }
+            match read_settings_file(storage, "MainSettings", serviceflow_opensong::read_slide_colors).await {
+                Ok(settings) => colors = Some(Arc::new(settings)),
+                Err(fault) => faults.push(fault),
+            }
+            Command::SettingsImported { trigger, output, colors, faults }
         }
         Effect::LoadSong(id) => {
             let parsed = match storage.read_song(&id).await {

@@ -60,6 +60,19 @@ impl EngineHarness {
         Self::with_storage(storage)
     }
 
+    /// An engine over storage holding these songs (id, contents) and settings files (filename
+    /// under `Settings/`, contents).
+    pub fn with_files(songs: &[(&str, &str)], settings: &[(&str, &str)]) -> Self {
+        let storage = MemoryStorage::new();
+        for (id, xml) in songs {
+            crate::block_on(storage.write_song(&SongId::new(*id), xml.as_bytes().to_vec(), Expect::Any)).expect("seeding a song");
+        }
+        for (name, xml) in settings {
+            crate::block_on(storage.write_settings(&SettingsId((*name).into()), xml.as_bytes().to_vec(), Expect::Any)).expect("seeding settings");
+        }
+        Self::with_storage(storage)
+    }
+
     /// The bytes of `Settings/PresentSettings` in storage, to check that nothing wrote them.
     pub fn present_settings(&self) -> Option<Vec<u8>> {
         crate::block_on(self.storage().read_settings(&SettingsId("PresentSettings".into()))).ok().map(|s| s.bytes)

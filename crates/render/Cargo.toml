@@ -17,6 +17,7 @@ craft-text = { workspace = true }
 harfrust = { workspace = true }
 skrifa = { workspace = true }
 vello_cpu = { workspace = true }
+image = { workspace = true }
 
 [dev-dependencies]
 serviceflow-testkit = { workspace = true }

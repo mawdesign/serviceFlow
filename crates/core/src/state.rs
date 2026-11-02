@@ -5,6 +5,7 @@ use std::collections::VecDeque;
 use std::sync::Arc;
 
 use crate::ids::{ContentHash, SetId, SongId};
+use crate::output::{OutputSettings, SlideColors};
 use crate::search::SearchIndex;
 use crate::set::Set;
 use crate::song::{Slide, SlideOptions, Song};
@@ -23,6 +24,12 @@ pub struct State {
     /// The styles slides are drawn with: imported from OpenSong's PresentSettings on first run
     /// and again on request; serviceFlow's own copy, never written back to OpenSong.
     pub styles: Arc<Styles>,
+    /// How the output behaves (logo, initial monitor, transitions, blanks), imported from OpenSong.
+    pub output_settings: Arc<OutputSettings>,
+    /// Thumbnail colours by slide kind, imported from OpenSong.
+    pub slide_colors: Arc<SlideColors>,
+    /// Whether the initial output mode has been applied (it applies once, at the first import).
+    pub(crate) initial_mode_applied: bool,
     /// Problems to show the operator, oldest first.
     pub problems: Vec<Problem>,
     /// How lyrics become slides, for every song opened.
@@ -83,6 +90,8 @@ pub enum Problem {
     FontSubstituted { requested: String, used: String },
     /// A set could not be read or parsed.
     SetUnreadable { id: SetId, error: String },
+    /// A settings file under `Settings/` could not be imported.
+    SettingsUnreadable { file: String, error: String },
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -120,6 +129,11 @@ pub struct Output {
     /// The live slide, if any slide has been sent live.
     pub live: Option<LiveSlide>,
     pub mode: OutputMode,
+    /// Counts changes of what is shown, so the output can crossfade exactly when one happens.
+    pub changes: u64,
+    /// Blank mode was entered by moving past the last slide (OpenSong's blank between items), so
+    /// Previous returns to that last slide rather than going back one.
+    pub(crate) blank_after_end: bool,
 }
 
 /// A slide that is live. It keeps its own copy, so opening another song does not change it.
@@ -144,6 +158,8 @@ pub enum OutputMode {
     Blank,
     /// Pure black.
     Black,
+    /// The configured logo image.
+    Logo,
 }
 
 /// The library (GLOSSARY "Library") and the search over it.
