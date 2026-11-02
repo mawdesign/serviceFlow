@@ -18,6 +18,26 @@ pub enum Command {
     SongLoaded { id: SongId, song: Arc<Song> },
     /// Storage result: a song requested by [`Effect::LoadSong`] could not be read or parsed.
     SongLoadFailed { id: SongId, error: String },
+    /// Send slide `index` of the open song live. Ignored when there is no such slide.
+    GoLive { index: usize },
+    /// Go live with the slide after the live one (the first slide when nothing is live). Stays
+    /// put on the last slide.
+    NextSlide,
+    /// Go live with the slide before the live one. Does nothing on the first slide or when
+    /// nothing is live.
+    PreviousSlide,
+    /// Toggle blank mode (the style's background, no text).
+    ToggleBlank,
+    /// Toggle black mode (pure black).
+    ToggleBlack,
+}
+
+impl Command {
+    /// Live actions are transient: they never enter undo history (ADR-0001). Only document edits
+    /// do, and none exist yet.
+    pub fn is_live_action(&self) -> bool {
+        matches!(self, Command::GoLive { .. } | Command::NextSlide | Command::PreviousSlide | Command::ToggleBlank | Command::ToggleBlack)
+    }
 }
 
 /// IO the engine asks for. Each effect ends with exactly one result command.

@@ -4,7 +4,7 @@
 //! data root copied into memory: `serviceflow [DATA_ROOT [SONG]]`.
 
 #[cfg(not(target_arch = "wasm32"))]
-fn main() -> eframe::Result {
+fn main() -> Result<(), Box<dyn std::error::Error>> {
     use serviceflow_core::command::Command;
     use serviceflow_core::ids::SongId;
     use serviceflow_runtime::Driver;
@@ -22,8 +22,7 @@ fn main() -> eframe::Result {
     if let Some(song) = args.next() {
         driver.send(Command::OpenSong(SongId::new(song)));
     }
-    let options = eframe::NativeOptions { viewport: serviceflow::control_viewport(), ..Default::default() };
-    eframe::run_native("serviceFlow", options, Box::new(|_cc| Ok(Box::new(serviceflow::ControlWindow::new(driver)))))
+    serviceflow::native::run(driver)
 }
 
 #[cfg(target_arch = "wasm32")]

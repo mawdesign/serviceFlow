@@ -47,6 +47,7 @@ wasm-bindgen-futures = "0.4"
 web-sys = "0.3"
 
 # libraries
+serde = { version = "1", features = ["derive"] }
 futures = { version = "0.3", default-features = false, features = ["std", "executor"] }
 quick-xml = "0.41"
 # renderer (ADR-0005). harfrust and skrifa must share one read-fonts version.
