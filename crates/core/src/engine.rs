@@ -3,6 +3,9 @@
 use std::sync::Arc;
 
 use crate::command::{Command, Effect, ImportTrigger};
+
+mod sets;
+
 use crate::search::SearchIndex;
 use crate::state::{Library, LiveSlide, OpenSong, OutputMode, Problem, State};
 
@@ -27,6 +30,11 @@ impl Engine {
         let state = Arc::make_mut(&mut self.state);
         match command {
             Command::OpenSong(id) => {
+                // A song opened by hand is not a set item: no override, nothing pending.
+                if let Some(set) = &mut state.set {
+                    set.selected = None;
+                    set.pending = None;
+                }
                 state.loading = Some(id.clone());
                 vec![Effect::LoadSong(id)]
             }
@@ -34,13 +42,18 @@ impl Engine {
                 // A result for a song that is no longer wanted (another was opened since) is dropped.
                 if state.loading.as_ref() == Some(&id) {
                     state.loading = None;
+                    let song = sets::with_item_order(state, &id, song);
                     state.song = Some(OpenSong::new(id, song, hash, &state.slide_options));
+                    sets::go_pending(state);
                 }
                 Vec::new()
             }
             Command::SongLoadFailed { id, error } => {
                 if state.loading.as_ref() == Some(&id) {
                     state.loading = None;
+                    if let Some(set) = &mut state.set {
+                        set.pending = None;
+                    }
                 }
                 state.problems.push(Problem::SongUnreadable { id, error });
                 Vec::new()
@@ -108,19 +121,32 @@ impl Engine {
             Command::NextSlide => {
                 // Only slides in the flow; a greyed slide is past its end.
                 let in_flow = state.song.as_ref().map_or(0, |open| open.in_flow);
-                let target = live_index(state).map_or(0, |i| i + 1);
+                let live = live_index(state);
+                let target = live.map_or(0, |i| i + 1);
                 if target < in_flow {
                     go_live(state, target);
+                    Vec::new()
+                } else if live.is_some() {
+                    // Past the end of the item: carry on into the next song item of the set.
+                    sets::advance(state, true)
+                } else {
+                    Vec::new()
                 }
-                Vec::new()
             }
             Command::PreviousSlide => {
                 // From a greyed slide, back to the last slide of the flow.
                 let in_flow = state.song.as_ref().map_or(0, |open| open.in_flow);
-                if let Some(i) = live_index(state).and_then(|i| i.min(in_flow).checked_sub(1)) {
-                    go_live(state, i);
+                match live_index(state) {
+                    Some(live) => match live.min(in_flow).checked_sub(1) {
+                        Some(i) => {
+                            go_live(state, i);
+                            Vec::new()
+                        }
+                        // Before the first slide: back into the previous song item of the set.
+                        None => sets::advance(state, false),
+                    },
+                    None => Vec::new(),
                 }
-                Vec::new()
             }
             Command::SetSlideOptions(options) => {
                 state.slide_options = options;
@@ -137,6 +163,19 @@ impl Engine {
                 toggle(state, OutputMode::Black);
                 Vec::new()
             }
+            command @ (Command::RefreshSets
+            | Command::SetsListed(_)
+            | Command::SetsListFailed { .. }
+            | Command::OpenSet(_)
+            | Command::SetLoaded { .. }
+            | Command::SetLoadFailed { .. }
+            | Command::SongsChecked { .. }
+            | Command::SelectItem(_)
+            | Command::NextItem
+            | Command::PreviousItem
+            | Command::StartRelink(_)
+            | Command::CancelRelink
+            | Command::RelinkItem { .. }) => sets::apply(state, command),
             Command::ImportOpenSongStyles { trigger } => vec![Effect::ReadOpenSongStyles(trigger)],
             Command::StylesImported(styles) => {
                 state.styles = styles;

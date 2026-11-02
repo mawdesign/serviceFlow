@@ -123,6 +123,28 @@ pub async fn perform<S: Storage>(storage: &S, effect: Effect) -> Command {
                 },
             }
         }
+        Effect::ListSets => match storage.list_sets().await {
+            Ok(sets) => Command::SetsListed(sets),
+            Err(e) => Command::SetsListFailed { error: e.to_string() },
+        },
+        Effect::LoadSet(id) => {
+            let parsed = match storage.read_set(&id).await {
+                Ok(stored) => serviceflow_opensong::read_set(&stored.bytes).map_err(|e| e.to_string()),
+                Err(e) => Err(e.to_string()),
+            };
+            match parsed {
+                Ok(set) => Command::SetLoaded { id, set: Arc::new(set) },
+                Err(error) => Command::SetLoadFailed { id, error },
+            }
+        }
+        Effect::CheckSetSongs { set, ids } => {
+            // If the library cannot be listed, report nothing missing rather than red everywhere.
+            let missing = match storage.list_songs().await {
+                Ok(songs) => ids.into_iter().filter(|id| !songs.contains(id)).collect(),
+                Err(_) => Vec::new(),
+            };
+            Command::SongsChecked { set, missing }
+        }
         Effect::LoadSong(id) => {
             let parsed = match storage.read_song(&id).await {
                 Ok(stored) => serviceflow_opensong::read_song(&stored.bytes).map(|song| (song, stored.hash)).map_err(|e| e.to_string()),

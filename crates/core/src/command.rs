@@ -7,7 +7,8 @@
 
 use std::sync::Arc;
 
-use crate::ids::{ContentHash, SongId};
+use crate::ids::{ContentHash, SetId, SongId};
+use crate::set::Set;
 use crate::song::{SlideOptions, Song};
 use crate::style::Styles;
 
@@ -57,6 +58,32 @@ pub enum Command {
     /// Change how lyrics become slides (such as OpenSong's `blank_is_slide_change`). The open
     /// song's slides are rebuilt; what is live stays live.
     SetSlideOptions(SlideOptions),
+    /// Read the list of sets.
+    RefreshSets,
+    /// Storage result: the sets in `Sets/`.
+    SetsListed(Vec<SetId>),
+    /// Storage result: `Sets/` could not be listed.
+    SetsListFailed { error: String },
+    /// Open a set. The current one stays open if this one cannot be read.
+    OpenSet(SetId),
+    /// Storage result: a set was read and parsed.
+    SetLoaded { id: SetId, set: Arc<Set> },
+    /// Storage result: a set could not be read or parsed.
+    SetLoadFailed { id: SetId, error: String },
+    /// Storage result: of the songs a set refers to, these are not in the library.
+    SongsChecked { set: SetId, missing: Vec<SongId> },
+    /// Show the slides of item `index` of the open set. Nothing goes live.
+    SelectItem(usize),
+    /// Select the item after / before the selected one (any kind).
+    NextItem,
+    PreviousItem,
+    /// Start looking for a song to replace the missing one of item `index`: the library search
+    /// is set to the item's name.
+    StartRelink(usize),
+    /// Stop relinking without changing anything.
+    CancelRelink,
+    /// Point song item `item` at `song` (kept in the item's notes, order and style).
+    RelinkItem { item: usize, song: SongId },
 }
 
 /// Why styles are being imported.
@@ -88,4 +115,10 @@ pub enum Effect {
     ListLibrary { generation: u64 },
     /// Read these songs for the search index; answer with [`Command::SongsIndexed`].
     IndexSongs { generation: u64, ids: Vec<SongId> },
+    /// List the sets; answer with [`Command::SetsListed`] or [`Command::SetsListFailed`].
+    ListSets,
+    /// Read and parse a set; answer with [`Command::SetLoaded`] or [`Command::SetLoadFailed`].
+    LoadSet(SetId),
+    /// Find which of these songs are not in the library; answer with [`Command::SongsChecked`].
+    CheckSetSongs { set: SetId, ids: Vec<SongId> },
 }

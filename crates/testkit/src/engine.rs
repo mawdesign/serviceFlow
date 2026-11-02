@@ -15,7 +15,7 @@ use std::sync::Arc;
 use serviceflow_core::command::Command;
 use serviceflow_core::state::State;
 use serviceflow_runtime::Driver;
-use serviceflow_storage::{Expect, SettingsId, SettingsRepository as _, SongId, SongRepository as _};
+use serviceflow_storage::{Expect, SettingsId, SetRepository as _, SettingsRepository as _, SongId, SongRepository as _};
 use serviceflow_storage_memory::MemoryStorage;
 
 pub struct EngineHarness {
@@ -34,6 +34,18 @@ impl EngineHarness {
         let storage = MemoryStorage::new();
         for (id, xml) in songs {
             crate::block_on(storage.write_song(&SongId::new(*id), xml.as_bytes().to_vec(), Expect::Any)).expect("seeding a song");
+        }
+        Self::with_storage(storage)
+    }
+
+    /// An engine over storage holding only these songs and sets, given as (id, file contents).
+    pub fn with_songs_and_sets(songs: &[(&str, &str)], sets: &[(&str, &str)]) -> Self {
+        let storage = MemoryStorage::new();
+        for (id, xml) in songs {
+            crate::block_on(storage.write_song(&SongId::new(*id), xml.as_bytes().to_vec(), Expect::Any)).expect("seeding a song");
+        }
+        for (id, xml) in sets {
+            crate::block_on(storage.write_set(&serviceflow_storage::SetId::new(*id), xml.as_bytes().to_vec(), Expect::Any)).expect("seeding a set");
         }
         Self::with_storage(storage)
     }
