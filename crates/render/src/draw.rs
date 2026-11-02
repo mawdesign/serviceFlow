@@ -38,6 +38,9 @@ impl Image {
 #[derive(Default)]
 pub(crate) struct Outlines(Mutex<HashMap<(FontId, u32), BezPath>>);
 
+/// Horizontal shift per unit of height of a synthetic italic.
+const ITALIC_SLANT: f64 = 0.2;
+
 /// Shadow offset as a fraction of the font size.
 const SHADOW_OFFSET: f32 = 0.06;
 
@@ -58,6 +61,10 @@ pub(crate) fn draw(fonts: &Fonts, outlines: &Outlines, frame: &Frame) -> Image {
             let px = run.font_size;
             let scale = f64::from(px / fonts.units_per_em(run.font));
             let fx = run.effects;
+            // Font units (y up) to pixels (y down), slanted when italic (synthetic oblique:
+            // there are no italic faces yet).
+            let slant = if fx.italic { Affine::new([1.0, 0.0, ITALIC_SLANT, 1.0, 0.0, 0.0]) } else { Affine::IDENTITY };
+            let glyph_shape = Affine::scale_non_uniform(scale, -scale) * slant;
             if let Some(fill) = fx.fill {
                 let (ascent, descent) = fonts.vertical_metrics(run.font, px);
                 ctx.set_transform(Affine::IDENTITY);
@@ -71,7 +78,7 @@ pub(crate) fn draw(fonts: &Fonts, outlines: &Outlines, frame: &Frame) -> Image {
                 ctx.set_paint(color(shadow));
                 for g in &run.glyphs {
                     let path = cache.entry((run.font, g.id)).or_insert_with(|| outline(fonts, run.font, g.id));
-                    ctx.set_transform(Affine::translate((f64::from(g.x) + d, f64::from(g.y) + d)) * Affine::scale_non_uniform(scale, -scale));
+                    ctx.set_transform(Affine::translate((f64::from(g.x) + d, f64::from(g.y) + d)) * glyph_shape);
                     ctx.fill_path(path);
                 }
             }
@@ -82,14 +89,14 @@ pub(crate) fn draw(fonts: &Fonts, outlines: &Outlines, frame: &Frame) -> Image {
                 ctx.set_stroke(Stroke::new(f64::from(thickness) * 2.0 / scale).with_join(Join::Round));
                 for g in &run.glyphs {
                     let path = cache.entry((run.font, g.id)).or_insert_with(|| outline(fonts, run.font, g.id));
-                    ctx.set_transform(Affine::translate((f64::from(g.x), f64::from(g.y))) * Affine::scale_non_uniform(scale, -scale));
+                    ctx.set_transform(Affine::translate((f64::from(g.x), f64::from(g.y))) * glyph_shape);
                     ctx.stroke_path(path);
                 }
             }
             ctx.set_paint(color(run.color));
             for g in &run.glyphs {
                 let path = cache.entry((run.font, g.id)).or_insert_with(|| outline(fonts, run.font, g.id));
-                ctx.set_transform(Affine::translate((f64::from(g.x), f64::from(g.y))) * Affine::scale_non_uniform(scale, -scale));
+                ctx.set_transform(Affine::translate((f64::from(g.x), f64::from(g.y))) * glyph_shape);
                 ctx.fill_path(path);
             }
             if fx.underline

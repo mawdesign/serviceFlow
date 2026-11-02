@@ -321,7 +321,7 @@ impl Fonts {
     }
 
     /// Ascent and descent, in pixels at `px` (descent is negative).
-    pub(crate) fn vertical_metrics(&self, id: FontId, px: f32) -> (f32, f32) {
+    pub fn vertical_metrics(&self, id: FontId, px: f32) -> (f32, f32) {
         let face = self.face(id);
         (face.ascent * px, face.descent * px)
     }

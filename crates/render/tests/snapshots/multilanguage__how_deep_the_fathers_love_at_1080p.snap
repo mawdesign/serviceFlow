@@ -1,0 +1,123 @@
+---
+source: crates/render/tests/multilanguage.rs
+expression: "song_layout(\"How Deep the Fathers Love + Chinese\", HD)"
+---
+# slide 1 (V1-L)
+frame 1920x1080 background Rgba { r: 0, g: 0, b: 0, a: 255 }
+box Body at (54.0, 54.0) size 1812.0x972.0
+  line Lyric "How deep the Father’s love for us" size 72.0 x 421.0 baseline 297.4 width 1077.9
+    run font 0 rtl false color Rgba { r: 255, g: 255, b: 255, a: 255 }: 43@421.0 82@473.0 90@513.1 3@565.1 71@585.1 72@625.1 72@665.2 83@705.2 3@745.2 87@765.3 75@785.3 72@825.3 3@865.3 41@885.3 68@929.3 87@969.4 75@989.4 72@1029.4 85@1069.5 2021@1096.1 86@1110.8 3@1146.8 79@1166.8 82@1182.8 89@1222.8 72@1258.8 3@1298.9 73@1318.9 82@1338.9 85@1378.9 3@1402.9 88@1422.9 86@1463.0
+  line Translation "天父的爱何其深长，" size 50.0 x 735.0 baseline 362.9 width 450.0
+    run font 6 rtl false color Rgba { r: 220, g: 220, b: 220, a: 255 } fx Effects { outline: None, shadow: None, fill: None, underline: false, italic: true }: 11596@735.0 17981@785.0 19080@835.0 17976@885.0 9101@935.0 9646@985.0 16897@1035.0 26990@1085.0 29763@1135.0
+  line Lyric "How vast beyond all measure" size 72.0 x 487.8 baseline 455.8 width 944.5
+    run font 0 rtl false color Rgba { r: 255, g: 255, b: 255, a: 255 }: 43@487.8 82@539.8 90@579.8 3@631.8 89@651.8 68@687.8 86@727.8 87@763.8 3@783.8 69@803.9 72@843.9 92@883.9 82@919.9 81@960.0 71@1000.0 3@1040.1 68@1060.1 79@1100.1 79@1116.1 3@1132.1 80@1152.1 72@1212.1 68@1252.1 86@1292.2 88@1328.2 85@1368.2 72@1392.2
+  line Translation "广阔而无法测量，" size 50.0 x 760.0 baseline 521.3 width 400.0
+    run font 6 rtl false color Rgba { r: 220, g: 220, b: 220, a: 255 } fx Effects { outline: None, shadow: None, fill: None, underline: false, italic: true }: 12956@760.0 27138@810.0 21515@860.0 14839@910.0 16615@960.0 16732@1010.0 26046@1060.0 29763@1110.0
+  line Lyric "That He should give His only Son" size 72.0 x 427.7 baseline 614.2 width 1064.6
+    run font 0 rtl false color Rgba { r: 255, g: 255, b: 255, a: 255 }: 55@427.7 75@471.7 68@511.7 87@551.8 3@571.8 43@591.8 72@643.8 3@683.8 86@703.8 75@739.8 82@779.9 88@819.9 79@860.0 71@876.0 3@916.0 74@936.0 76@976.0 89@992.0 72@1028.0 3@1068.1 43@1088.1 76@1140.1 86@1156.1 3@1192.1 82@1212.1 81@1252.1 79@1292.2 92@1308.2 3@1344.2 54@1364.2 82@1412.2 81@1452.2
+  line Translation "祂赐下祂独生爱子" size 50.0 x 760.0 baseline 679.7 width 400.0
+    run font 6 rtl false color Rgba { r: 220, g: 220, b: 220, a: 255 } fx Effects { outline: None, shadow: None, fill: None, underline: false, italic: true }: 19779@760.0 24895@810.0 8771@860.0 19779@910.0 18163@960.0 18723@1010.0 17976@1060.0 12146@1110.0
+  line Lyric "To make a wretch His treasure..." size 72.0 x 443.8 baseline 772.6 width 1032.4
+    run font 0 rtl false color Rgba { r: 255, g: 255, b: 255, a: 255 }: 55@443.8 82@479.8 3@519.9 80@539.9 68@599.8 78@639.9 72@675.9 3@715.9 68@735.9 3@776.0 90@796.0 85@848.0 72@872.0 87@912.0 70@932.0 75@968.0 3@1008.0 43@1028.0 76@1080.0 86@1096.0 3@1132.0 87@1152.0 85@1172.0 72@1196.0 68@1236.1 86@1276.1 88@1312.1 85@1352.2 72@1376.1 17@1416.2 17@1436.2 17@1456.2
+  line Translation "使罪魁成为祂宝贝。" size 50.0 x 735.0 baseline 838.1 width 450.0
+    run font 6 rtl false color Rgba { r: 220, g: 220, b: 220, a: 255 } fx Effects { outline: None, shadow: None, fill: None, underline: false, italic: true }: 9143@735.0 21353@785.0 28459@835.0 13868@885.0 8818@935.0 19779@985.0 12223@1035.0 24844@1085.0 1142@1135.0
+
+# slide 2 (V1-L)
+frame 1920x1080 background Rgba { r: 0, g: 0, b: 0, a: 255 }
+box Body at (54.0, 54.0) size 1812.0x972.0
+  line Lyric "How great the pain of searing loss" size 72.0 x 415.7 baseline 297.4 width 1088.6
+    run font 0 rtl false color Rgba { r: 255, g: 255, b: 255, a: 255 }: 43@415.7 82@467.7 90@507.7 3@559.7 74@579.7 85@619.8 72@643.8 68@683.8 87@723.8 3@743.8 87@763.8 75@783.8 72@823.9 3@863.9 83@883.9 68@924.0 76@964.0 81@980.0 3@1020.1 82@1040.1 73@1080.1 3@1100.1 86@1120.1 72@1156.1 68@1196.2 85@1236.2 76@1260.2 81@1276.2 74@1316.2 3@1356.3 79@1376.3 82@1392.3 86@1432.3 86@1468.3
+  line Translation "离弃之痛是何其深，" size 50.0 x 735.0 baseline 362.9 width 450.0
+    run font 6 rtl false color Rgba { r: 220, g: 220, b: 220, a: 255 } fx Effects { outline: None, shadow: None, fill: None, underline: false, italic: true }: 19900@735.0 13088@785.0 8835@835.0 18911@885.0 14918@935.0 9101@985.0 9646@1035.0 16897@1085.0 29763@1135.0
+  line Lyric "The Father turns His face away" size 72.0 x 459.8 baseline 455.8 width 1000.4
+    run font 0 rtl false color Rgba { r: 255, g: 255, b: 255, a: 255 }: 55@459.8 75@503.8 72@543.8 3@583.9 41@603.9 68@647.8 87@687.9 75@707.9 72@747.9 85@788.0 3@812.0 87@832.0 88@852.0 85@892.0 81@916.0 86@956.0 3@992.0 43@1012.0 76@1064.0 86@1080.0 3@1116.0 73@1136.0 68@1156.0 70@1196.1 72@1232.1 3@1272.1 68@1292.1 90@1332.2 68@1384.2 92@1424.2
+  line Translation "当天父掩面不看祂，" size 50.0 x 735.0 baseline 521.3 width 450.0
+    run font 6 rtl false color Rgba { r: 220, g: 220, b: 220, a: 255 } fx Effects { outline: None, shadow: None, fill: None, underline: false, italic: true }: 13168@735.0 11596@785.0 17981@835.0 14273@885.0 27470@935.0 8773@985.0 19215@1035.0 19779@1085.0 29763@1135.0
+  line Lyric "As wounds which mar the Chosen One" size 72.0 x 337.7 baseline 614.2 width 1244.6
+    run font 0 rtl false color Rgba { r: 255, g: 255, b: 255, a: 255 }: 36@337.7 86@385.7 3@421.7 90@441.7 82@493.7 88@533.7 81@573.8 71@613.8 86@653.9 3@689.9 90@709.9 75@761.9 76@801.9 70@817.9 75@853.9 3@894.0 80@914.0 68@973.9 85@1014.0 3@1038.0 87@1058.0 75@1078.0 72@1118.0 3@1158.1 38@1178.1 75@1230.1 82@1270.1 86@1310.1 72@1346.1 81@1386.2 3@1426.2 50@1446.2 81@1502.2 72@1542.3
+  line Translation "赎罪羔羊流血舍命" size 50.0 x 760.0 baseline 679.7 width 400.0
+    run font 6 rtl false color Rgba { r: 220, g: 220, b: 220, a: 255 } fx Effects { outline: None, shadow: None, fill: None, underline: false, italic: true }: 24893@760.0 21353@810.0 21395@860.0 21385@910.0 16722@960.0 23600@1010.0 22023@1060.0 10411@1110.0
+  line Lyric "Bring many sons to glory" size 72.0 x 563.8 baseline 772.6 width 792.4
+    run font 0 rtl false color Rgba { r: 255, g: 255, b: 255, a: 255 }: 37@563.8 85@611.8 76@635.8 81@651.8 74@691.9 3@731.9 80@751.9 68@811.9 81@851.9 92@892.0 3@928.0 86@948.0 82@984.0 81@1024.0 86@1064.1 3@1100.1 87@1120.1 82@1140.1 3@1180.1 74@1200.1 79@1240.2 82@1256.2 85@1296.2 92@1320.2
+  line Translation "引神儿女进荣光中。" size 50.0 x 735.0 baseline 838.1 width 450.0
+    run font 6 rtl false color Rgba { r: 220, g: 220, b: 220, a: 255 } fx Effects { outline: None, shadow: None, fill: None, underline: false, italic: true }: 13106@735.0 19807@785.0 9590@835.0 11669@885.0 25546@935.0 22365@985.0 9601@1035.0 8805@1085.0 1142@1135.0
+
+# slide 3 (V2-L)
+frame 1920x1080 background Rgba { r: 0, g: 0, b: 0, a: 255 }
+box Body at (54.0, 54.0) size 1812.0x972.0
+  line Lyric "Behold the Man upon across," size 72.0 x 491.7 baseline 297.4 width 936.6
+    run font 0 rtl false color Rgba { r: 255, g: 255, b: 255, a: 255 }: 37@491.7 72@539.7 75@579.8 82@619.8 79@659.9 71@675.8 3@715.9 87@735.9 75@755.9 72@795.9 3@836.0 48@856.0 68@916.0 81@956.0 3@996.1 88@1016.1 83@1056.1 82@1096.1 81@1136.2 3@1176.2 68@1196.2 70@1236.3 85@1272.3 82@1296.3 86@1336.3 86@1372.3 15@1408.3
+  line Translation "人子被挂在十架上，" size 50.0 x 735.0 baseline 362.9 width 450.0
+    run font 6 rtl false color Rgba { r: 220, g: 220, b: 220, a: 255 } fx Effects { outline: None, shadow: None, fill: None, underline: false, italic: true }: 8946@735.0 12146@785.0 23706@835.0 14106@885.0 11088@935.0 10099@985.0 15306@1035.0 8770@1085.0 29763@1135.0
+  line Lyric "My sin upon His shoulders." size 72.0 x 527.8 baseline 455.8 width 864.4
+    run font 0 rtl false color Rgba { r: 255, g: 255, b: 255, a: 255 }: 48@527.8 92@587.8 3@623.8 86@643.8 76@679.8 81@695.8 3@735.8 88@755.8 83@795.9 82@835.9 81@876.0 3@916.0 43@936.0 76@988.0 86@1004.0 3@1040.0 86@1060.0 75@1096.0 82@1136.0 88@1176.1 79@1216.1 71@1232.1 72@1272.2 85@1312.2 86@1336.2 17@1372.2
+  line Translation "祂为我背负众罪孽。" size 50.0 x 735.0 baseline 521.3 width 450.0
+    run font 6 rtl false color Rgba { r: 220, g: 220, b: 220, a: 255 } fx Effects { outline: None, shadow: None, fill: None, underline: false, italic: true }: 19779@735.0 8818@785.0 13869@835.0 21705@885.0 24846@935.0 9039@985.0 21353@1035.0 12191@1085.0 1142@1135.0
+  line Lyric "Ashamed, I hear my mocking voice" size 72.0 x 399.8 baseline 614.2 width 1120.5
+    run font 0 rtl false color Rgba { r: 255, g: 255, b: 255, a: 255 }: 36@399.8 86@447.8 75@483.8 68@523.8 80@563.9 72@623.9 71@663.9 15@703.9 3@723.9 44@743.9 3@764.0 75@784.0 72@824.0 68@864.0 85@904.1 3@928.1 80@948.1 92@1008.0 3@1044.0 80@1064.0 82@1124.0 70@1164.1 78@1200.1 76@1236.1 81@1252.1 74@1292.1 3@1332.1 89@1352.2 82@1388.2 76@1428.2 70@1444.2 72@1480.2
+  line Translation "羞愧的我曾与众人" size 50.0 x 760.0 baseline 679.7 width 400.0
+    run font 6 rtl false color Rgba { r: 220, g: 220, b: 220, a: 255 } fx Effects { outline: None, shadow: None, fill: None, underline: false, italic: true }: 21405@760.0 13635@810.0 19080@860.0 13869@910.0 15123@960.0 8774@1010.0 9039@1060.0 8946@1110.0
+  line Lyric "Call out among the scoffers." size 72.0 x 512.4 baseline 772.6 width 895.1
+    run font 0 rtl false color Rgba { r: 255, g: 255, b: 255, a: 255 }: 38@512.4 68@564.4 79@604.5 79@620.5 3@636.5 82@656.5 88@696.5 87@736.5 3@756.6 68@776.6 80@816.6 82@876.6 81@916.6 74@956.7 3@996.7 87@1016.7 75@1036.7 72@1076.8 3@1116.8 86@1136.8 70@1172.8 82@1208.8 73@1248.8 73@1267.5 72@1287.6 85@1327.6 86@1351.6 17@1387.6
+  line Translation "嘲笑爱我的耶稣。" size 50.0 x 760.0 baseline 838.1 width 400.0
+    run font 6 rtl false color Rgba { r: 220, g: 220, b: 220, a: 255 } fx Effects { outline: None, shadow: None, fill: None, underline: false, italic: true }: 30433@760.0 20241@810.0 17976@860.0 13869@910.0 19080@960.0 30488@1010.0 20003@1060.0 1142@1110.0
+
+# slide 4 (V2-L)
+frame 1920x1080 background Rgba { r: 0, g: 0, b: 0, a: 255 }
+box Body at (54.0, 54.0) size 1812.0x972.0
+  line Lyric "It was my sin that held Him there" size 72.0 x 437.8 baseline 297.4 width 1044.4
+    run font 0 rtl false color Rgba { r: 255, g: 255, b: 255, a: 255 }: 44@437.8 87@457.8 3@477.8 90@497.8 68@549.8 86@589.9 3@625.9 80@645.9 92@705.8 3@741.8 86@761.8 76@797.8 81@813.8 3@853.9 87@873.9 75@893.9 68@933.9 87@974.0 3@994.0 75@1014.0 72@1054.0 79@1094.1 71@1110.1 3@1150.1 43@1170.1 76@1222.1 80@1238.1 3@1298.1 87@1318.1 75@1338.1 72@1378.1 85@1418.2 72@1442.2
+  line Translation "祂为我罪甘愿受苦，" size 50.0 x 735.0 baseline 362.9 width 450.0
+    run font 6 rtl false color Rgba { r: 220, g: 220, b: 220, a: 255 } fx Effects { outline: None, shadow: None, fill: None, underline: false, italic: true }: 19779@735.0 8818@785.0 13869@835.0 21353@885.0 18716@935.0 13659@985.0 10246@1035.0 22240@1085.0 29763@1135.0
+  line Lyric "Until it was accomplished;" size 72.0 x 545.8 baseline 455.8 width 828.3
+    run font 0 rtl false color Rgba { r: 255, g: 255, b: 255, a: 255 }: 56@545.8 81@597.8 87@637.9 76@657.9 79@673.9 3@689.9 76@709.9 87@725.9 3@745.9 90@765.9 68@817.9 86@857.9 3@893.9 68@913.9 70@954.0 70@990.0 82@1026.0 80@1066.0 83@1126.0 79@1166.0 76@1182.0 86@1198.0 75@1234.0 72@1274.1 71@1314.1 30@1354.2
+  line Translation "完成使命义无反顾；" size 50.0 x 735.0 baseline 521.3 width 450.0
+    run font 6 rtl false color Rgba { r: 220, g: 220, b: 220, a: 255 } fx Effects { outline: None, shadow: None, fill: None, underline: false, italic: true }: 12206@735.0 13868@785.0 9143@835.0 10411@885.0 8833@935.0 14839@985.0 10236@1035.0 27751@1085.0 30557@1135.0
+  line Lyric "His dying breath has brought me life." size 72.0 x 373.7 baseline 614.2 width 1172.6
+    run font 0 rtl false color Rgba { r: 255, g: 255, b: 255, a: 255 }: 43@373.7 76@425.7 86@441.7 3@477.7 71@497.7 92@537.7 76@573.7 81@589.7 74@629.8 3@669.8 69@689.8 85@729.8 72@753.8 68@793.9 87@833.9 75@853.9 3@894.0 75@914.0 68@954.0 86@994.0 3@1030.0 69@1050.1 85@1090.1 82@1114.1 88@1154.1 74@1194.2 75@1234.2 87@1274.2 3@1294.2 80@1314.3 72@1374.2 3@1414.3 79@1434.3 76@1450.3 73@1466.3 72@1486.3 17@1526.3
+  line Translation "耶稣舍命，赐我生命，" size 50.0 x 710.0 baseline 679.7 width 500.0
+    run font 6 rtl false color Rgba { r: 220, g: 220, b: 220, a: 255 } fx Effects { outline: None, shadow: None, fill: None, underline: false, italic: true }: 30488@710.0 20003@760.0 22023@810.0 10411@860.0 29763@910.0 24895@960.0 13869@1010.0 18723@1060.0 10411@1110.0 29763@1160.0
+  line Lyric "I know that it is finished." size 72.0 x 577.8 baseline 772.6 width 764.4
+    run font 0 rtl false color Rgba { r: 255, g: 255, b: 255, a: 255 }: 44@577.8 3@597.8 78@617.8 81@653.8 82@693.9 90@733.9 3@785.9 87@805.9 75@825.9 68@866.0 87@906.0 3@926.0 76@946.0 87@962.0 3@982.0 76@1002.0 86@1018.0 3@1054.0 73@1074.0 76@1094.0 81@1110.0 76@1150.1 86@1166.1 75@1202.1 72@1242.1 71@1282.1 17@1322.2
+  line Translation "祂已完成救赎大功。" size 50.0 x 735.0 baseline 838.1 width 450.0
+    run font 6 rtl false color Rgba { r: 220, g: 220, b: 220, a: 255 } fx Effects { outline: None, shadow: None, fill: None, underline: false, italic: true }: 19779@735.0 12818@785.0 12206@835.0 13868@885.0 14697@935.0 24893@985.0 11594@1035.0 9939@1085.0 1142@1135.0
+
+# slide 5 (V3-L)
+frame 1920x1080 background Rgba { r: 0, g: 0, b: 0, a: 255 }
+box Body at (54.0, 54.0) size 1812.0x972.0
+  line Lyric "I will not boast in anything:" size 72.0 x 537.8 baseline 297.4 width 844.5
+    run font 0 rtl false color Rgba { r: 255, g: 255, b: 255, a: 255 }: 44@537.8 3@557.8 90@577.8 76@629.8 79@645.8 79@661.8 3@677.7 81@697.8 82@737.8 87@777.8 3@797.8 69@817.8 82@857.9 68@897.9 86@938.0 87@974.0 3@994.0 76@1014.0 81@1030.0 3@1070.0 68@1090.0 81@1130.1 92@1170.1 87@1206.1 75@1226.1 76@1266.2 81@1282.2 74@1322.2 29@1362.2
+  line Translation "我没有可夸耀之处：" size 50.0 x 735.0 baseline 362.9 width 450.0
+    run font 6 rtl false color Rgba { r: 220, g: 220, b: 220, a: 255 } fx Effects { outline: None, shadow: None, fill: None, underline: false, italic: true }: 13869@735.0 16563@785.0 15134@835.0 10269@885.0 11611@935.0 21503@985.0 8835@1035.0 11559@1085.0 30556@1135.0
+  line Lyric "No gifts, no power, no wisdom." size 72.0 x 469.8 baseline 455.8 width 980.5
+    run font 0 rtl false color Rgba { r: 255, g: 255, b: 255, a: 255 }: 49@469.8 82@521.8 3@561.8 74@581.8 76@621.8 73@637.8 87@657.8 86@677.9 15@713.9 3@733.9 81@753.9 82@793.9 3@833.9 83@854.0 82@894.0 90@934.0 72@986.0 85@1026.1 15@1046.1 3@1066.1 81@1086.1 82@1126.1 3@1166.2 90@1186.2 76@1238.2 86@1254.2 71@1290.2 82@1330.2 80@1370.3 17@1430.2
+  line Translation "无财、无势、无智慧。" size 50.0 x 710.0 baseline 521.3 width 500.0
+    run font 6 rtl false color Rgba { r: 220, g: 220, b: 220, a: 255 } fx Effects { outline: None, shadow: None, fill: None, underline: false, italic: true }: 14839@710.0 24849@760.0 1141@810.0 14839@860.0 9971@910.0 1141@960.0 14839@1010.0 14992@1060.0 13699@1110.0 1142@1160.0
+  line Lyric "But I will boast in Jesus Christ:" size 72.0 x 471.8 baseline 614.2 width 976.4
+    run font 0 rtl false color Rgba { r: 255, g: 255, b: 255, a: 255 }: 37@471.8 88@519.8 87@559.9 3@579.9 44@599.9 3@619.9 90@639.9 76@691.9 79@707.9 79@723.9 3@739.9 69@759.9 82@799.9 68@840.0 86@880.0 87@916.0 3@936.0 76@956.0 81@972.0 3@1012.1 45@1032.1 72@1068.1 86@1108.1 88@1144.1 86@1184.2 3@1220.2 38@1240.2 75@1292.2 85@1332.2 76@1356.2 86@1372.2 87@1408.2 29@1428.2
+  line Translation "但因救主受死复活，" size 50.0 x 735.0 baseline 679.7 width 450.0
+    run font 6 rtl false color Rgba { r: 220, g: 220, b: 220, a: 255 } fx Effects { outline: None, shadow: None, fill: None, underline: false, italic: true }: 9086@735.0 11017@785.0 14697@835.0 8819@885.0 10246@935.0 16269@985.0 11568@1035.0 16716@1085.0 29763@1135.0
+  line Lyric "His death and resurrection." size 72.0 x 527.8 baseline 772.6 width 864.5
+    run font 0 rtl false color Rgba { r: 255, g: 255, b: 255, a: 255 }: 43@527.8 76@579.8 86@595.8 3@631.8 71@651.8 72@691.8 68@731.9 87@771.9 75@791.9 3@831.9 68@851.9 81@892.0 71@932.0 3@972.1 85@992.1 72@1016.1 86@1056.1 88@1092.1 85@1132.1 85@1156.1 72@1180.1 70@1220.1 87@1256.1 76@1276.1 82@1292.1 81@1332.2 17@1372.2
+  line Translation "我能夸耀耶稣基督。" size 50.0 x 735.0 baseline 838.1 width 450.0
+    run font 6 rtl false color Rgba { r: 220, g: 220, b: 220, a: 255 } fx Effects { outline: None, shadow: None, fill: None, underline: false, italic: true }: 13869@735.0 21752@785.0 11611@835.0 21503@885.0 30488@935.0 20003@985.0 11297@1035.0 19303@1085.0 1142@1135.0
+
+# slide 6 (V3-L)
+frame 1920x1080 background Rgba { r: 0, g: 0, b: 0, a: 255 }
+box Body at (54.0, 54.0) size 1812.0x972.0
+  line Lyric "Why should I gain from His reward?" size 72.0 x 389.8 baseline 297.4 width 1140.4
+    run font 0 rtl false color Rgba { r: 255, g: 255, b: 255, a: 255 }: 58@389.8 75@457.7 92@497.8 3@533.8 86@553.8 75@589.8 82@629.8 88@669.9 79@709.9 71@725.9 3@766.0 44@786.0 3@806.0 74@826.0 68@866.0 76@906.1 81@922.0 3@962.1 73@982.1 85@1002.1 82@1026.1 80@1066.1 3@1126.1 43@1146.1 76@1198.1 86@1214.1 3@1250.1 85@1270.1 72@1294.1 90@1334.1 68@1386.1 85@1426.2 71@1450.1 34@1490.2
+  line Translation "为何蒙主施恩赐福？" size 50.0 x 735.0 baseline 362.9 width 450.0
+    run font 6 rtl false color Rgba { r: 220, g: 220, b: 220, a: 255 } fx Effects { outline: None, shadow: None, fill: None, underline: false, italic: true }: 8818@735.0 9101@785.0 22672@835.0 8819@885.0 14804@935.0 13445@985.0 24895@1035.0 19856@1085.0 30558@1135.0
+  line Lyric "I cannot give an answer." size 72.0 x 571.8 baseline 455.8 width 776.5
+    run font 0 rtl false color Rgba { r: 255, g: 255, b: 255, a: 255 }: 44@571.8 3@591.8 70@611.8 68@647.8 81@687.8 81@727.8 82@767.9 87@807.9 3@827.9 74@847.9 76@888.0 89@904.0 72@940.0 3@980.0 68@1000.0 81@1040.1 3@1080.1 68@1100.1 81@1140.2 86@1180.2 90@1216.2 72@1268.2 85@1308.2 17@1328.2
+  line Translation "我不知如何配得。" size 50.0 x 760.0 baseline 521.3 width 400.0
+    run font 6 rtl false color Rgba { r: 220, g: 220, b: 220, a: 255 } fx Effects { outline: None, shadow: None, fill: None, underline: false, italic: true }: 13869@760.0 8773@810.0 19432@860.0 11684@910.0 9101@960.0 25916@1010.0 13236@1060.0 1142@1110.0
+  line Lyric "But this I know with all my heart:" size 72.0 x 445.8 baseline 614.2 width 1028.4
+    run font 0 rtl false color Rgba { r: 255, g: 255, b: 255, a: 255 }: 37@445.8 88@493.8 87@533.9 3@553.9 87@573.9 75@593.9 76@633.9 86@649.9 3@685.9 44@705.9 3@725.9 78@745.9 81@781.9 82@822.0 90@862.0 3@914.0 90@934.0 76@986.0 87@1002.0 75@1022.0 3@1062.1 68@1082.1 79@1122.1 79@1138.1 3@1154.1 80@1174.1 92@1234.1 3@1270.1 75@1290.1 72@1330.1 68@1370.2 85@1410.2 87@1434.2 29@1454.2
+  line Translation "但我心里确信深知，" size 50.0 x 735.0 baseline 679.7 width 450.0
+    run font 6 rtl false color Rgba { r: 220, g: 220, b: 220, a: 255 } fx Effects { outline: None, shadow: None, fill: None, underline: false, italic: true }: 9086@735.0 13869@785.0 13280@835.0 26043@885.0 19568@935.0 9241@985.0 16897@1035.0 19432@1085.0 29763@1135.0
+  line Lyric "His wounds have paid my ransom." size 72.0 x 409.8 baseline 772.6 width 1100.5
+    run font 0 rtl false color Rgba { r: 255, g: 255, b: 255, a: 255 }: 43@409.8 76@461.7 86@477.7 3@513.7 90@533.7 82@585.7 88@625.8 81@665.8 71@705.9 86@745.9 3@781.9 75@801.9 68@842.0 89@882.0 72@918.0 3@958.0 83@978.1 68@1018.1 76@1058.1 71@1074.1 3@1114.2 80@1134.2 92@1194.2 3@1230.2 85@1250.2 68@1274.1 81@1314.2 86@1354.2 82@1390.2 80@1430.3 17@1490.2
+  line Translation "祂受鞭伤赎我罪债。" size 50.0 x 735.0 baseline 838.1 width 450.0
+    run font 6 rtl false color Rgba { r: 220, g: 220, b: 220, a: 255 } fx Effects { outline: None, shadow: None, fill: None, underline: false, italic: true }: 19779@735.0 10246@785.0 27543@835.0 9052@885.0 24893@935.0 13869@985.0 21353@1035.0 9330@1085.0 1142@1135.0
