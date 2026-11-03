@@ -1,9 +1,10 @@
 //! Application state. The engine publishes it as an immutable snapshot (`Arc<State>`); the UI
 //! reads a snapshot each frame and never mutates it.
 
-use std::collections::VecDeque;
+use std::collections::{BTreeMap, VecDeque};
 use std::sync::Arc;
 
+use crate::edit::Draft;
 use crate::ids::{ContentHash, SetId, SongId};
 use crate::output::{OutputSettings, SlideColors};
 use crate::search::SearchIndex;
@@ -17,6 +18,8 @@ pub struct State {
     pub song: Option<OpenSong>,
     /// A song that has been asked for and is still loading.
     pub loading: Option<SongId>,
+    /// Songs with edits (not saved), each with its own undo history.
+    pub drafts: BTreeMap<SongId, Draft>,
     /// The library: songs, search index and search results.
     pub library: Library,
     /// What the outputs show.
@@ -106,6 +109,13 @@ pub struct OpenSong {
     pub slides: Vec<Slide>,
     /// How many of [`slides`](Self::slides) are in the flow.
     pub in_flow: usize,
+}
+
+impl State {
+    /// The open song's edits and undo history, once it has been edited.
+    pub fn draft(&self) -> Option<&Draft> {
+        self.drafts.get(&self.song.as_ref()?.id)
+    }
 }
 
 impl OpenSong {

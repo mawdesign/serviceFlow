@@ -4,6 +4,7 @@ use std::sync::Arc;
 
 use crate::command::{Command, Effect, ImportTrigger};
 
+mod edit;
 mod sets;
 
 use crate::output::InitialMode;
@@ -43,7 +44,11 @@ impl Engine {
                 // A result for a song that is no longer wanted (another was opened since) is dropped.
                 if state.loading.as_ref() == Some(&id) {
                     state.loading = None;
-                    let song = sets::with_item_order(state, &id, song);
+                    // An edited song stays as edited (nothing is saved yet).
+                    let song = match state.drafts.get(&id) {
+                        Some(draft) => Arc::clone(&draft.song),
+                        None => sets::with_item_order(state, &id, song),
+                    };
                     state.song = Some(OpenSong::new(id, song, hash, &state.slide_options));
                     sets::go_pending(state);
                 }
@@ -193,6 +198,7 @@ impl Engine {
                 toggle(state, OutputMode::Black);
                 Vec::new()
             }
+            command @ (Command::EditSong(_) | Command::EndEditGroup | Command::Undo | Command::Redo) => edit::apply(state, command),
             command @ (Command::RefreshSets
             | Command::SetsListed(_)
             | Command::SetsListFailed { .. }

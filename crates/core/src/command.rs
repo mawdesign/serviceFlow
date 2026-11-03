@@ -7,6 +7,7 @@
 
 use std::sync::Arc;
 
+use crate::edit::SongEdit;
 use crate::ids::{ContentHash, SetId, SongId};
 use crate::output::{OutputSettings, SlideColors};
 use crate::set::Set;
@@ -105,6 +106,16 @@ pub enum Command {
     /// Show both lines of multilanguage sections, primary lines only or translation lines only
     /// (GLOSSARY "Language mode"). The open song's slides and the live slide change at once.
     SetLanguageMode(LanguageMode),
+    /// Change the open song in memory (the song editor). Nothing is saved (ADR-0002). Consecutive
+    /// edits of the same field, or of the lyrics, are one undo step.
+    EditSong(SongEdit),
+    /// Stop joining edits: the next edit starts a new undo step (sent when the editor field
+    /// loses focus).
+    EndEditGroup,
+    /// Undo the last edit of the open song. Each song has its own history; live actions are
+    /// never in it (ADR-0001).
+    Undo,
+    Redo,
     /// Read the list of sets.
     RefreshSets,
     /// Storage result: the sets in `Sets/`.
@@ -167,6 +178,11 @@ pub enum ImportTrigger {
 }
 
 impl Command {
+    /// Document edits are what undo covers: the opposite of live actions.
+    pub fn is_document_edit(&self) -> bool {
+        matches!(self, Command::EditSong(_) | Command::Undo | Command::Redo)
+    }
+
     /// Live actions are transient: they never enter undo history (ADR-0001). Only document edits
     /// do, and none exist yet.
     pub fn is_live_action(&self) -> bool {
