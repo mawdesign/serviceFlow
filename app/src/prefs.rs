@@ -10,6 +10,9 @@ use crate::monitors::MonitorChoice;
 pub struct Prefs {
     pub output: OutputPrefs,
     pub library: LibraryPrefs,
+    /// The operator's changes to the default shortcuts.
+    #[serde(with = "craft_keymap::keymap::overrides_list")]
+    pub shortcuts: craft_keymap::Overrides,
 }
 
 #[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]

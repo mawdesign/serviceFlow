@@ -281,7 +281,7 @@ impl Song {
                 }
                 digits.to_owned()
             };
-            self.sections.iter().find(|s| s.is_named(&alias))
+            self.sections.iter().find(|s| s.is_named(&alias)).or_else(|| self.legacy_alias(&alias))
         })
     }
 

@@ -7,7 +7,6 @@
 pub mod data_root;
 pub mod fonts;
 pub mod i18n;
-pub mod keys;
 pub mod library;
 pub mod monitors;
 #[cfg(not(target_arch = "wasm32"))]
@@ -15,6 +14,7 @@ pub mod native;
 pub mod output;
 pub mod prefs;
 pub mod set_panel;
+pub mod shortcuts;
 pub mod thumbnails;
 #[cfg(target_arch = "wasm32")]
 pub mod web;
@@ -47,6 +47,9 @@ pub struct ControlWindow<S> {
     /// Where the dockable panels are. UI-only state.
     dock: Layout<Panel>,
     library: library::LibraryView,
+    shortcuts: shortcuts::Shortcuts,
+    /// The Keyboard Shortcuts dialog, while it is open.
+    shortcuts_dialog: Option<craft_keymap::ui::DialogState>,
 }
 
 /// The control window's dockable panels.
@@ -128,6 +131,8 @@ impl<S: Storage + 'static> ControlWindow<S> {
             save_prefs: None,
             dock: default_dock(),
             library: library::LibraryView::default(),
+            shortcuts: shortcuts::Shortcuts::new(Default::default()),
+            shortcuts_dialog: None,
         }
     }
 
@@ -139,6 +144,7 @@ impl<S: Storage + 'static> ControlWindow<S> {
 
     /// Start from remembered preferences; `save` is called with them whenever they change.
     pub fn with_prefs(mut self, prefs: Prefs, save: impl FnMut(&Prefs) + 'static) -> Self {
+        self.shortcuts = shortcuts::Shortcuts::new(prefs.shortcuts.clone());
         self.prefs = prefs;
         self.save_prefs = Some(Box::new(save));
         self
@@ -160,7 +166,8 @@ impl<S: Storage + 'static> ControlWindow<S> {
             // Storage results arrive outside frames; keep pumping until they are in.
             ui.ctx().request_repaint();
         }
-        let mut commands = keys::live_commands(ui.ctx());
+        // While the shortcuts dialog is open it records the presses, so they run nothing.
+        let mut commands = if self.shortcuts_dialog.is_some() { Vec::new() } else { self.shortcuts.commands(ui.ctx()) };
         let monitors = self.monitors.lock().map(|m| m.clone()).unwrap_or_default();
 
         // Send keyboard commands first so this frame already draws their result.
@@ -179,6 +186,9 @@ impl<S: Storage + 'static> ControlWindow<S> {
                 ui.separator();
                 self.output_controls(ui, &monitors, state.output_settings.monitor);
                 ui.separator();
+                if ui.button(tl!("Keyboard shortcuts…")).clicked() {
+                    self.shortcuts_dialog.get_or_insert_with(craft_keymap::ui::DialogState::new);
+                }
                 if ui.button(tl!("Re-import styles from OpenSong")).clicked() {
                     commands.push(Command::ImportOpenSongStyles { trigger: ImportTrigger::Manual });
                     commands.push(Command::ImportOpenSongSettings { trigger: ImportTrigger::Manual });
@@ -211,8 +221,9 @@ impl<S: Storage + 'static> ControlWindow<S> {
         if self.output_open {
             let index = monitors::pick(self.prefs.output.monitor.as_ref(), state.output_settings.monitor, &monitors);
             let target = index.and_then(|i| monitors.get(i).map(|m| (i, m)));
-            self.output_open = output::show_window(ui.ctx(), target, &mut self.screen, &state, &mut commands);
+            self.output_open = output::show_window(ui.ctx(), target, &mut self.screen, &mut self.shortcuts, &state, &mut commands);
         }
+        self.shortcuts_dialog(ui.ctx());
 
         // Rendering may have had to substitute a style's font; tell the engine so it is shown.
         commands.extend(fonts::substitution_commands());
@@ -224,6 +235,37 @@ impl<S: Storage + 'static> ControlWindow<S> {
         if changed {
             ui.ctx().request_repaint();
         }
+    }
+
+    fn shortcuts_dialog(&mut self, ctx: &egui::Context) {
+        let Some(state) = &mut self.shortcuts_dialog else { return };
+        let text = craft_keymap::ui::I18nText { i18n: &i18n::I18N, lang: i18n::lang() };
+        let outcome = craft_keymap::ui::ShortcutsDialog::new(self.shortcuts.keymap_mut(), &text).show(ctx, state);
+        let open = state.is_open();
+        if matches!(outcome, Some(craft_keymap::ui::Outcome::Ok | craft_keymap::ui::Outcome::Changed)) {
+            self.remember_shortcuts();
+        }
+        if !open {
+            self.shortcuts_dialog = None;
+        }
+    }
+
+    /// Store the operator's shortcut changes with the other preferences.
+    fn remember_shortcuts(&mut self) {
+        self.prefs.shortcuts = self.shortcuts.overrides().clone();
+        if let Some(save) = &mut self.save_prefs {
+            save(&self.prefs);
+        }
+    }
+
+    /// Replace the keys of one shortcut and remember the change, as the dialog does. Returns false
+    /// when a key does not parse or the command is unknown.
+    pub fn rebind(&mut self, command: &craft_keymap::CommandRef, keys: &[&str]) -> bool {
+        let done = self.shortcuts.rebind(command, keys);
+        if done {
+            self.remember_shortcuts();
+        }
+        done
     }
 
     fn output_controls(&mut self, ui: &mut egui::Ui, monitors: &[MonitorInfo], initial: Option<usize>) {
