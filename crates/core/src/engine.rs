@@ -6,8 +6,8 @@ use crate::command::{Command, Effect, ImportTrigger};
 
 mod sets;
 
-use crate::look::{self, ImageFile, Look};
 use crate::output::InitialMode;
+use crate::resolve::{self, ImageFile, ResolvedStyle};
 use crate::search::SearchIndex;
 use crate::state::{Library, LiveSlide, OpenSong, OutputMode, Problem, State};
 use crate::style::ImageSource;
@@ -191,7 +191,7 @@ fn step(state: &mut State, command: Command) -> Vec<Effect> {
                     && *slide != live.slide
                 {
                     live.slide = slide.clone();
-                    live.look.background = look::slide_background(&live.source, slide);
+                    live.resolved.background = resolve::slide_background(&live.source, slide);
                     state.output.changes += 1;
                 }
                 Vec::new()
@@ -266,7 +266,7 @@ fn step(state: &mut State, command: Command) -> Vec<Effect> {
     }
 }
 
-/// Ask for the background image files the looks in use need and that nobody has asked for yet.
+/// Ask for the background image files the resolved in use need and that nobody has asked for yet.
 fn request_images(state: &mut State) -> Vec<Effect> {
     let mut wanted: Vec<String> = Vec::new();
     let mut want = |name: &str| {
@@ -275,12 +275,12 @@ fn request_images(state: &mut State) -> Vec<Effect> {
         }
     };
     for style in [&state.styles.default, &state.styles.scripture] {
-        look::file_of(style).into_iter().for_each(&mut want);
+        resolve::file_of(style).into_iter().for_each(&mut want);
     }
     if let Some(open) = &state.song {
         // The style every slide of the song has, then each of its background files.
         let choice = state.style_choice(&open.id, &open.song);
-        Look { style: choice, background: None }.files().for_each(&mut want);
+        ResolvedStyle { style: choice, background: None }.files().for_each(&mut want);
         if let Some(backgrounds) = &open.song.backgrounds {
             for item in &backgrounds.items {
                 if let ImageSource::File(name) = &item.image {
@@ -290,7 +290,7 @@ fn request_images(state: &mut State) -> Vec<Effect> {
         }
     }
     if let Some(live) = &state.output.live {
-        live.look.files().for_each(&mut want);
+        live.resolved.files().for_each(&mut want);
     }
     wanted.retain(|name| state.images.get(name).is_none());
     if wanted.is_empty() {
@@ -316,8 +316,8 @@ fn live_index(state: &State) -> Option<usize> {
 fn go_live(state: &mut State, index: usize) {
     let Some(open) = &state.song else { return };
     let Some(slide) = open.slides.get(index) else { return };
-    let look = state.look_of(&open.id, &open.song, slide);
-    state.output.live = Some(LiveSlide { song: open.id.clone(), index, slide: slide.clone(), source: Arc::clone(&open.song), look });
+    let resolved = state.resolved_of(&open.id, &open.song, slide);
+    state.output.live = Some(LiveSlide { song: open.id.clone(), index, slide: slide.clone(), source: Arc::clone(&open.song), resolved });
     state.output.mode = OutputMode::Normal;
     state.output.blank_after_end = false;
     state.output.changes += 1;

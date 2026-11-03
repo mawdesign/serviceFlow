@@ -3,7 +3,7 @@
 
 use serviceflow_core::command::{Command, ImportTrigger};
 use serviceflow_core::ids::{SetId, SongId};
-use serviceflow_core::look::{self, ImageFile, StyleChoice};
+use serviceflow_core::resolve::{self, ImageFile, StyleChoice};
 use serviceflow_core::style::{ImageSource, Resize};
 use serviceflow_testkit::EngineHarness;
 
@@ -48,8 +48,8 @@ fn style_item(action: &str, font: Option<&str>) -> String {
 fn font_of_item(harness: &mut EngineHarness, item: usize) -> String {
     harness.send(Command::SelectItem(item));
     let state = harness.state();
-    let look = state.open_look(0).expect("a song is open");
-    look.style(&state.styles).body.text.font.clone()
+    let resolved = state.open_resolved(0).expect("a song is open");
+    resolved.style(&state.styles).body.text.font.clone()
 }
 
 fn songs() -> Vec<(String, String)> {
@@ -60,7 +60,7 @@ fn songs() -> Vec<(String, String)> {
 fn with_no_styles_anywhere_the_default_style_is_used() {
     let mut h = open(&[song_item("Plain", None)], None, &songs());
     assert_eq!(font_of_item(&mut h, 0), "DefaultFont");
-    assert_eq!(h.state().open_look(0).unwrap().style, StyleChoice::Default);
+    assert_eq!(h.state().open_resolved(0).unwrap().style, StyleChoice::Default);
 }
 
 #[test]
@@ -68,10 +68,10 @@ fn a_song_opened_from_the_library_uses_its_own_style() {
     let mut h = open(&[], None, &songs());
     h.send(Command::OpenSong(SongId::new("Styled")));
     let state = h.state();
-    let look = state.open_look(0).unwrap();
-    assert_eq!(look.style(&state.styles).body.text.font, "SongFont");
+    let resolved = state.open_resolved(0).unwrap();
+    assert_eq!(resolved.style(&state.styles).body.text.font, "SongFont");
     h.send(Command::OpenSong(SongId::new("Plain")));
-    assert_eq!(h.state().open_look(0).unwrap().style, StyleChoice::Default);
+    assert_eq!(h.state().open_resolved(0).unwrap().style, StyleChoice::Default);
 }
 
 #[test]
@@ -160,7 +160,7 @@ fn the_stack_depth_is_reported() {
     let h = open(&items, None, &songs());
     let state = h.state();
     let set = &state.set.as_ref().unwrap().set;
-    let depths: Vec<_> = (0..=4).map(|i| look::stack_depth(set, i)).collect();
+    let depths: Vec<_> = (0..=4).map(|i| resolve::stack_depth(set, i)).collect();
     assert_eq!(depths, [0, 1, 2, 1, 1]);
 }
 
@@ -176,15 +176,15 @@ fn scripture_items_use_the_scripture_style_even_while_a_style_item_is_active() {
     let h = open(&items, None, &songs());
     let state = h.state();
     let set = &state.set.as_ref().unwrap().set;
-    assert_eq!(look::choose(Some((set, 0)), None, true), StyleChoice::Scripture);
-    assert_eq!(look::choose(Some((set, 2)), None, true), StyleChoice::Scripture, "the stack does not apply to scripture");
-    let StyleChoice::Custom(own) = look::choose(Some((set, 3)), None, true) else { panic!("item style") };
+    assert_eq!(resolve::choose(Some((set, 0)), None, true), StyleChoice::Scripture);
+    assert_eq!(resolve::choose(Some((set, 2)), None, true), StyleChoice::Scripture, "the stack does not apply to scripture");
+    let StyleChoice::Custom(own) = resolve::choose(Some((set, 3)), None, true) else { panic!("item style") };
     assert_eq!(own.body.text.font, "OwnFont");
     let scripture = StyleChoice::Scripture;
-    let look = look::Look { style: scripture, background: None };
-    assert_eq!(look.style(&state.styles).body.text.font, "ScriptureFont");
+    let resolved = resolve::ResolvedStyle { style: scripture, background: None };
+    assert_eq!(resolved.style(&state.styles).body.text.font, "ScriptureFont");
     // The stack still applies to what follows the scripture item.
-    let StyleChoice::Custom(next) = look::choose(Some((set, 4)), None, true) else { panic!("stack") };
+    let StyleChoice::Custom(next) = resolve::choose(Some((set, 4)), None, true) else { panic!("stack") };
     assert_eq!(next.body.text.font, "StackFont");
 }
 
@@ -197,7 +197,7 @@ fn what_is_live_keeps_its_style_and_the_next_item_brings_its_own() {
     let live_font = |h: &EngineHarness| {
         let state = h.state();
         let live = state.output.live.clone().unwrap();
-        live.look.style(&state.styles).body.text.font.clone()
+        live.resolved.style(&state.styles).body.text.font.clone()
     };
     assert_eq!(live_font(&h), "DefaultFont");
     // Browsing another item does not restyle what is live.
@@ -221,7 +221,7 @@ fn re_importing_the_default_style_restyles_what_is_live() {
     h.send(Command::SelectItem(0));
     h.send(Command::GoLive { index: 0 });
     let state = h.state();
-    assert_eq!(state.output.live.as_ref().unwrap().look.style, StyleChoice::Default);
+    assert_eq!(state.output.live.as_ref().unwrap().resolved.style, StyleChoice::Default);
 }
 
 #[test]
@@ -232,8 +232,8 @@ fn a_custom_style_uses_the_imported_outline_thickness() {
     h.send(Command::ImportOpenSongStyles { trigger: ImportTrigger::FirstRun });
     h.send(Command::OpenSong(SongId::new("Styled")));
     let state = h.state();
-    let look = state.open_look(0).unwrap();
-    assert_eq!(look.style(&state.styles).outline_thickness, 9.0);
+    let resolved = state.open_resolved(0).unwrap();
+    assert_eq!(resolved.style(&state.styles).outline_thickness, 9.0);
 }
 
 // Backgrounds
@@ -257,7 +257,7 @@ fn song_backgrounds_follow_the_slides_of_each_section() {
     h.send(Command::OpenSong(SongId::new("Pics")));
     let state = h.state();
     let open = state.song.as_ref().unwrap();
-    let images: Vec<_> = (0..open.in_flow).map(|i| state.open_look(i).unwrap().background.map(|b| b.image)).collect();
+    let images: Vec<_> = (0..open.in_flow).map(|i| state.open_resolved(i).unwrap().background.map(|b| b.image)).collect();
     let file = |n: &str| Some(ImageSource::File(n.into()));
     // V1 (three slides), C, V1 again: the nth background to the nth slide, the last one repeats,
     // and a repeated section starts over.
@@ -273,7 +273,7 @@ fn song_backgrounds_follow_the_slides_of_each_section() {
             file("two.png")
         ]
     );
-    let bg = state.open_look(0).unwrap().background.unwrap();
+    let bg = state.open_resolved(0).unwrap().background.unwrap();
     assert_eq!((bg.resize, bg.keep_aspect, bg.as_text), (Resize::Body, true, false));
 }
 
@@ -298,8 +298,8 @@ fn background_as_text_is_carried_to_the_slide_look() {
     h.send(Command::GoLive { index: 0 });
     let state = h.state();
     let live = state.output.live.as_ref().unwrap();
-    assert!(live.look.background.as_ref().unwrap().as_text);
-    assert!(live.look.style(&state.styles).background.as_text);
+    assert!(live.resolved.background.as_ref().unwrap().as_text);
+    assert!(live.resolved.style(&state.styles).background.as_text);
     assert!(!live.slide.lines.is_empty(), "the lyrics are still the slide's; the renderer leaves them out");
 }
 

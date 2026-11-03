@@ -207,8 +207,9 @@ pub struct Background {
     pub color: Rgba,
     pub image: Option<ImageSource>,
     pub position: ImagePosition,
-    /// Song and item backgrounds: the area the image is fitted to. Style images use `position`.
-    pub resize: Resize,
+    /// Song and item backgrounds: the area the image is fitted to. `None`: a style's own image,
+    /// which is placed by `position`.
+    pub resize: Option<Resize>,
     /// Song and item backgrounds: keep the image's proportions (fit inside the area, centred)
     /// instead of stretching it to the area.
     pub keep_aspect: bool,
@@ -252,7 +253,7 @@ impl Default for Style {
                 color: Rgba::BLACK,
                 image: None,
                 position: ImagePosition::Cover,
-                resize: Resize::Screen,
+                resize: None,
                 keep_aspect: false,
                 as_text: false,
             },

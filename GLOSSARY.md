@@ -125,6 +125,15 @@ The default style for scripture items.
 **Style stack**:
 The styles pushed by style items so far in a set. The top one applies to the items that follow.
 
+**Set item style**:
+A style stored on one set item. It applies to that item only and beats every other style.
+
+**Song style**:
+A style stored in a song file. It beats the style stack when the OpenSong setting "song style preferred" is on (the default), and also applies when no style item is in effect. A set item style beats it.
+
+**Song background**:
+Images a song file names for its sections (`<backgrounds>`). The nth image of a section goes with the nth slide of that section, and the last one repeats. With "background as text" the image replaces the lyrics.
+
 **Auto-scale**:
 Shrinking a slide's text so the whole slide fits the screen. Translation lines shrink in proportion to primary lines.
 

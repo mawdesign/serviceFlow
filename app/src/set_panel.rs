@@ -2,7 +2,7 @@
 //! placeholders shown where an item cannot be presented.
 
 use serviceflow_core::command::Command;
-use serviceflow_core::set::{ItemKind, SetItem};
+use serviceflow_core::set::{ItemKind, SetItem, StyleAction};
 use serviceflow_core::state::State;
 
 use crate::tl;
@@ -48,7 +48,7 @@ pub fn ui(ui: &mut egui::Ui, state: &State, commands: &mut Vec<Command>) {
                 let label = item_label(state, item);
                 let text = match (&item.kind, missing) {
                     (_, true) => egui::RichText::new(label).color(ui.visuals().error_fg_color),
-                    (ItemKind::Placeholder { .. }, false) => egui::RichText::new(label).weak(),
+                    (ItemKind::Placeholder { .. } | ItemKind::Style { .. }, false) => egui::RichText::new(label).weak(),
                     _ => egui::RichText::new(label),
                 };
                 if ui.selectable_label(selected, text).clicked() {
@@ -67,6 +67,7 @@ pub fn ui(ui: &mut egui::Ui, state: &State, commands: &mut Vec<Command>) {
 pub fn item_label(state: &State, item: &SetItem) -> String {
     match (&item.kind, item.song_id()) {
         (ItemKind::Song(_), Some(id)) => state.library.title(&id).to_owned(),
+        (ItemKind::Style { action, .. }, _) => format!("{} ({}: {})", item.name, tl!("style"), style_action(*action)),
         (ItemKind::Placeholder { item_type, .. }, _) if item_type.is_empty() => item.name.clone(),
         (ItemKind::Placeholder { item_type, .. }, _) => format!("{} ({item_type})", item.name),
         _ => item.name.clone(),
@@ -88,5 +89,13 @@ pub fn placeholder(ui: &mut egui::Ui, state: &State, commands: &mut Vec<Command>
         });
     } else if let ItemKind::Placeholder { item_type, .. } = &item.kind {
         ui.weak(format!("{} “{}” ({item_type}) {}", tl!("Item"), item.name, tl!("cannot be shown yet. It is kept as it is.")));
+    }
+}
+
+fn style_action(action: StyleAction) -> String {
+    match action {
+        StyleAction::New => tl!("new").to_string(),
+        StyleAction::Revert => tl!("revert").to_string(),
+        StyleAction::Other => tl!("other").to_string(),
     }
 }

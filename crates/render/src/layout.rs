@@ -5,14 +5,16 @@
 
 use std::fmt::Write as _;
 use std::ops::Range;
+use std::sync::Arc;
 
 use craft_text::bidi::{Direction, Paragraph};
 use craft_text::linebreak::{Item, Params, Rag, break_paragraph};
 use craft_text::segment::{Options, line_breaks};
 use serviceflow_core::song::Slide;
-use serviceflow_core::style::{Align, Captions, REFERENCE_HEIGHT, Rgba, Style, TextStyle, VAlign};
+use serviceflow_core::style::{Align, Captions, ImagePosition, REFERENCE_HEIGHT, Resize, Rgba, Style, TextStyle, VAlign};
 
 use crate::fonts::{FontId, Fonts};
+use crate::logo::Picture;
 
 /// Distance between baselines, as a multiple of the font size.
 pub const LINE_PITCH: f32 = 1.2;
@@ -37,7 +39,35 @@ pub struct Rect {
 pub struct Frame {
     pub size: Size,
     pub background: Rgba,
+    /// The background image, drawn over `background` and under the text.
+    pub image: Option<FrameImage>,
     pub boxes: Vec<TextBox>,
+}
+
+/// How a background image is placed on the frame.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+pub enum Fit {
+    /// Stretched to the area, ignoring proportions.
+    Stretch,
+    /// As large as fits inside the area, keeping proportions, centred.
+    Contain,
+    /// As small as covers the area, keeping proportions, centred and cropped.
+    Cover,
+    /// At natural size (scaled with the output like all lengths), centred.
+    Natural,
+    /// At natural size, repeated over the whole frame.
+    Tile,
+}
+
+/// A background image and where it goes.
+#[derive(Clone, Debug, PartialEq)]
+pub struct FrameImage {
+    pub picture: Arc<Picture>,
+    pub fit: Fit,
+    /// The area it is fitted to, in frame pixels.
+    pub area: Rect,
+    /// Output height over [`REFERENCE_HEIGHT`], for the natural size.
+    pub scale: f32,
 }
 
 /// What a text box holds.
@@ -132,6 +162,20 @@ impl Frame {
         let mut out = String::new();
         let r = |v: f32| format!("{:.1}", v);
         let _ = writeln!(out, "frame {}x{} background {:?}", self.size.width, self.size.height, self.background);
+        if let Some(image) = &self.image {
+            let a = image.area;
+            let _ = writeln!(
+                out,
+                "image {}x{} {:?} in ({}, {}) size {}x{}",
+                image.picture.width,
+                image.picture.height,
+                image.fit,
+                r(a.x),
+                r(a.y),
+                r(a.width),
+                r(a.height)
+            );
+        }
         for b in &self.boxes {
             let _ = writeln!(out, "box {:?} at ({}, {}) size {}x{}", b.role, r(b.rect.x), r(b.rect.y), r(b.rect.width), r(b.rect.height));
             for l in &b.lines {
@@ -161,7 +205,7 @@ impl Frame {
 /// The title and subtitle boxes are placed first, stacked from the top or the bottom of the frame
 /// as their vertical alignment says; the body gets what is left. With auto-scale on, the body's
 /// text shrinks (never grows) until it fits.
-pub(crate) fn layout(fonts: &Fonts, slide: &Slide, captions: &Captions, style: &Style, size: Size) -> Frame {
+pub(crate) fn layout(fonts: &Fonts, slide: &Slide, captions: &Captions, style: &Style, size: Size, picture: Option<Arc<Picture>>) -> Frame {
     let scale = size.height as f32 / REFERENCE_HEIGHT;
     let (w, h) = (size.width as f32, size.height as f32);
     let thickness = style.outline_thickness * scale;
@@ -212,8 +256,29 @@ pub(crate) fn layout(fonts: &Fonts, slide: &Slide, captions: &Captions, style: &
     let top = top.max(m.top * scale);
     let bottom = bottom.min(h - m.bottom * scale);
     let rect = rect_at(m.left * scale, top, w - (m.left + m.right) * scale, (bottom - top).max(0.0));
-    placed.push(body_box(fonts, slide, style, rect, scale, thickness));
-    Frame { size, background: style.background.color, boxes: placed }
+    // `background_as_text`: the image takes the place of the lyrics (only once it is there).
+    let no_lyrics = Slide::default();
+    let lyrics = if style.background.as_text && picture.is_some() { &no_lyrics } else { slide };
+    placed.push(body_box(fonts, lyrics, style, rect, scale, thickness));
+    let image = picture.map(|picture| {
+        let frame_area = rect_at(0.0, 0.0, w, h);
+        let (fit, area) = match style.background.resize {
+            Some(Resize::Screen) => (if style.background.keep_aspect { Fit::Contain } else { Fit::Stretch }, frame_area),
+            Some(Resize::Body) => (if style.background.keep_aspect { Fit::Contain } else { Fit::Stretch }, rect),
+            Some(Resize::None) => (Fit::Natural, frame_area),
+            None => (
+                match style.background.position {
+                    ImagePosition::Stretch => Fit::Stretch,
+                    ImagePosition::Center => Fit::Natural,
+                    ImagePosition::Tile => Fit::Tile,
+                    ImagePosition::Cover => Fit::Cover,
+                },
+                frame_area,
+            ),
+        };
+        FrameImage { picture, fit, area, scale }
+    });
+    Frame { size, background: style.background.color, image, boxes: placed }
 }
 
 fn rect_at(x: f32, y: f32, width: f32, height: f32) -> Rect {

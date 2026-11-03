@@ -11,7 +11,7 @@ use serviceflow_testkit::EngineHarness;
 const HD: Size = Size { width: 1920, height: 1080 };
 
 fn multilanguage(lines: &[&str]) -> Slide {
-    Slide { section: "V1".into(), lines: lines.iter().map(|l| l.to_string()).collect(), multilanguage: true }
+    Slide { section: "V1".into(), lines: lines.iter().map(|l| l.to_string()).collect(), multilanguage: true, ..Slide::default() }
 }
 
 fn body_lines(slide: &Slide, style: &Style, size: Size) -> Vec<Line> {

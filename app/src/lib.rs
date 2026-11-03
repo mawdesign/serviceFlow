@@ -343,7 +343,7 @@ fn slide_grid(ui: &mut egui::Ui, state: &State, thumbnails: &mut thumbnails::Thu
     let pixels = points * ui.ctx().pixels_per_point();
     let size = Size { width: pixels.x.round() as u32, height: pixels.y.round() as u32 };
     let live = state.output.live.as_ref().filter(|live| live.song == open.id).map(|live| live.index);
-    let textures = thumbnails.for_song(ui.ctx(), open, &state.styles, size);
+    let textures = thumbnails.for_song(ui.ctx(), state, size);
     egui::ScrollArea::vertical().show(ui, |ui| {
         ui.horizontal_wrapped(|ui| {
             for (index, (slide, texture)) in open.slides.iter().zip(textures).enumerate() {

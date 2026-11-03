@@ -38,15 +38,15 @@ pub struct SlideBackground {
     pub as_text: bool,
 }
 
-/// Everything that decides how one slide looks besides its text: the style it uses and the
+/// Everything that decides how one slide resolved besides its text: the style it uses and the
 /// background image its song gives it.
 #[derive(Debug, Clone, Default, PartialEq)]
-pub struct Look {
+pub struct ResolvedStyle {
     pub style: StyleChoice,
     pub background: Option<SlideBackground>,
 }
 
-impl Look {
+impl ResolvedStyle {
     /// The style to draw with: the chosen one, with the song background laid over its
     /// background. A custom style borrows the imported outline thickness, which OpenSong keeps
     /// global.
@@ -64,7 +64,7 @@ impl Look {
         if let Some(bg) = &self.background {
             let owned = style.to_mut();
             owned.background.image = Some(bg.image.clone());
-            owned.background.resize = bg.resize;
+            owned.background.resize = Some(bg.resize);
             owned.background.keep_aspect = bg.keep_aspect;
             owned.background.as_text = bg.as_text;
         }
