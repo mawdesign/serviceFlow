@@ -23,6 +23,9 @@ pub struct Song {
     pub user3: String,
     /// The presentation order as section tags. Empty means file order.
     pub presentation: Vec<String>,
+    /// The lyrics as written (line endings as LF), which the sections are read from. The song
+    /// editor edits this text; comments and everything else the sections drop stay in it.
+    pub lyrics: String,
     /// Sections in file order (first appearance; a repeated tag adds to the earlier section).
     pub sections: Vec<Section>,
     /// Elements of the file that are not modelled above (such as `<alttheme>`, `<backgrounds>`
@@ -54,6 +57,22 @@ pub enum SongWarning {
     /// A `||` slide break on `line` of a multilanguage section falls between a primary line and
     /// its translation. The break is shown after the translation line instead (ADR-0007).
     BreakInsidePair { line: usize },
+    /// The tag `tag` on `line` names the same section as the earlier tag `other` once both are
+    /// written in canonical form (`1` and `V1`; `V1-L` and `V1`), so renaming them to the
+    /// canonical form would merge two sections (ADR-0002).
+    TagCollision { line: usize, tag: String, other: String },
+}
+
+impl SongWarning {
+    /// The lyrics line the warning is about, from 1.
+    pub fn line(&self) -> usize {
+        match self {
+            Self::StrayFirstCharacter { line, .. }
+            | Self::MaybeMultilanguage { line, .. }
+            | Self::BreakInsidePair { line }
+            | Self::TagCollision { line, .. } => *line,
+        }
+    }
 }
 
 /// A named part of a song's lyrics (GLOSSARY "Section").
@@ -256,6 +275,15 @@ pub fn legacy_multilanguage_base(tag: &str) -> Option<&str> {
     let typed = matches!(letter.to_ascii_uppercase(), 'V' | 'P' | 'C' | 'B' | 'T');
     let numbered = digits.chars().all(|c| c.is_ascii_digit()) && !(digits_needed && digits.is_empty());
     (typed && numbered).then_some(base)
+}
+
+/// The canonical form of a section tag (ADR-0002) for comparing tags: a bare number `n` is `Vn`,
+/// a legacy multilanguage tag loses its `-L`/`L`. Compare the results case-insensitively.
+pub fn canonical_tag(tag: &str) -> String {
+    if !tag.is_empty() && tag.chars().all(|c| c.is_ascii_digit()) {
+        return format!("V{tag}");
+    }
+    legacy_multilanguage_base(tag).unwrap_or(tag).to_owned()
 }
 
 /// What a lyric line looks like on screen: trimmed, `_` removed, OpenSong's special spacing

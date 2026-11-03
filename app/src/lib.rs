@@ -5,6 +5,7 @@
 
 #[cfg(not(target_arch = "wasm32"))]
 pub mod data_root;
+pub mod editor;
 pub mod fonts;
 pub mod i18n;
 pub mod library;
@@ -50,6 +51,8 @@ pub struct ControlWindow<S> {
     shortcuts: shortcuts::Shortcuts,
     /// The Keyboard Shortcuts dialog, while it is open.
     shortcuts_dialog: Option<craft_keymap::ui::DialogState>,
+    /// The slides panel shows the song editor instead of the slide grid. UI-only state.
+    editing: bool,
 }
 
 /// The control window's dockable panels.
@@ -82,6 +85,7 @@ struct Panels<'a> {
     state: &'a State,
     thumbnails: &'a mut thumbnails::Thumbnails,
     library: &'a mut library::LibraryView,
+    editing: &'a mut bool,
     commands: &'a mut Vec<Command>,
 }
 
@@ -90,7 +94,8 @@ impl DockContent<Panel> for Panels<'_> {
         match panel {
             Panel::Library => self.library.ui(ui, self.state, self.commands),
             Panel::Set => set_panel::ui(ui, self.state, self.commands),
-            Panel::Slides => slides(ui, self.state, self.thumbnails, self.commands),
+            Panel::Slides if *self.editing => *self.editing = !editor::ui(ui, self.state, self.thumbnails, self.commands),
+            Panel::Slides => slides(ui, self.state, self.thumbnails, self.editing, self.commands),
         }
     }
 
@@ -133,6 +138,7 @@ impl<S: Storage + 'static> ControlWindow<S> {
             library: library::LibraryView::default(),
             shortcuts: shortcuts::Shortcuts::new(Default::default()),
             shortcuts_dialog: None,
+            editing: false,
         }
     }
 
@@ -210,7 +216,13 @@ impl<S: Storage + 'static> ControlWindow<S> {
         egui::CentralPanel::default().show(ui, |ui| {
             problems(ui, &state);
             let style = DockStyle::from_ui(ui);
-            let mut panels = Panels { state: &state, thumbnails: &mut self.thumbnails, library: &mut self.library, commands: &mut commands };
+            let mut panels = Panels {
+                state: &state,
+                thumbnails: &mut self.thumbnails,
+                library: &mut self.library,
+                editing: &mut self.editing,
+                commands: &mut commands,
+            };
             let out = DockArea::new(ui.scope_id().with("dock")).show_content(ui, &self.dock, &style, &mut panels);
             if !out.actions.is_empty() {
                 // A rejected action leaves the layout as it was.
@@ -356,7 +368,7 @@ fn problems(ui: &mut egui::Ui, state: &State) {
     }
 }
 
-fn slides(ui: &mut egui::Ui, state: &State, thumbnails: &mut thumbnails::Thumbnails, commands: &mut Vec<Command>) {
+fn slides(ui: &mut egui::Ui, state: &State, thumbnails: &mut thumbnails::Thumbnails, editing: &mut bool, commands: &mut Vec<Command>) {
     // Operator notes of the selected set item sit under the grid and are never projected.
     let notes = state.set.as_ref().and_then(|set| set.set.items.get(set.selected?)).map(|item| item.notes.as_str()).filter(|n| !n.trim().is_empty());
     ui.with_layout(egui::Layout::bottom_up(egui::Align::Min), |ui| {
@@ -367,11 +379,11 @@ fn slides(ui: &mut egui::Ui, state: &State, thumbnails: &mut thumbnails::Thumbna
                 ui.label(notes);
             });
         }
-        ui.with_layout(egui::Layout::top_down(egui::Align::Min), |ui| slide_grid(ui, state, thumbnails, commands));
+        ui.with_layout(egui::Layout::top_down(egui::Align::Min), |ui| slide_grid(ui, state, thumbnails, editing, commands));
     });
 }
 
-fn slide_grid(ui: &mut egui::Ui, state: &State, thumbnails: &mut thumbnails::Thumbnails, commands: &mut Vec<Command>) {
+fn slide_grid(ui: &mut egui::Ui, state: &State, thumbnails: &mut thumbnails::Thumbnails, editing: &mut bool, commands: &mut Vec<Command>) {
     let Some(open) = &state.song else {
         if state.set.as_ref().is_some_and(|set| set.selected.is_some()) && state.loading.is_none() {
             set_panel::placeholder(ui, state, commands);
@@ -380,7 +392,12 @@ fn slide_grid(ui: &mut egui::Ui, state: &State, thumbnails: &mut thumbnails::Thu
         }
         return;
     };
-    ui.label(egui::RichText::new(&open.song.title).strong());
+    ui.horizontal(|ui| {
+        ui.label(egui::RichText::new(&open.song.title).strong());
+        if ui.button(tl!("Edit song")).clicked() {
+            *editing = true;
+        }
+    });
     let points = egui::vec2(THUMBNAIL_WIDTH, THUMBNAIL_WIDTH * 9.0 / 16.0);
     let pixels = points * ui.ctx().pixels_per_point();
     let size = Size { width: pixels.x.round() as u32, height: pixels.y.round() as u32 };

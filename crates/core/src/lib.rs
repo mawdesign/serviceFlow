@@ -5,8 +5,10 @@
 //! implementation (`cargo xtask layers`).
 
 pub mod command;
+pub mod edit;
 pub mod engine;
 pub mod ids;
+pub mod lyrics;
 pub mod output;
 pub mod search;
 pub mod set;
