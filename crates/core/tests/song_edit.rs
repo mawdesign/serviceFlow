@@ -208,14 +208,32 @@ fn warns_about_a_break_between_a_primary_line_and_its_translation() {
 #[test]
 fn warns_about_tags_that_would_collide_once_canonical() {
     let mut harness = harness();
-    assert_eq!(
-        warnings(&mut harness, "[1]\n One\n[V1]\n Uno"),
-        [SongWarning::TagCollision { line: 3, tag: "V1".into(), other: "1".into() }]
-    );
+    assert_eq!(warnings(&mut harness, "[1]\n One\n[V1]\n Uno"), [SongWarning::TagCollision { line: 3, tag: "V1".into(), other: "1".into() }]);
     assert_eq!(
         warnings(&mut harness, "[V1-L]\n One\n Un\n[V1] (L)\n Two\n Deux"),
         [SongWarning::TagCollision { line: 4, tag: "V1".into(), other: "V1-L".into() }]
     );
     // A repeated tag is one section (OpenSong behaviour), and different verses do not collide.
     assert_eq!(warnings(&mut harness, "[V1]\n One\n[V2]\n Two\n[v1]\n More"), []);
+}
+
+#[test]
+fn the_lyrics_are_highlighted_by_line_syntax() {
+    use serviceflow_core::lyrics::{Highlight, highlight};
+    let text = "[V1] (L)\n.G   C\n1 Hello|there\n ||\n;note\n-print\nStray_ line\n";
+    let spans: Vec<_> = highlight(text).into_iter().map(|(range, kind)| (&text[range], kind)).collect();
+    assert_eq!(
+        spans,
+        [
+            ("[V1] (L)", Highlight::Header),
+            (".G   C", Highlight::Chords),
+            ("1", Highlight::VerseNumber),
+            ("|", Highlight::LineBreak),
+            ("||", Highlight::SlideBreak),
+            (";note", Highlight::Comment),
+            ("-print", Highlight::PrintLayout),
+            ("S", Highlight::StrayFirstCharacter),
+            ("_", Highlight::Spacer),
+        ]
+    );
 }

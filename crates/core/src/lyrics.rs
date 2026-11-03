@@ -178,3 +178,81 @@ impl Parser {
         }
     }
 }
+
+/// What a stretch of lyrics text is, for syntax highlighting in the song editor. Plain lyrics
+/// have no kind.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Highlight {
+    /// A section header line, `[V1] (L)`.
+    Header,
+    /// A chord line, starting with `.`.
+    Chords,
+    /// A comment line, starting with `;`.
+    Comment,
+    /// A print-layout line, starting with `-`.
+    PrintLayout,
+    /// The digit `1`-`9` that starts a numbered verse line.
+    VerseNumber,
+    /// A first character that is not a space, digit or line marker: the line is read as lyrics
+    /// but is probably a mistake (warned about).
+    StrayFirstCharacter,
+    /// `||`, a slide break.
+    SlideBreak,
+    /// `|`, a forced line break.
+    LineBreak,
+    /// `_`, removed from what is shown.
+    Spacer,
+}
+
+/// The highlighted stretches of `text` as byte ranges in order, never overlapping. A line is
+/// one stretch when its first character makes the whole line a header, chord line, comment or
+/// print-layout line; in lyric lines only the first-column marker and the `||`, `|` and `_`
+/// markers are picked out.
+pub fn highlight(text: &str) -> Vec<(std::ops::Range<usize>, Highlight)> {
+    let mut spans = Vec::new();
+    let mut start = 0;
+    for line in text.split_inclusive('\n') {
+        let body = line.trim_end_matches(['\n', '\r']);
+        let Some(first) = body.chars().next() else {
+            start += line.len();
+            continue;
+        };
+        let whole = match first {
+            '[' => Some(Highlight::Header),
+            '.' => Some(Highlight::Chords),
+            ';' => Some(Highlight::Comment),
+            '-' => Some(Highlight::PrintLayout),
+            _ => None,
+        };
+        if let Some(kind) = whole {
+            spans.push((start..start + body.len(), kind));
+        } else {
+            let marker = match first {
+                '1'..='9' => Some(Highlight::VerseNumber),
+                c if c.is_whitespace() => None,
+                _ => Some(Highlight::StrayFirstCharacter),
+            };
+            if let Some(kind) = marker {
+                spans.push((start..start + first.len_utf8(), kind));
+            }
+            let mut at = first.len_utf8();
+            while at < body.len() {
+                let rest = &body[at..];
+                let (len, kind) = if rest.starts_with("||") {
+                    (2, Highlight::SlideBreak)
+                } else if rest.starts_with('|') {
+                    (1, Highlight::LineBreak)
+                } else if rest.starts_with('_') {
+                    (1, Highlight::Spacer)
+                } else {
+                    at += rest.chars().next().map_or(1, char::len_utf8);
+                    continue;
+                };
+                spans.push((start + at..start + at + len, kind));
+                at += len;
+            }
+        }
+        start += line.len();
+    }
+    spans
+}
