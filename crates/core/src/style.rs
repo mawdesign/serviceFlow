@@ -190,11 +190,30 @@ pub enum ImageSource {
     Embedded(String),
 }
 
+/// What area a song or item background image is fitted to (OpenSong `backgrounds/@resize`).
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash)]
+pub enum Resize {
+    /// The whole screen.
+    #[default]
+    Screen,
+    /// The body text area.
+    Body,
+    /// Natural size, centred.
+    None,
+}
+
 #[derive(Clone, Debug, PartialEq)]
 pub struct Background {
     pub color: Rgba,
     pub image: Option<ImageSource>,
     pub position: ImagePosition,
+    /// Song and item backgrounds: the area the image is fitted to. Style images use `position`.
+    pub resize: Resize,
+    /// Song and item backgrounds: keep the image's proportions (fit inside the area, centred)
+    /// instead of stretching it to the area.
+    pub keep_aspect: bool,
+    /// Song backgrounds: show the image without the lyrics (OpenSong `background_as_text`).
+    pub as_text: bool,
 }
 
 /// The full visual specification of a slide.
@@ -229,7 +248,14 @@ impl Default for Style {
                 multilanguage_color: Rgba::rgb(220, 220, 220),
                 blank_is_slide_change: false,
             },
-            background: Background { color: Rgba::BLACK, image: None, position: ImagePosition::Cover },
+            background: Background {
+                color: Rgba::BLACK,
+                image: None,
+                position: ImagePosition::Cover,
+                resize: Resize::Screen,
+                keep_aspect: false,
+                as_text: false,
+            },
             translation_italic: true,
             pair_gap: 0.2,
             outline_thickness: 2.0,

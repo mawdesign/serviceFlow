@@ -93,6 +93,11 @@ pub enum Command {
         error: String,
         missing: bool,
     },
+    /// Storage result: a background image file was read (`None`: it could not be).
+    ImageLoaded {
+        name: String,
+        bytes: Option<Arc<[u8]>>,
+    },
     /// The renderer drew `used` instead of the style's font `requested`. Becomes a
     /// [`Problem::FontSubstituted`](crate::state::Problem) the operator sees; repeats are ignored.
     FontSubstituted {
@@ -186,6 +191,8 @@ impl Command {
 /// IO the engine asks for. Each effect ends with exactly one result command.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum Effect {
+    /// Read a file of `Backgrounds/`; answer with [`Command::ImageLoaded`].
+    LoadImage(String),
     /// Read and parse `Settings/PresentSettings`; answer with [`Command::StylesImported`] or
     /// [`Command::StylesImportFailed`]. Never writes.
     ReadOpenSongStyles(ImportTrigger),

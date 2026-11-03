@@ -7,6 +7,7 @@
 pub mod command;
 pub mod engine;
 pub mod ids;
+pub mod look;
 pub mod output;
 pub mod search;
 pub mod set;

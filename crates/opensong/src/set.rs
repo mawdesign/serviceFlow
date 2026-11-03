@@ -1,6 +1,8 @@
 //! Reading sets (`Sets/<name>`).
 
-use serviceflow_core::set::{ItemKind, Set, SetItem, SongItem};
+use std::sync::Arc;
+
+use serviceflow_core::set::{ItemKind, Set, SetItem, SongItem, StyleAction};
 use serviceflow_core::song::RawElement;
 
 use crate::CodecError;
@@ -33,7 +35,15 @@ fn read_item(group: &Element) -> SetItem {
     let name = group.attr("name").unwrap_or_default().to_owned();
     let notes = group.child_text("notes");
     let item_type = group.attr("type").unwrap_or_default();
-    let kind = if item_type.eq_ignore_ascii_case("song") {
+    let style = group.child("style").map(|e| Arc::new(crate::settings::style(e)));
+    let kind = if item_type.eq_ignore_ascii_case("style") {
+        let action = match group.attr("action").map(|a| a.trim().to_ascii_lowercase()).as_deref() {
+            Some("new") => StyleAction::New,
+            Some("revert") => StyleAction::Revert,
+            _ => StyleAction::Other,
+        };
+        ItemKind::Style { action, xml: group.to_xml() }
+    } else if item_type.eq_ignore_ascii_case("song") {
         let other_elements = group
             .children
             .iter()
@@ -50,7 +60,7 @@ fn read_item(group: &Element) -> SetItem {
     } else {
         ItemKind::Placeholder { item_type: item_type.to_ascii_lowercase(), xml: group.to_xml() }
     };
-    SetItem { name, notes, kind }
+    SetItem { name, notes, style, kind }
 }
 
 /// OpenSong's `CleanPath`: `\` and `/` separators, no leading, trailing or doubled ones.

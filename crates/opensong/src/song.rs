@@ -1,7 +1,10 @@
 //! Song files (opensong.md §2–§6): metadata, the lyrics line grammar, numbered verse blocks and
 //! repeated tags. Unmodelled elements are kept as they were read.
 
-use serviceflow_core::song::{Line, RawElement, Section, Song, SongWarning, legacy_multilanguage_base};
+use std::sync::Arc;
+
+use serviceflow_core::song::{Line, RawElement, Section, Song, SongBackgrounds, SongWarning, VerseBackground, legacy_multilanguage_base};
+use serviceflow_core::style::{ImageSource, Resize};
 
 use crate::CodecError;
 use crate::xml::{self, Node};
@@ -68,9 +71,40 @@ pub fn read_song(bytes: &[u8]) -> Result<Song, CodecError> {
         // ASCII only: a no-break space is part of a token (a tag with a space in it).
         presentation: text("presentation").split_ascii_whitespace().map(str::to_owned).collect(),
         sections,
+        style: root.child("style").map(|e| Arc::new(crate::settings::style(e))),
+        backgrounds: root.child("backgrounds").map(read_backgrounds),
         other_elements,
         warnings,
     })
+}
+
+/// `<backgrounds resize keep_aspect link background_as_text>` with one `<background verse>` per
+/// image, which is `<filename>` (under `Backgrounds/`) or `<image>` (base64).
+fn read_backgrounds(e: &xml::Element) -> SongBackgrounds {
+    let flag = |name| crate::settings::flag(e, name, false);
+    let resize = match e.attr("resize").map(|r| r.trim().to_ascii_lowercase()).as_deref() {
+        None | Some("screen") => Resize::Screen,
+        Some("body") => Resize::Body,
+        Some(_) => Resize::None,
+    };
+    let items = e
+        .children
+        .iter()
+        .filter_map(|n| match n {
+            Node::Element(b) if b.name == "background" => {
+                let file = b.child_text("filename");
+                let data: String = b.child_text("image").split_whitespace().collect();
+                let image = match (file.trim(), data.is_empty()) {
+                    (name, _) if !name.is_empty() => ImageSource::File(name.to_owned()),
+                    (_, false) => ImageSource::Embedded(data),
+                    _ => return None,
+                };
+                Some(VerseBackground { verse: b.attr("verse").unwrap_or_default().to_owned(), image })
+            }
+            _ => None,
+        })
+        .collect();
+    SongBackgrounds { resize, keep_aspect: flag("keep_aspect"), link: flag("link"), as_text: flag("background_as_text"), items }
 }
 
 /// Split lyrics into sections (OpenSong `SongML.LyricsToSections`). Each line is right-trimmed;

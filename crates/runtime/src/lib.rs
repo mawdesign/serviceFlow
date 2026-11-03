@@ -172,6 +172,13 @@ pub async fn perform<S: Storage>(storage: &S, effect: Effect) -> Command {
             }
             Command::SettingsImported { trigger, output, colors, faults }
         }
+        Effect::LoadImage(name) => {
+            let bytes = match storage.read_asset(&serviceflow_storage::AssetId(name.clone())).await {
+                Ok(stored) => Some(Arc::<[u8]>::from(stored.bytes)),
+                Err(_) => None,
+            };
+            Command::ImageLoaded { name, bytes }
+        }
         Effect::LoadSong(id) => {
             let parsed = match storage.read_song(&id).await {
                 Ok(stored) => serviceflow_opensong::read_song(&stored.bytes).map(|song| (song, stored.hash)).map_err(|e| e.to_string()),
