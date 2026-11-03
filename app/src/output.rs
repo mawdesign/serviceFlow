@@ -158,6 +158,7 @@ pub fn show_window(
     ctx: &egui::Context,
     monitor: Option<(usize, &MonitorInfo)>,
     frame: &mut OutputFrame,
+    shortcuts: &mut crate::shortcuts::Shortcuts,
     state: &State,
     commands: &mut Vec<Command>,
 ) -> bool {
@@ -170,7 +171,7 @@ pub fn show_window(
         if ui.input(|i| i.viewport().close_requested()) {
             open = false;
         }
-        commands.extend(crate::keys::live_commands(ui.ctx()));
+        commands.extend(shortcuts.commands(ui.ctx()));
         ui.ctx().set_cursor_icon(egui::CursorIcon::None);
         egui::CentralPanel::default().frame(egui::Frame::NONE.fill(egui::Color32::BLACK)).show(ui, |ui| {
             let rect = ui.max_rect();

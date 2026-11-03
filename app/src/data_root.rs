@@ -121,11 +121,17 @@ impl DesktopApp {
                     window = window.with_monitors(Arc::clone(monitors));
                 }
                 let saving = Rc::clone(&self.store);
-                let output = self.store.borrow().get().output.clone();
-                window = window.with_prefs(Prefs { output, ..Prefs::default() }, move |prefs| {
+                let (output, shortcuts) = {
+                    let store = self.store.borrow();
+                    (store.get().output.clone(), store.get().shortcuts.clone())
+                };
+                window = window.with_prefs(Prefs { output, shortcuts, ..Prefs::default() }, move |prefs| {
                     let mut store = saving.borrow_mut();
-                    store.update(|p| p.output = prefs.output.clone());
-                    // Choosing a monitor is rare; write it now rather than on the debounce timer.
+                    store.update(|p| {
+                        p.output = prefs.output.clone();
+                        p.shortcuts = prefs.shortcuts.clone();
+                    });
+                    // Choosing a monitor or a shortcut is rare; write it now rather than on the debounce timer.
                     if let Err(e) = store.flush() {
                         eprintln!("serviceflow: cannot save settings: {e}");
                     }
