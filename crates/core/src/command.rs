@@ -10,7 +10,7 @@ use std::sync::Arc;
 use crate::ids::{ContentHash, SetId, SongId};
 use crate::output::{OutputSettings, SlideColors};
 use crate::set::Set;
-use crate::song::{SlideOptions, Song};
+use crate::song::{LanguageMode, SlideOptions, Song};
 use crate::style::Styles;
 
 #[derive(Debug, Clone, PartialEq)]
@@ -102,6 +102,9 @@ pub enum Command {
     /// Change how lyrics become slides (such as OpenSong's `blank_is_slide_change`). The open
     /// song's slides are rebuilt; what is live stays live.
     SetSlideOptions(SlideOptions),
+    /// Show both lines of multilanguage sections, primary lines only or translation lines only
+    /// (GLOSSARY "Language mode"). The open song's slides and the live slide change at once.
+    SetLanguageMode(LanguageMode),
     /// Read the list of sets.
     RefreshSets,
     /// Storage result: the sets in `Sets/`.
@@ -169,7 +172,13 @@ impl Command {
     pub fn is_live_action(&self) -> bool {
         matches!(
             self,
-            Command::GoLive { .. } | Command::NextSlide | Command::PreviousSlide | Command::ToggleBlank | Command::ToggleBlack | Command::ToggleLogo
+            Command::GoLive { .. }
+                | Command::NextSlide
+                | Command::PreviousSlide
+                | Command::ToggleBlank
+                | Command::ToggleBlack
+                | Command::ToggleLogo
+                | Command::SetLanguageMode(_)
         )
     }
 }

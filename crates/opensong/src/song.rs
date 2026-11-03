@@ -1,7 +1,7 @@
 //! Song files (opensong.md §2–§6): metadata, the lyrics line grammar, numbered verse blocks and
 //! repeated tags. Unmodelled elements are kept as they were read.
 
-use serviceflow_core::song::{Line, RawElement, Section, Song, SongWarning};
+use serviceflow_core::song::{Line, RawElement, Section, Song, SongWarning, legacy_multilanguage_base};
 
 use crate::CodecError;
 use crate::xml::{self, Node};
@@ -76,7 +76,10 @@ pub fn read_song(bytes: &[u8]) -> Result<Song, CodecError> {
 /// Split lyrics into sections (OpenSong `SongML.LyricsToSections`). Each line is right-trimmed;
 /// its first character decides what it is:
 ///
-/// - `[` a section tag (`[name]`, options such as `(L)` after it are ignored here);
+/// - `[` a section tag (`[name]`), maybe followed by options in parentheses: `(L)` makes the
+///   section multilanguage, as do the strict legacy tags `V1-L`, `C-L`, `V1L` (ADR-0007; other
+///   tags ending in `L` get a warning). Once multilanguage, a section stays so, and a numbered
+///   verse block's verses inherit it;
 /// - `.` a chord line; `;` a comment and `-` a print-layout command (neither kept);
 /// - a space: a lyric line of the current section;
 /// - `1`–`9`: a lyric line of the numbered verse `<current tag><digit>` (numbered verse block);
@@ -92,7 +95,7 @@ fn parse_lyrics(lyrics: &str) -> (Vec<Section>, Vec<SongWarning>) {
             parser.flush_chords();
             // Empty lines before the first tag or lyric belong to nothing.
             if let Some(current) = parser.current {
-                parser.sections[current].lines.push(Line::Blank);
+                parser.push(current, Line::Blank, number);
             }
             continue;
         };
@@ -100,8 +103,16 @@ fn parse_lyrics(lyrics: &str) -> (Vec<Section>, Vec<SongWarning>) {
         match first {
             '[' => {
                 parser.flush_chords();
-                let tag = rest.split(']').next().unwrap_or_default().trim();
-                parser.current = Some(parser.section(tag));
+                let (tag, after) = rest.split_once(']').unwrap_or((rest, ""));
+                let tag = tag.trim();
+                let explicit = has_l_option(after);
+                let legacy = legacy_multilanguage_base(tag).is_some();
+                if !explicit && !legacy && tag.chars().count() > 1 && tag.ends_with(['L', 'l']) {
+                    parser.warnings.push(SongWarning::MaybeMultilanguage { line: number + 1, tag: tag.to_owned() });
+                }
+                let section = parser.section(tag);
+                parser.sections[section].multilanguage |= explicit || legacy;
+                parser.current = Some(section);
             }
             '.' => {
                 parser.flush_chords();
@@ -110,27 +121,48 @@ fn parse_lyrics(lyrics: &str) -> (Vec<Section>, Vec<SongWarning>) {
             ';' | '-' => {}
             '1'..='9' => {
                 let tag = format!("{}{first}", parser.current_tag());
+                let inherited = parser.current.is_some_and(|i| parser.sections[i].multilanguage);
                 let section = parser.section(&tag);
-                parser.lyric(section, rest, true);
+                parser.sections[section].multilanguage |= inherited;
+                parser.lyric(section, rest, true, number);
             }
             c if c.is_whitespace() => {
                 let section = parser.current();
-                parser.lyric(section, rest, false);
+                parser.lyric(section, rest, false, number);
             }
             c => {
                 parser.warnings.push(SongWarning::StrayFirstCharacter { line: number + 1, character: c });
                 let section = parser.current();
-                parser.lyric(section, line, false);
+                parser.lyric(section, line, false, number);
             }
         }
     }
     parser.flush_chords();
+    // Slide breaks that would part a pair (known only once every line of a section is in).
+    for (section, origins) in parser.sections.iter().zip(&parser.origins) {
+        for index in section.breaks_inside_pairs() {
+            parser.warnings.push(SongWarning::BreakInsidePair { line: origins[index] + 1 });
+        }
+    }
+    parser.warnings.sort_by_key(|w| match w {
+        SongWarning::StrayFirstCharacter { line, .. } | SongWarning::MaybeMultilanguage { line, .. } | SongWarning::BreakInsidePair { line } => *line,
+    });
     (parser.sections, parser.warnings)
+}
+
+/// Whether the options after a tag's `]` (the first `(`…`)`) include `L`. Others such as
+/// `L1=en` are ignored, as in OpenSong.
+fn has_l_option(after: &str) -> bool {
+    let Some((_, options)) = after.split_once('(') else { return false };
+    let Some((options, _)) = options.split_once(')') else { return false };
+    options.split(|c: char| c.is_whitespace() || c == ',').any(|o| o.eq_ignore_ascii_case("L"))
 }
 
 #[derive(Default)]
 struct Parser {
     sections: Vec<Section>,
+    /// For each section, the 0-based lyrics line each of its lines came from.
+    origins: Vec<Vec<usize>>,
     /// Index of the current section (the last tag seen), if any.
     current: Option<usize>,
     pending: Option<Pending>,
@@ -166,7 +198,8 @@ impl Parser {
         match self.sections.iter().position(|s| s.tag.eq_ignore_ascii_case(tag)) {
             Some(i) => i,
             None => {
-                self.sections.push(Section { tag: tag.to_owned(), lines: Vec::new() });
+                self.sections.push(Section { tag: tag.to_owned(), ..Section::default() });
+                self.origins.push(Vec::new());
                 self.sections.len() - 1
             }
         }
@@ -174,17 +207,23 @@ impl Parser {
 
     /// Add a lyric line to a section, after the pending chord line if it has not had it yet. A
     /// plain lyric line uses up the chord line; numbered lines share it.
-    fn lyric(&mut self, section: usize, text: &str, numbered: bool) {
+    fn lyric(&mut self, section: usize, text: &str, numbered: bool, number: usize) {
         if let Some(pending) = &mut self.pending
             && !pending.given_to.contains(&section)
         {
             pending.given_to.push(section);
-            self.sections[section].lines.push(Line::Chords(pending.chords.clone()));
+            let chords = Line::Chords(pending.chords.clone());
+            self.push(section, chords, number);
         }
         if !numbered {
             self.pending = None;
         }
-        self.sections[section].lines.push(Line::Lyric(text.to_owned()));
+        self.push(section, Line::Lyric(text.to_owned()), number);
+    }
+
+    fn push(&mut self, section: usize, line: Line, number: usize) {
+        self.sections[section].lines.push(line);
+        self.origins[section].push(number);
     }
 
     /// A chord line that no lyric line took stays in the current section.
@@ -193,7 +232,8 @@ impl Parser {
             && pending.given_to.is_empty()
         {
             let current = self.current();
-            self.sections[current].lines.push(Line::Chords(pending.chords));
+            // Only lyric lines' origins are ever looked up.
+            self.push(current, Line::Chords(pending.chords), 0);
         }
     }
 }

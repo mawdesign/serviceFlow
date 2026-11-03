@@ -5,7 +5,7 @@ use serviceflow_core::song::Slide;
 use serviceflow_render::{Align, BoxRole, LineRole, Margins, Renderer, Size, Style, VAlign};
 
 fn slide(lines: &[&str]) -> Slide {
-    Slide { section: "V1".into(), lines: lines.iter().map(|l| l.to_string()).collect() }
+    Slide { section: "V1".into(), lines: lines.iter().map(|l| l.to_string()).collect(), ..Slide::default() }
 }
 
 const HD: Size = Size { width: 1920, height: 1080 };

@@ -63,7 +63,10 @@ pub struct TextBox {
 /// What a line holds. Lines of different roles may have different sizes and styles.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub enum LineRole {
+    /// A lyric line; in a multilanguage slide, a primary line.
     Lyric,
+    /// A translation line of a multilanguage slide, beneath its primary line.
+    Translation,
     Title,
     Subtitle,
 }
@@ -111,6 +114,8 @@ pub struct Effects {
     /// A solid box behind the line.
     pub fill: Option<Rgba>,
     pub underline: bool,
+    /// Slanted (synthetic oblique until italic faces are bundled).
+    pub italic: bool,
 }
 
 /// A glyph's origin (on the baseline).
@@ -189,7 +194,7 @@ pub(crate) fn layout(fonts: &Fonts, slide: &Slide, captions: &Captions, style: &
         let m = st.margins;
         let y = top + m.top * scale;
         top = y + *block + m.bottom * scale;
-        placed.push(finish(fonts, *role, st, std::mem::take(lines), rect_at(m.left * scale, y, w - (m.left + m.right) * scale, *block), scale));
+        placed.push(finish(fonts, *role, st, std::mem::take(lines), rect_at(m.left * scale, y, w - (m.left + m.right) * scale, *block)));
     }
     for (role, st, lines, block) in shown.iter_mut().rev() {
         if st.valign != VAlign::Bottom {
@@ -198,7 +203,7 @@ pub(crate) fn layout(fonts: &Fonts, slide: &Slide, captions: &Captions, style: &
         let m = st.margins;
         let y = bottom - m.bottom * scale - *block;
         bottom = y - m.top * scale;
-        placed.push(finish(fonts, *role, st, std::mem::take(lines), rect_at(m.left * scale, y, w - (m.left + m.right) * scale, *block), scale));
+        placed.push(finish(fonts, *role, st, std::mem::take(lines), rect_at(m.left * scale, y, w - (m.left + m.right) * scale, *block)));
     }
     placed.sort_by_key(|b| b.role != BoxRole::Title);
 
@@ -207,7 +212,7 @@ pub(crate) fn layout(fonts: &Fonts, slide: &Slide, captions: &Captions, style: &
     let top = top.max(m.top * scale);
     let bottom = bottom.min(h - m.bottom * scale);
     let rect = rect_at(m.left * scale, top, w - (m.left + m.right) * scale, (bottom - top).max(0.0));
-    placed.push(body_box(fonts, &slide.lines, style, rect, scale, thickness));
+    placed.push(body_box(fonts, slide, style, rect, scale, thickness));
     Frame { size, background: style.background.color, boxes: placed }
 }
 
@@ -219,38 +224,71 @@ fn rect_at(x: f32, y: f32, width: f32, height: f32) -> Rect {
 const MIN_AUTO_SCALE: f32 = 0.1;
 
 /// Lay the body's lines out in `rect`, shrinking them to fit when the style auto-scales.
-fn body_box(fonts: &Fonts, lines: &[String], style: &Style, rect: Rect, scale: f32, thickness: f32) -> TextBox {
+///
+/// In a multilanguage slide every other line is a translation line: the body style with italic
+/// flipped, `floor(body size x multilanguage size / 100)` and the multilanguage colour; before
+/// each primary line after the first goes a gap of `pair_gap` translation lines. Auto-scale
+/// fits the whole block, so translation lines shrink with the primary lines.
+fn body_box(fonts: &Fonts, slide: &Slide, style: &Style, rect: Rect, scale: f32, thickness: f32) -> TextBox {
     let text = &style.body.text;
-    let at = |factor: f32| shape(fonts, LineRole::Lyric, lines, text, text.size * scale * factor, rect.width, thickness);
-    let fits = |shaped: &[Line], factor: f32| {
-        let height = shaped.len() as f32 * text.size * scale * factor * LINE_PITCH;
-        height <= rect.height + 0.01 && shaped.iter().all(|l| l.width <= rect.width + 0.5)
+    let mut translation = text.clone();
+    translation.italic ^= style.translation_italic;
+    translation.color = style.body.multilanguage_color;
+    let at = |factor: f32| {
+        let px = text.size * scale * factor;
+        if !slide.multilanguage {
+            let lines = shape(fonts, LineRole::Lyric, &slide.lines, text, px, rect.width, thickness);
+            let gaps = vec![0.0; lines.len()];
+            return (lines, gaps);
+        }
+        let tpx = (px * style.body.multilanguage_size as f32 / 100.0).floor().max(1.0);
+        let gap = style.pair_gap * tpx * LINE_PITCH;
+        let (mut lines, mut gaps) = (Vec::new(), Vec::new());
+        for (i, line) in slide.lines.iter().enumerate() {
+            let shaped = if i % 2 == 0 {
+                shape(fonts, LineRole::Lyric, std::slice::from_ref(line), text, px, rect.width, thickness)
+            } else {
+                shape(fonts, LineRole::Translation, std::slice::from_ref(line), &translation, tpx, rect.width, thickness)
+            };
+            let first_gap = if i % 2 == 0 && i > 0 { gap } else { 0.0 };
+            gaps.extend((0..shaped.len()).map(|j| if j == 0 { first_gap } else { 0.0 }));
+            lines.extend(shaped);
+        }
+        (lines, gaps)
     };
-    let mut factor = 1.0_f32;
-    let mut shaped = at(factor);
-    if style.body.auto_scale && !fits(&shaped, factor) {
+    let fits = |(shaped, gaps): &(Vec<Line>, Vec<f32>)| {
+        block_height(shaped, gaps) <= rect.height + 0.01 && shaped.iter().all(|l| l.width <= rect.width + 0.5)
+    };
+    let mut shaped = at(1.0);
+    if style.body.auto_scale && !fits(&shaped) {
         // Binary search for the largest factor that fits (DeckCraft's 12 steps).
         let (mut lo, mut hi) = (MIN_AUTO_SCALE, 1.0_f32);
         let mut best = None;
         for _ in 0..12 {
             let mid = (lo + hi) / 2.0;
             let candidate = at(mid);
-            if fits(&candidate, mid) {
-                best = Some((mid, candidate));
+            if fits(&candidate) {
+                best = Some(candidate);
                 lo = mid;
             } else {
                 hi = mid;
             }
         }
-        (factor, shaped) = best.unwrap_or_else(|| (MIN_AUTO_SCALE, at(MIN_AUTO_SCALE)));
+        shaped = best.unwrap_or_else(|| at(MIN_AUTO_SCALE));
     }
-    place(fonts, &mut shaped, text, rect, text.size * scale * factor);
-    TextBox { role: BoxRole::Body, rect, lines: shaped }
+    let (mut lines, gaps) = shaped;
+    place_with_gaps(fonts, &mut lines, &gaps, text, rect);
+    TextBox { role: BoxRole::Body, rect, lines }
+}
+
+/// Height of a block of lines, each `LINE_PITCH` of its own size, with gaps before some.
+fn block_height(lines: &[Line], gaps: &[f32]) -> f32 {
+    lines.iter().zip(gaps).map(|(l, gap)| gap + l.font_size * LINE_PITCH).sum()
 }
 
 /// Place a caption's lines in a rect that is exactly as tall as they are.
-fn finish(fonts: &Fonts, role: BoxRole, style: &TextStyle, mut lines: Vec<Line>, rect: Rect, scale: f32) -> TextBox {
-    place(fonts, &mut lines, style, rect, style.size * scale);
+fn finish(fonts: &Fonts, role: BoxRole, style: &TextStyle, mut lines: Vec<Line>, rect: Rect) -> TextBox {
+    place(fonts, &mut lines, style, rect);
     TextBox { role, rect, lines }
 }
 
@@ -262,6 +300,7 @@ fn shape(fonts: &Fonts, role: LineRole, lines: &[String], style: &TextStyle, px:
         shadow: style.shadow.then_some(style.shadow_color),
         fill: style.fill.then_some(style.fill_color),
         underline: style.underline,
+        italic: style.italic,
     };
     let mut placed = Vec::new();
     for paragraph in lines.iter().flat_map(|l| l.split('|')) {
@@ -273,19 +312,27 @@ fn shape(fonts: &Fonts, role: LineRole, lines: &[String], style: &TextStyle, px:
 }
 
 /// Put shaped lines in `rect`: the block by the vertical alignment, each line by the horizontal.
-fn place(fonts: &Fonts, placed: &mut [Line], style: &TextStyle, rect: Rect, px: f32) {
+fn place(fonts: &Fonts, placed: &mut [Line], style: &TextStyle, rect: Rect) {
+    let gaps = vec![0.0; placed.len()];
+    place_with_gaps(fonts, placed, &gaps, style, rect);
+}
+
+/// [`place`] with lines of their own sizes (each `LINE_PITCH` of its size) and a gap before each.
+fn place_with_gaps(fonts: &Fonts, placed: &mut [Line], gaps: &[f32], style: &TextStyle, rect: Rect) {
     let font = fonts.resolve(&style.font);
-    let pitch = px * LINE_PITCH;
-    let block = pitch * placed.len() as f32;
-    let top = match style.valign {
+    let block = block_height(placed, gaps);
+    let mut top = match style.valign {
         VAlign::Top => rect.y,
         VAlign::Middle => rect.y + (rect.height - block) / 2.0,
         VAlign::Bottom => rect.y + rect.height - block,
     };
-    let (ascent, descent) = fonts.vertical_metrics(font, px);
-    let lead = (pitch - (ascent - descent)) / 2.0;
-    for (i, line) in placed.iter_mut().enumerate() {
-        let baseline = top + pitch * i as f32 + lead + ascent;
+    for (line, gap) in placed.iter_mut().zip(gaps) {
+        let pitch = line.font_size * LINE_PITCH;
+        let (ascent, descent) = fonts.vertical_metrics(font, line.font_size);
+        let lead = (pitch - (ascent - descent)) / 2.0;
+        top += gap;
+        let baseline = top + lead + ascent;
+        top += pitch;
         let x = match style.align {
             Align::Left => rect.x,
             Align::Center => rect.x + (rect.width - line.width) / 2.0,

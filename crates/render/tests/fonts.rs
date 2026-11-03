@@ -12,7 +12,7 @@ use serviceflow_testkit::EngineHarness;
 const HD: Size = Size { width: 1920, height: 1080 };
 
 fn slide(lines: &[&str]) -> Slide {
-    Slide { section: "V1".into(), lines: lines.iter().map(|l| l.to_string()).collect() }
+    Slide { section: "V1".into(), lines: lines.iter().map(|l| l.to_string()).collect(), ..Slide::default() }
 }
 
 fn style_with(font: &str) -> Style {
