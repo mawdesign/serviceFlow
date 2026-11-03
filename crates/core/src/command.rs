@@ -172,7 +172,11 @@ impl Command {
     pub fn is_live_action(&self) -> bool {
         matches!(
             self,
-            Command::GoLive { .. } | Command::NextSlide | Command::PreviousSlide | Command::ToggleBlank | Command::ToggleBlack
+            Command::GoLive { .. }
+                | Command::NextSlide
+                | Command::PreviousSlide
+                | Command::ToggleBlank
+                | Command::ToggleBlack
                 | Command::ToggleLogo
                 | Command::SetLanguageMode(_)
         )

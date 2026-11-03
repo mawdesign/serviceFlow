@@ -171,7 +171,8 @@ impl<S: Storage + 'static> ControlWindow<S> {
         let state = self.driver.snapshot();
 
         egui::Panel::top("live controls").show(ui, |ui| {
-            ui.horizontal(|ui| {
+            // Wraps on narrow windows, so no control falls off the end.
+            ui.horizontal_wrapped(|ui| {
                 ui.heading(tl!("serviceFlow"));
                 ui.separator();
                 live_buttons(ui, &state, &mut commands);
@@ -270,13 +271,19 @@ fn live_buttons(ui: &mut egui::Ui, state: &State, commands: &mut Vec<Command>) {
     ui.separator();
     // The language mode of multilanguage sections (GLOSSARY "Language mode").
     let language = state.slide_options.language;
-    for (mode, label) in
-        [(LanguageMode::Both, tl!("Both languages")), (LanguageMode::Primary, tl!("Primary only")), (LanguageMode::Translation, tl!("Translation only"))]
-    {
-        if ui.selectable_label(language == mode, label).clicked() && language != mode {
-            commands.push(Command::SetLanguageMode(mode));
+    let modes = [
+        (LanguageMode::Both, tl!("Both languages")),
+        (LanguageMode::Primary, tl!("Primary only")),
+        (LanguageMode::Translation, tl!("Translation only")),
+    ];
+    let selected = modes.iter().find(|(m, _)| *m == language).map_or("", |(_, l)| l);
+    egui::ComboBox::from_label(tl!("Language")).selected_text(selected).show_ui(ui, |ui| {
+        for (mode, label) in modes {
+            if ui.selectable_label(language == mode, label).clicked() && language != mode {
+                commands.push(Command::SetLanguageMode(mode));
+            }
         }
-    }
+    });
 }
 
 fn problems(ui: &mut egui::Ui, state: &State) {

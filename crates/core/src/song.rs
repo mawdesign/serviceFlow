@@ -316,11 +316,13 @@ impl Song {
     fn slides_of<'a>(sections: impl IntoIterator<Item = &'a Section>, options: &SlideOptions) -> Vec<Slide> {
         sections
             .into_iter()
-            .flat_map(|section| section.slides(options).into_iter().map(|lines| Slide {
-                section: section.tag.clone(),
-                lines,
-                multilanguage: section.multilanguage && options.language == LanguageMode::Both,
-            }))
+            .flat_map(|section| {
+                section.slides(options).into_iter().map(|lines| Slide {
+                    section: section.tag.clone(),
+                    lines,
+                    multilanguage: section.multilanguage && options.language == LanguageMode::Both,
+                })
+            })
             .collect()
     }
 }

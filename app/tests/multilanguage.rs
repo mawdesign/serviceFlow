@@ -5,8 +5,9 @@ use std::cell::RefCell;
 use std::rc::Rc;
 use std::sync::Arc;
 
+use egui::accesskit::Role;
 use egui_kittest::Harness;
-use egui_kittest::kittest::Queryable as _;
+use egui_kittest::kittest::{Queryable as _, by};
 use serviceflow::ControlWindow;
 use serviceflow_core::command::Command;
 use serviceflow_core::ids::SongId;
@@ -35,22 +36,36 @@ fn harness() -> (Harness<'static>, Seen) {
     (harness, seen)
 }
 
+/// Open the language combo box (its value is the current mode) and pick `label`.
+fn choose(harness: &mut Harness<'static>, label: &str) {
+    harness.get(by().role(Role::ComboBox).value(current(harness))).click();
+    harness.run();
+    harness.get_by_label(label).click();
+}
+
+fn current(harness: &Harness<'static>) -> &'static str {
+    ["Both languages", "Primary only", "Translation only"]
+        .into_iter()
+        .find(|l| harness.query(by().role(Role::ComboBox).value(l)).is_some())
+        .expect("the language combo box")
+}
+
 #[test]
 fn the_language_buttons_switch_what_multilanguage_slides_show() {
     let (mut harness, seen) = harness();
     harness.run();
     assert!(seen.borrow().output.live.as_ref().expect("live").slide.multilanguage);
 
-    harness.get_by_label("Primary only").click();
+    choose(&mut harness, "Primary only");
     harness.run();
     assert_eq!(seen.borrow().slide_options.language, LanguageMode::Primary);
     assert_eq!(seen.borrow().output.live.as_ref().unwrap().slide.lines.len(), 4);
 
-    harness.get_by_label("Translation only").click();
+    choose(&mut harness, "Translation only");
     harness.run();
     assert_eq!(seen.borrow().output.live.as_ref().unwrap().slide.lines[0], "There is a gift, have you received yet?");
 
-    harness.get_by_label("Both languages").click();
+    choose(&mut harness, "Both languages");
     harness.run();
     assert_eq!(seen.borrow().slide_options.language, LanguageMode::Both);
     assert!(seen.borrow().output.live.as_ref().unwrap().slide.multilanguage);

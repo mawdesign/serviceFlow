@@ -5,7 +5,7 @@ use serviceflow_core::command::Command;
 use serviceflow_core::ids::SongId;
 use serviceflow_core::song::Slide;
 use serviceflow_core::style::{Rgba, Style};
-use serviceflow_render::{Line, LineRole, Renderer, Size, LINE_PITCH};
+use serviceflow_render::{LINE_PITCH, Line, LineRole, Renderer, Size};
 use serviceflow_testkit::EngineHarness;
 
 const HD: Size = Size { width: 1920, height: 1080 };
