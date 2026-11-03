@@ -52,11 +52,7 @@ fn catalog() -> Vec<Bindable> {
         bindable
     };
     let mut catalog = vec![
-        live(
-            "slide.next",
-            tl!("Next slide"),
-            &["Right", "Down", "Space", "PageDown", "Text: PageDown"],
-        ),
+        live("slide.next", tl!("Next slide"), &["Right", "Down", "Space", "PageDown", "Text: PageDown"]),
         live("slide.previous", tl!("Previous slide"), &["Left", "Up", "PageUp", "Text: PageUp"]),
         live("item.next", tl!("Next set item"), &["Cmd+Right"]),
         live("item.previous", tl!("Previous set item"), &["Cmd+Left"]),
@@ -65,7 +61,8 @@ fn catalog() -> Vec<Bindable> {
         live("output.logo", tl!("Toggle logo"), &["L"]),
     ];
     for (token, label) in SECTION_KEYS {
-        let mut bindable = Bindable::new(section_jump(token), tl!(*label), Scope::app()).with_path(vec![tl!("Live").to_string(), tl!(*label).to_string()]);
+        let mut bindable =
+            Bindable::new(section_jump(token), tl!(*label), Scope::app()).with_path(vec![tl!("Live").to_string(), tl!(*label).to_string()]);
         bindable = bindable.with_default(key(token));
         catalog.push(bindable);
     }
