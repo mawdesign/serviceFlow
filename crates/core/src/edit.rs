@@ -127,7 +127,7 @@ impl SongEdit {
 }
 
 /// A song being edited: the edited song and its undo history. Each document has its own.
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct Draft {
     /// The song with its edits applied.
     pub song: Arc<Song>,

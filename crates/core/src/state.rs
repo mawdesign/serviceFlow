@@ -7,6 +7,7 @@ use std::sync::Arc;
 use crate::edit::Draft;
 use crate::ids::{ContentHash, SetId, SongId};
 use crate::output::{OutputSettings, SlideColors};
+use crate::resolve::{self, Images, ResolvedStyle};
 use crate::search::SearchIndex;
 use crate::set::Set;
 use crate::song::{Slide, SlideOptions, Song};
@@ -31,6 +32,8 @@ pub struct State {
     pub output_settings: Arc<OutputSettings>,
     /// Thumbnail colours by slide kind, imported from OpenSong.
     pub slide_colors: Arc<SlideColors>,
+    /// Background image files read from `Backgrounds/` for the resolved in use.
+    pub images: Arc<Images>,
     /// Whether the initial output mode has been applied (it applies once, at the first import).
     pub(crate) initial_mode_applied: bool,
     /// Problems to show the operator, oldest first.
@@ -46,7 +49,7 @@ pub struct State {
 }
 
 /// The open set and where the operator is in it.
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct OpenSet {
     pub id: SetId,
     pub set: Arc<Set>,
@@ -97,7 +100,7 @@ pub enum Problem {
     SettingsUnreadable { file: String, error: String },
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct OpenSong {
     pub id: SongId,
     pub song: Arc<Song>,
@@ -115,6 +118,28 @@ impl State {
     /// The open song's edits and undo history, once it has been edited.
     pub fn draft(&self) -> Option<&Draft> {
         self.drafts.get(&self.song.as_ref()?.id)
+    }
+
+    /// How slide `slide` of song `id` (opened as `song`) is drawn: the style by the precedence of
+    /// [`look`](crate::resolve) for the selected set item (if it is this song), plus the song's
+    /// background for that slide.
+    pub fn resolved_of(&self, id: &SongId, song: &Song, slide: &Slide) -> ResolvedStyle {
+        ResolvedStyle { style: self.style_choice(id, song), background: resolve::slide_background(song, slide) }
+    }
+
+    /// The style choice for song `id`: from the selected set item when that is this song.
+    pub fn style_choice(&self, id: &SongId, song: &Song) -> resolve::StyleChoice {
+        let item = self.set.as_ref().and_then(|open| {
+            let index = open.selected?;
+            (open.set.items.get(index)?.song_id().as_ref() == Some(id)).then_some((&*open.set, index))
+        });
+        resolve::choose(item, Some(song), self.output_settings.song_style_preferred)
+    }
+
+    /// The look of slide `index` of the open song.
+    pub fn open_resolved(&self, index: usize) -> Option<ResolvedStyle> {
+        let open = self.song.as_ref()?;
+        Some(self.resolved_of(&open.id, &open.song, open.slides.get(index)?))
     }
 }
 
@@ -140,7 +165,7 @@ impl OpenSong {
 }
 
 /// What the outputs show (GLOSSARY "Output", "Live"). Live actions change only this.
-#[derive(Debug, Clone, Default, PartialEq, Eq)]
+#[derive(Debug, Clone, Default, PartialEq)]
 pub struct Output {
     /// The live slide, if any slide has been sent live.
     pub live: Option<LiveSlide>,
@@ -153,7 +178,7 @@ pub struct Output {
 }
 
 /// A slide that is live. It keeps its own copy, so opening another song does not change it.
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct LiveSlide {
     /// The song it came from.
     pub song: SongId,
@@ -162,6 +187,8 @@ pub struct LiveSlide {
     pub slide: Slide,
     /// The song, for the title and subtitle boxes.
     pub source: Arc<Song>,
+    /// The style and song background it was sent live with.
+    pub resolved: ResolvedStyle,
 }
 
 /// How the outputs show the live slide (GLOSSARY "Blank", "Black").

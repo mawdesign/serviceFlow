@@ -30,6 +30,7 @@ fn opensongs_example_set_reads_every_item() {
         .iter()
         .map(|i| match &i.kind {
             ItemKind::Song(_) => "song".to_owned(),
+            ItemKind::Style { .. } => "style".to_owned(),
             ItemKind::Placeholder { item_type, .. } => item_type.clone(),
         })
         .collect();

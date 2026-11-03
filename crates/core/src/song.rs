@@ -1,9 +1,13 @@
 //! Songs: metadata, sections, and the slides they turn into.
 
+use std::sync::Arc;
+
+use crate::style::{ImageSource, Resize, Style};
+
 /// A song as read from the library (GLOSSARY "Song").
 ///
 /// Text fields hold the element text exactly as read; an absent element reads as `""`.
-#[derive(Debug, Clone, Default, PartialEq, Eq)]
+#[derive(Debug, Clone, Default, PartialEq)]
 pub struct Song {
     pub title: String,
     pub author: String,
@@ -28,11 +32,46 @@ pub struct Song {
     pub lyrics: String,
     /// Sections in file order (first appearance; a repeated tag adds to the earlier section).
     pub sections: Vec<Section>,
-    /// Elements of the file that are not modelled above (such as `<alttheme>`, `<backgrounds>`
-    /// or `<linked_songs>`), in file order, so a save can keep them.
+    /// The song's own `<style>`, parsed from `other_elements` (which keeps the XML for saving).
+    pub style: Option<Arc<Style>>,
+    /// The song's `<backgrounds>`, parsed from `other_elements` (which keeps the XML for saving).
+    pub backgrounds: Option<SongBackgrounds>,
+    /// Elements of the file that are not modelled above (such as `<alttheme>`, `<backgrounds>`,
+    /// `<style>` or `<linked_songs>`), in file order, so a save can keep them. `style` and
+    /// `backgrounds` are parsed views of two of these, for display only.
     pub other_elements: Vec<RawElement>,
     /// Problems in the lyrics worth showing in the editor. The song still reads.
     pub warnings: Vec<SongWarning>,
+}
+
+/// A song's background images (OpenSong `<backgrounds>`).
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct SongBackgrounds {
+    pub resize: Resize,
+    pub keep_aspect: bool,
+    pub link: bool,
+    /// Show the image without the lyrics (`background_as_text`).
+    pub as_text: bool,
+    /// In file order.
+    pub items: Vec<VerseBackground>,
+}
+
+/// One `<background verse="v1">` of a song.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct VerseBackground {
+    /// The section tag it is for, as written (matched case-insensitively).
+    pub verse: String,
+    pub image: ImageSource,
+}
+
+impl SongBackgrounds {
+    /// The image for slide `part` (0-based) of a section with tag `section`: the nth background
+    /// for that section, and the last one for any slide after that (OpenSong `ToSetML`).
+    pub fn image_for(&self, section: &str, part: usize) -> Option<&ImageSource> {
+        let mut matching = self.items.iter().filter(|b| b.verse.trim().eq_ignore_ascii_case(section));
+        let count = matching.clone().count();
+        if count == 0 { None } else { matching.nth(part.min(count - 1)).map(|b| &b.image) }
+    }
 }
 
 /// An element kept as it was read.
@@ -158,6 +197,9 @@ pub struct Slide {
     /// The lines alternate primary line, translation line (even indexes are primary lines; a
     /// last primary line may have no translation). Only set when both languages are shown.
     pub multilanguage: bool,
+    /// Which slide of its section this is (0-based, counted afresh each time the presentation
+    /// order shows the section). Song backgrounds are chosen by it.
+    pub part: usize,
 }
 
 impl Section {
@@ -345,10 +387,11 @@ impl Song {
         sections
             .into_iter()
             .flat_map(|section| {
-                section.slides(options).into_iter().map(|lines| Slide {
+                section.slides(options).into_iter().enumerate().map(|(part, lines)| Slide {
                     section: section.tag.clone(),
                     lines,
                     multilanguage: section.multilanguage && options.language == LanguageMode::Both,
+                    part,
                 })
             })
             .collect()

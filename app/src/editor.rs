@@ -218,7 +218,7 @@ fn preview(ui: &mut egui::Ui, state: &State, thumbnails: &mut Thumbnails) {
     let points = egui::vec2(PREVIEW_WIDTH, PREVIEW_WIDTH * 9.0 / 16.0);
     let pixels = points * ui.ctx().pixels_per_point();
     let size = Size { width: pixels.x.round() as u32, height: pixels.y.round() as u32 };
-    let textures = thumbnails.for_song(ui.ctx(), open, &state.styles, size);
+    let textures = thumbnails.for_song(ui.ctx(), state, size);
     egui::ScrollArea::vertical().id_salt("song preview").show(ui, |ui| {
         ui.horizontal_wrapped(|ui| {
             for (index, (slide, texture)) in open.slides.iter().zip(textures).enumerate() {

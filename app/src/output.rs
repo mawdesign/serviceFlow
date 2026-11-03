@@ -8,6 +8,7 @@ use serviceflow_core::command::Command;
 use std::sync::Arc;
 
 use serviceflow_core::output::Logo;
+use serviceflow_core::resolve::{Images, ResolvedStyle};
 use serviceflow_core::song::{Slide, Song};
 use serviceflow_core::state::{OutputMode, State};
 use serviceflow_core::style::Captions;
@@ -37,8 +38,9 @@ enum Content {
     Black,
     /// The logo; `None` when none is configured (the background alone).
     Logo(Option<SameLogo>),
-    /// `None` is the background alone (blank, or nothing live yet).
-    Slide(Option<(Slide, Arc<Song>)>),
+    /// `None` is the background alone (blank, or nothing live yet). The look is the style and
+    /// song background the slide is drawn with.
+    Slide(Option<(Slide, Arc<Song>)>, ResolvedStyle),
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -67,6 +69,7 @@ pub struct OutputFrame {
     name: &'static str,
     renderer: Renderer,
     styles: Option<Arc<serviceflow_core::style::Styles>>,
+    images: Option<Arc<Images>>,
     texture: Option<(Shown, egui::TextureHandle)>,
     /// `Output::changes` when the texture was last made.
     changes: u64,
@@ -75,7 +78,7 @@ pub struct OutputFrame {
 
 impl OutputFrame {
     pub fn new(name: &'static str) -> Self {
-        Self { name, renderer: Renderer::with_fonts(crate::fonts::shared()), styles: None, texture: None, changes: 0, fading: None }
+        Self { name, renderer: Renderer::with_fonts(crate::fonts::shared()), styles: None, images: None, texture: None, changes: 0, fading: None }
     }
 
     /// Paint what the outputs show in `state`, filling `rect` of `ui`.
@@ -84,17 +87,22 @@ impl OutputFrame {
         let content = match output.mode {
             OutputMode::Black => Content::Black,
             OutputMode::Logo => Content::Logo(state.output_settings.logo.clone().map(SameLogo)),
-            OutputMode::Blank => Content::Slide(None),
-            OutputMode::Normal => Content::Slide(output.live.as_ref().map(|live| (live.slide.clone(), Arc::clone(&live.source)))),
+            OutputMode::Blank => Content::Slide(None, output.live.as_ref().map(|live| live.resolved.clone()).unwrap_or_default()),
+            OutputMode::Normal => Content::Slide(
+                output.live.as_ref().map(|live| (live.slide.clone(), Arc::clone(&live.source))),
+                output.live.as_ref().map(|live| live.resolved.clone()).unwrap_or_default(),
+            ),
         };
         let pixels = rect.size() * ui.ctx().pixels_per_point();
         let size = Size { width: (pixels.x.round() as u32).max(1), height: (pixels.y.round() as u32).max(1) };
         let shown = Shown { content, size };
-        let same_styles = self.styles.as_ref().is_some_and(|s| Arc::ptr_eq(s, styles));
+        let same_styles =
+            self.styles.as_ref().is_some_and(|s| Arc::ptr_eq(s, styles)) && self.images.as_ref().is_some_and(|i| Arc::ptr_eq(i, &state.images));
         let changed = output.changes != self.changes;
         if changed || !(same_styles && matches!(&self.texture, Some((current, _)) if *current == shown)) {
             self.styles = Some(Arc::clone(styles));
-            let image = color_image(&self.render(&shown, styles));
+            self.images = Some(Arc::clone(&state.images));
+            let image = color_image(&self.render(&shown, styles, &state.images));
             // A slide change starts a crossfade from what was on screen; a resize or restyle
             // just redraws.
             let fade = if changed { state.output_settings.fade_ms() } else { None };
@@ -134,15 +142,19 @@ impl OutputFrame {
         }
     }
 
-    fn render(&self, shown: &Shown, styles: &serviceflow_core::style::Styles) -> Image {
+    fn render(&self, shown: &Shown, styles: &serviceflow_core::style::Styles, images: &Images) -> Image {
         let size = shown.size;
         match &shown.content {
             Content::Black => Image { width: 1, height: 1, pixels: vec![0, 0, 0, 255] },
             Content::Logo(Some(logo)) => self.renderer.render_logo(&logo.0, &styles.default, size),
-            Content::Logo(None) | Content::Slide(None) => self.renderer.render(&Slide::default(), &styles.default, size),
-            Content::Slide(Some((slide, song))) => {
-                let captions = Captions::for_song(song, &styles.default);
-                self.renderer.render_captioned(slide, &captions, &styles.default, size)
+            Content::Logo(None) => self.renderer.render(&Slide::default(), &styles.default, size),
+            Content::Slide(None, resolved) => {
+                self.renderer.render_with_images(&Slide::default(), &Captions::default(), &resolved.style(styles), images, size)
+            }
+            Content::Slide(Some((slide, song)), resolved) => {
+                let style = resolved.style(styles);
+                let captions = Captions::for_song(song, &style);
+                self.renderer.render_with_images(slide, &captions, &style, images, size)
             }
         }
     }

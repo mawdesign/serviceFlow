@@ -44,6 +44,9 @@ pub struct OutputSettings {
     /// Crossfade time in milliseconds (`style/@transition_time`; 0 means 100 in OpenSong).
     pub transition_ms: u32,
     pub logo: Option<Logo>,
+    /// A song's own style beats the style stack (`song_style_preferred`; on unless the file
+    /// says otherwise).
+    pub song_style_preferred: bool,
 }
 
 impl Default for OutputSettings {
@@ -56,6 +59,7 @@ impl Default for OutputSettings {
             transition: false,
             transition_ms: 100,
             logo: None,
+            song_style_preferred: true,
         }
     }
 }

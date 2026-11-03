@@ -12,7 +12,8 @@ use vello_cpu::kurbo::{Affine, BezPath, Join, Rect, Stroke};
 use vello_cpu::{Pixmap, RenderContext, Resources};
 
 use crate::fonts::{FontId, Fonts};
-use crate::layout::Frame;
+use crate::layout::{Fit, Frame, FrameImage};
+use crate::logo;
 use serviceflow_core::style::Rgba;
 
 /// The largest frame side vello_cpu can draw.
@@ -49,11 +50,71 @@ fn color(c: Rgba) -> AlphaColor<Srgb> {
 }
 
 pub(crate) fn draw(fonts: &Fonts, outlines: &Outlines, frame: &Frame) -> Image {
+    let Some(image) = &frame.image else { return text_layer(fonts, outlines, frame, Some(frame.background)) };
+    // Background colour, then the image, then the text over both.
+    let text = text_layer(fonts, outlines, frame, None);
+    let mut out = solid(text.width, text.height, frame.background);
+    paint_image(&mut out, image);
+    for (under, over) in out.pixels.as_chunks_mut::<4>().0.iter_mut().zip(text.pixels.as_chunks::<4>().0) {
+        let keep = 255 - u32::from(over[3]);
+        for (u, o) in under.iter_mut().zip(over) {
+            *u = (u32::from(*o) + u32::from(*u) * keep / 255).min(255) as u8;
+        }
+    }
+    out
+}
+
+/// A frame of one colour, premultiplied.
+fn solid(width: u32, height: u32, c: Rgba) -> Image {
+    let a = u32::from(c.a);
+    let px = [(u32::from(c.r) * a / 255) as u8, (u32::from(c.g) * a / 255) as u8, (u32::from(c.b) * a / 255) as u8, c.a];
+    Image { width, height, pixels: px.iter().copied().cycle().take((width * height * 4) as usize).collect() }
+}
+
+/// Draw the background image where its fit says.
+fn paint_image(out: &mut Image, image: &FrameImage) {
+    let (pw, ph) = (f64::from(image.picture.width), f64::from(image.picture.height));
+    let a = image.area;
+    let (ax, ay, aw, ah) = (f64::from(a.x), f64::from(a.y), f64::from(a.width), f64::from(a.height));
+    let whole = (0, 0, i64::from(out.width), i64::from(out.height));
+    let area_clip = (ax.floor() as i64, ay.floor() as i64, (ax + aw).ceil() as i64, (ay + ah).ceil() as i64);
+    let size = |scale: f64| (((pw * scale).round() as u32).max(1), ((ph * scale).round() as u32).max(1));
+    // Top left of a `size` image centred in the area.
+    let centred = |(w, h): (u32, u32)| ((ax + (aw - f64::from(w)) / 2.0).round() as i64, (ay + (ah - f64::from(h)) / 2.0).round() as i64);
+    match image.fit {
+        Fit::Stretch => {
+            let size = (aw.round().max(1.0) as u32, ah.round().max(1.0) as u32);
+            logo::blit(out, &image.picture, (ax.round() as i64, ay.round() as i64), size, area_clip);
+        }
+        Fit::Contain | Fit::Cover => {
+            let (sx, sy) = (aw / pw, ah / ph);
+            let size = size(if image.fit == Fit::Contain { sx.min(sy) } else { sx.max(sy) });
+            logo::blit(out, &image.picture, centred(size), size, area_clip);
+        }
+        Fit::Natural => {
+            let size = size(f64::from(image.scale));
+            logo::blit(out, &image.picture, centred(size), size, whole);
+        }
+        Fit::Tile => {
+            let size = size(f64::from(image.scale));
+            for y in (0..i64::from(out.height)).step_by(size.1 as usize) {
+                for x in (0..i64::from(out.width)).step_by(size.0 as usize) {
+                    logo::blit(out, &image.picture, (x, y), size, whole);
+                }
+            }
+        }
+    }
+}
+
+/// The text (and, given a background colour, that colour behind it) as a premultiplied image.
+fn text_layer(fonts: &Fonts, outlines: &Outlines, frame: &Frame, background: Option<Rgba>) -> Image {
     let width = frame.size.width.clamp(1, MAX_SIDE) as u16;
     let height = frame.size.height.clamp(1, MAX_SIDE) as u16;
     let mut ctx = RenderContext::new(width, height);
-    ctx.set_paint(color(frame.background));
-    ctx.fill_rect(&Rect::new(0.0, 0.0, f64::from(width), f64::from(height)));
+    if let Some(background) = background {
+        ctx.set_paint(color(background));
+        ctx.fill_rect(&Rect::new(0.0, 0.0, f64::from(width), f64::from(height)));
+    }
 
     let mut cache = outlines.0.lock().unwrap_or_else(|e| e.into_inner());
     for line in frame.boxes.iter().flat_map(|b| &b.lines) {

@@ -8,8 +8,10 @@ mod edit;
 mod sets;
 
 use crate::output::InitialMode;
+use crate::resolve::{self, ImageFile, ResolvedStyle};
 use crate::search::SearchIndex;
 use crate::state::{Library, LiveSlide, OpenSong, OutputMode, Problem, State};
+use crate::style::ImageSource;
 
 #[derive(Debug, Default)]
 pub struct Engine {
@@ -30,6 +32,14 @@ impl Engine {
     pub fn apply(&mut self, command: Command) -> Vec<Effect> {
         // Copy-on-write: snapshots handed out earlier keep the old state.
         let state = Arc::make_mut(&mut self.state);
+        let mut effects = step(state, command);
+        effects.extend(request_images(state));
+        effects
+    }
+}
+
+fn step(state: &mut State, command: Command) -> Vec<Effect> {
+    {
         match command {
             Command::OpenSong(id) => {
                 // A song opened by hand is not a set item: no override, nothing pending.
@@ -192,6 +202,7 @@ impl Engine {
                     && *slide != live.slide
                 {
                     live.slide = slide.clone();
+                    live.resolved.background = resolve::slide_background(&live.source, slide);
                     state.output.changes += 1;
                 }
                 Vec::new()
@@ -247,6 +258,11 @@ impl Engine {
                 }
                 Vec::new()
             }
+            Command::ImageLoaded { name, bytes } => {
+                let file = bytes.map_or(ImageFile::Missing, ImageFile::Loaded);
+                Arc::make_mut(&mut state.images).set(name, file);
+                Vec::new()
+            }
             Command::ImportOpenSongStyles { trigger } => vec![Effect::ReadOpenSongStyles(trigger)],
             Command::StylesImported(styles) => {
                 state.styles = styles;
@@ -260,6 +276,46 @@ impl Engine {
             }
         }
     }
+}
+
+/// Ask for the background image files the resolved in use need and that nobody has asked for yet.
+fn request_images(state: &mut State) -> Vec<Effect> {
+    let mut wanted: Vec<String> = Vec::new();
+    let mut want = |name: &str| {
+        if !wanted.iter().any(|w| w == name) {
+            wanted.push(name.to_owned());
+        }
+    };
+    for style in [&state.styles.default, &state.styles.scripture] {
+        resolve::file_of(style).into_iter().for_each(&mut want);
+    }
+    if let Some(open) = &state.song {
+        // The style every slide of the song has, then each of its background files.
+        let choice = state.style_choice(&open.id, &open.song);
+        ResolvedStyle { style: choice, background: None }.files().for_each(&mut want);
+        if let Some(backgrounds) = &open.song.backgrounds {
+            for item in &backgrounds.items {
+                if let ImageSource::File(name) = &item.image {
+                    want(name);
+                }
+            }
+        }
+    }
+    if let Some(live) = &state.output.live {
+        live.resolved.files().for_each(&mut want);
+    }
+    wanted.retain(|name| state.images.get(name).is_none());
+    if wanted.is_empty() {
+        return Vec::new();
+    }
+    let images = Arc::make_mut(&mut state.images);
+    wanted
+        .into_iter()
+        .map(|name| {
+            images.set(name.clone(), ImageFile::Loading);
+            Effect::LoadImage(name)
+        })
+        .collect()
 }
 
 /// The live slide's index, when it belongs to the open song.
@@ -284,7 +340,8 @@ fn section_slide(state: &State, token: &str) -> Option<usize> {
 fn go_live(state: &mut State, index: usize) {
     let Some(open) = &state.song else { return };
     let Some(slide) = open.slides.get(index) else { return };
-    state.output.live = Some(LiveSlide { song: open.id.clone(), index, slide: slide.clone(), source: Arc::clone(&open.song) });
+    let resolved = state.resolved_of(&open.id, &open.song, slide);
+    state.output.live = Some(LiveSlide { song: open.id.clone(), index, slide: slide.clone(), source: Arc::clone(&open.song), resolved });
     state.output.mode = OutputMode::Normal;
     state.output.blank_after_end = false;
     state.output.changes += 1;

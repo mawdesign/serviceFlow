@@ -79,7 +79,7 @@ pub(super) fn apply(state: &mut State, command: Command) -> Vec<Effect> {
             let Some(set) = &mut state.set else { return Vec::new() };
             let slot = Arc::make_mut(&mut set.set).items.get_mut(item).and_then(|i| match &mut i.kind {
                 ItemKind::Song(s) => Some((&mut i.name, s)),
-                ItemKind::Placeholder { .. } => None,
+                ItemKind::Style { .. } | ItemKind::Placeholder { .. } => None,
             });
             let Some((name, song_item)) = slot else { return Vec::new() };
             *name = filename(&song).to_owned();

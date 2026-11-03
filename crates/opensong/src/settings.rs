@@ -37,7 +37,9 @@ pub fn read_present_settings(bytes: &[u8]) -> Result<Styles, CodecError> {
     Ok(Styles { default: read("default_style"), scripture: read("scripture_style") })
 }
 
-fn style(e: &Element) -> Style {
+/// Read a `<style>`-shaped element (opensong.md §9): a song's or set item's style, or the
+/// default and scripture styles.
+pub(crate) fn style(e: &Element) -> Style {
     let mut s = Style::default();
     if let Some(t) = e.child("title") {
         text_style(t, &mut s.title.text);
@@ -131,7 +133,7 @@ fn text_style(e: &Element, t: &mut TextStyle) {
     };
 }
 
-fn flag(e: &Element, name: &str, default: bool) -> bool {
+pub(crate) fn flag(e: &Element, name: &str, default: bool) -> bool {
     match e.attr(name).map(|v| v.trim().to_ascii_lowercase()).as_deref() {
         Some("true" | "1") => true,
         Some("false" | "0") => false,
@@ -180,6 +182,9 @@ pub fn read_output_settings(bytes: &[u8]) -> Result<OutputSettings, CodecError> 
         s.transition_ms = number(style, "transition_time").filter(|t| *t >= 1.0).map_or(100, |t| t as u32);
     }
     // Screen numbers are 1-based.
+    // Defaults to on when the element is missing.
+    s.song_style_preferred =
+        root.child("song_style_preferred").is_none_or(|e| !matches!(e.text().trim().to_ascii_lowercase().as_str(), "false" | "0"));
     s.monitor = root.child("monitors").and_then(|m| number(m, "present")).filter(|n| *n >= 1.0).map(|n| n as usize - 1);
     let data = |name: &str| {
         let text: String = root.child(name).map(Element::text).unwrap_or_default().split_whitespace().collect();
