@@ -53,6 +53,13 @@ pub enum Command {
     GoLive {
         index: usize,
     },
+    /// Send the first slide of the open song's section named `token` live, whether or not the
+    /// presentation order lists it (a greyed section). The token is a tag as typed: `3` finds
+    /// `V3` or `3`, `C` finds `C` or `C1`; tags match without regard to case. Ignored when the
+    /// song has no such section.
+    JumpToSection {
+        token: String,
+    },
     /// Go live with the slide after the live one (the first slide when nothing is live). Stays
     /// put on the last slide.
     NextSlide,
@@ -173,6 +180,7 @@ impl Command {
         matches!(
             self,
             Command::GoLive { .. }
+                | Command::JumpToSection { .. }
                 | Command::NextSlide
                 | Command::PreviousSlide
                 | Command::ToggleBlank

@@ -119,6 +119,12 @@ impl Engine {
                 go_live(state, index);
                 Vec::new()
             }
+            Command::JumpToSection { token } => {
+                if let Some(index) = section_slide(state, &token) {
+                    go_live(state, index);
+                }
+                Vec::new()
+            }
             Command::NextSlide => {
                 // Only slides in the flow; a greyed slide is past its end.
                 let in_flow = state.song.as_ref().map_or(0, |open| open.in_flow);
@@ -254,6 +260,18 @@ impl Engine {
 fn live_index(state: &State) -> Option<usize> {
     let live = state.output.live.as_ref()?;
     (state.song.as_ref()?.id == live.song).then_some(live.index)
+}
+
+/// The grid index of the first slide of the open song's section called `token`.
+fn section_slide(state: &State, token: &str) -> Option<usize> {
+    let open = state.song.as_ref()?;
+    let token = token.trim();
+    let section = open.song.section(token).or_else(|| {
+        // `C` finds a chorus tagged `C1` when the song has no plain `C`.
+        let numbered = format!("{token}1");
+        token.chars().all(|c| c.is_ascii_alphabetic()).then(|| open.song.section(&numbered)).flatten()
+    })?;
+    open.slides.iter().position(|slide| slide.section.eq_ignore_ascii_case(&section.tag))
 }
 
 /// Make slide `index` of the open song live and leave blank or black mode. Out of range: no change.
