@@ -5,7 +5,6 @@ use std::sync::Arc;
 
 use serviceflow_core::output::{InitialMode, Logo, OutputSettings, SlideColors, SlideKind};
 use serviceflow_core::style::{Align, ImagePosition, ImageSource, Margins, Rgba, Style, Styles, SubtitleField, TextStyle, VAlign};
-
 use crate::CodecError;
 use crate::xml::{self, Element};
 
@@ -131,6 +130,112 @@ fn text_style(e: &Element, t: &mut TextStyle) {
         top: margin("margin-top", t.margins.top),
         bottom: margin("margin-bottom", t.margins.bottom),
     };
+}
+
+/// A style as OpenSong's `<style>` element (opensong.md §9), the inverse of [`style`]: sizes and
+/// margins back in OpenSong's 640-wide units, colours as `#RRGGBBAA` with OpenSong's inverted
+/// alpha. Fields OpenSong has no place for (outline thickness, pair gap, translation italic) are
+/// not written.
+pub(crate) fn style_element(s: &Style) -> Element {
+    let mut title = text_style_element("title", &s.title.text);
+    title.attributes.push(("include_verse".into(), boolean(s.title.include_verse)));
+    let mut subtitle = text_style_element("subtitle", &s.subtitle.text);
+    subtitle.attributes.push(("descriptive".into(), boolean(s.subtitle.descriptive)));
+    let source: Vec<&str> = s
+        .subtitle
+        .source
+        .iter()
+        .map(|f| match f {
+            SubtitleField::Copyright => "copyright",
+            SubtitleField::HymnNumber => "hymn_number",
+            SubtitleField::Author => "author",
+            SubtitleField::Ccli => "ccli_number",
+        })
+        .collect();
+    let song_subtitle = Element::with_text("song_subtitle", &source.join("|"));
+    let mut body = text_style_element("body", &s.body.text);
+    body.attributes.extend([
+        ("auto_scale".into(), boolean(s.body.auto_scale)),
+        ("highlight_chorus".into(), boolean(s.body.highlight_chorus)),
+        ("multilanguage_size".into(), s.body.multilanguage_size.to_string()),
+        ("multilanguage_color".into(), colour_text(s.body.multilanguage_color)),
+    ]);
+    let mut background = Element { name: "background".into(), ..Element::default() };
+    background.attributes.push(("color".into(), colour_text(s.background.color)));
+    match s.background.position {
+        ImagePosition::Stretch => background.attributes.push(("position".into(), "1".into())),
+        ImagePosition::Center => background.attributes.push(("position".into(), "2".into())),
+        ImagePosition::Tile => background.attributes.push(("position".into(), "3".into())),
+        ImagePosition::Cover => {}
+    }
+    match &s.background.image {
+        Some(ImageSource::File(f)) => background.attributes.push(("filename".into(), f.clone())),
+        Some(ImageSource::Embedded(data)) => background.children.push(xml::Node::Text(data.clone())),
+        None => {}
+    }
+    Element {
+        name: "style".into(),
+        attributes: Vec::new(),
+        children: [title, subtitle, song_subtitle, body, background].into_iter().map(xml::Node::Element).collect(),
+    }
+}
+
+fn text_style_element(name: &str, t: &TextStyle) -> Element {
+    let margin = |m: f32| number_text(m / SCALE - BORDER);
+    let attributes = vec![
+        ("enabled".into(), boolean(t.enabled)),
+        (
+            "align".into(),
+            match t.align {
+                Align::Left => "left",
+                Align::Center => "center",
+                Align::Right => "right",
+            }
+            .into(),
+        ),
+        (
+            "valign".into(),
+            match t.valign {
+                VAlign::Top => "top",
+                VAlign::Middle => "middle",
+                VAlign::Bottom => "bottom",
+            }
+            .into(),
+        ),
+        ("margin-left".into(), margin(t.margins.left)),
+        ("margin-right".into(), margin(t.margins.right)),
+        ("margin-top".into(), margin(t.margins.top)),
+        ("margin-bottom".into(), margin(t.margins.bottom)),
+        ("font".into(), t.font.clone()),
+        ("size".into(), number_text(t.size / SCALE)),
+        ("bold".into(), boolean(t.bold)),
+        ("italic".into(), boolean(t.italic)),
+        ("underline".into(), boolean(t.underline)),
+        ("color".into(), colour_text(t.color)),
+        ("border".into(), boolean(t.outline)),
+        ("border_color".into(), colour_text(t.outline_color)),
+        ("shadow".into(), boolean(t.shadow)),
+        ("shadow_color".into(), colour_text(t.shadow_color)),
+        ("fill".into(), boolean(t.fill)),
+        ("fill_color".into(), colour_text(t.fill_color)),
+    ];
+    Element { name: name.into(), attributes, children: Vec::new() }
+}
+
+fn boolean(b: bool) -> String {
+    if b { "true" } else { "false" }.to_owned()
+}
+
+/// A length with at most two decimals and no trailing zeros.
+fn number_text(n: f32) -> String {
+    let text = format!("{n:.2}");
+    let text = text.trim_end_matches('0').trim_end_matches('.');
+    if text == "-0" { "0".to_owned() } else { text.to_owned() }
+}
+
+/// `#RRGGBBAA` in upper case with OpenSong's inverted alpha (`00` = opaque), as OpenSong writes.
+fn colour_text(c: Rgba) -> String {
+    format!("#{:02X}{:02X}{:02X}{:02X}", c.r, c.g, c.b, 255 - c.a)
 }
 
 pub(crate) fn flag(e: &Element, name: &str, default: bool) -> bool {
