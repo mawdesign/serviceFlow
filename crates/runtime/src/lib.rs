@@ -13,8 +13,8 @@ use futures::executor::{LocalPool, LocalSpawner};
 use futures::task::LocalSpawnExt as _;
 use serviceflow_core::command::{Command, Effect, SettingsFault};
 use serviceflow_core::engine::Engine;
-use serviceflow_core::state::State;
 use serviceflow_core::song::Song;
+use serviceflow_core::state::State;
 use serviceflow_storage::{Expect, SongId, Storage};
 
 /// Runs the engine against a storage.

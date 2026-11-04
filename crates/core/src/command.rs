@@ -258,12 +258,7 @@ pub enum Effect {
     /// to the first free copy name of `id` ([`SongId::copy`]) instead. Answer with
     /// [`Command::SongSaved`], [`Command::SongSaveConflict`] (the file changed or vanished) or
     /// [`Command::SongSaveFailed`].
-    WriteSong {
-        id: SongId,
-        song: Arc<Song>,
-        expect: Expect,
-        as_copy: bool,
-    },
+    WriteSong { id: SongId, song: Arc<Song>, expect: Expect, as_copy: bool },
     /// Read a file of `Backgrounds/`; answer with [`Command::ImageLoaded`].
     LoadImage(String),
     /// Read and parse `Settings/PresentSettings`; answer with [`Command::StylesImported`] or
