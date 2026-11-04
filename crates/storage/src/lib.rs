@@ -11,7 +11,7 @@
 #![allow(async_fn_in_trait)]
 
 use futures::stream::LocalBoxStream;
-pub use serviceflow_core::ids::{ContentHash, SetId, SongId};
+pub use serviceflow_core::ids::{ContentHash, Expect, SetId, SongId};
 
 /// An image or other media file: its path under the data root's `Backgrounds/` folder, with `/`
 /// between folders.
@@ -51,17 +51,6 @@ impl Stored {
         let hash = ContentHash::of(&bytes);
         Self { bytes, hash }
     }
-}
-
-/// The condition a write requires of what is currently stored.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum Expect {
-    /// Write whatever is there.
-    Any,
-    /// The document must not exist yet.
-    Absent,
-    /// The document must still have this hash (the one recorded when it was read).
-    Hash(ContentHash),
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]

@@ -19,6 +19,8 @@ pub struct Song {
     pub aka: String,
     pub key: String,
     pub capo: String,
+    /// The attributes of `<capo>` as written (`print`, `sharp`), kept for saving.
+    pub capo_attributes: Vec<(String, String)>,
     pub key_line: String,
     pub tempo: String,
     pub time_sig: String,

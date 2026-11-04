@@ -65,7 +65,21 @@ impl Element {
         out
     }
 
-    fn write_xml(&self, out: &mut String) {
+    /// `<name attributes>text</name>`, escaped; empty text is still written as a start and an
+    /// end tag, as OpenSong writes empty elements.
+    pub fn text_element(name: &str, attributes: &[(String, String)], text: &str) -> String {
+        let mut out = String::new();
+        let element = Element { name: name.to_owned(), attributes: attributes.to_vec(), children: Vec::new() };
+        element.write_start(&mut out);
+        out.push('>');
+        out.push_str(&quick_xml::escape::partial_escape(text));
+        out.push_str("</");
+        out.push_str(name);
+        out.push('>');
+        out
+    }
+
+    fn write_start(&self, out: &mut String) {
         out.push('<');
         out.push_str(&self.name);
         for (key, value) in &self.attributes {
@@ -75,6 +89,10 @@ impl Element {
             out.push_str(&quick_xml::escape::escape(value.as_str()));
             out.push('"');
         }
+    }
+
+    fn write_xml(&self, out: &mut String) {
+        self.write_start(out);
         if self.children.is_empty() {
             out.push_str("/>");
             return;

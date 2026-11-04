@@ -58,3 +58,14 @@ impl ContentHash {
         Self(hash)
     }
 }
+
+/// The condition a write requires of what is currently stored.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Expect {
+    /// Write whatever is there.
+    Any,
+    /// The document must not exist yet.
+    Absent,
+    /// The document must still have this hash (the one recorded when it was read).
+    Hash(ContentHash),
+}
