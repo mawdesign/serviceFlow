@@ -2885,6 +2885,7 @@ name = "serviceflow-opensong"
 version = "0.1.0"
 dependencies = [
  "encoding_rs",
+ "insta",
  "quick-xml",
  "serviceflow-core",
  "serviceflow-testkit",

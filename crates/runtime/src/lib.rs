@@ -13,8 +13,9 @@ use futures::executor::{LocalPool, LocalSpawner};
 use futures::task::LocalSpawnExt as _;
 use serviceflow_core::command::{Command, Effect, SettingsFault};
 use serviceflow_core::engine::Engine;
+use serviceflow_core::song::Song;
 use serviceflow_core::state::State;
-use serviceflow_storage::Storage;
+use serviceflow_storage::{Expect, SongId, Storage};
 
 /// Runs the engine against a storage.
 pub struct Driver<S> {
@@ -104,6 +105,38 @@ async fn read_settings_file<S: Storage, T>(
     }
 }
 
+/// How many copy names a save-as-copy tries before giving up.
+const COPY_NAMES: usize = 100;
+
+/// Write a song in canonical form (ADR-0002) and read the written bytes back, so the engine holds
+/// exactly what the file now says. A copy goes to the first copy name not taken.
+async fn save_song<S: Storage>(storage: &S, id: SongId, song: &Song, expect: Expect, as_copy: bool) -> Command {
+    use serviceflow_storage::StorageError;
+    let tags_kept = serviceflow_core::canonical::canonicalize(song).tags_kept;
+    let bytes = serviceflow_opensong::write_song(song);
+    let saved = |saved_as: SongId, hash| match serviceflow_opensong::read_song(&bytes) {
+        Ok(read) => Command::SongSaved { id: id.clone(), saved_as, song: Arc::new(read), hash, tags_kept },
+        Err(e) => Command::SongSaveFailed { id: id.clone(), error: format!("written but unreadable: {e}") },
+    };
+    if as_copy {
+        for n in 1..=COPY_NAMES {
+            let copy = id.copy(n);
+            match storage.write_song(&copy, bytes.clone(), Expect::Absent).await {
+                Ok(hash) => return saved(copy, hash),
+                Err(StorageError::Conflict(_)) => continue,
+                Err(e) => return Command::SongSaveFailed { id, error: e.to_string() },
+            }
+        }
+        return Command::SongSaveFailed { id, error: "no free copy name".to_owned() };
+    }
+    match storage.write_song(&id, bytes.clone(), expect).await {
+        Ok(hash) => saved(id.clone(), hash),
+        // Changed or removed since it was read: the operator decides.
+        Err(StorageError::Conflict(_) | StorageError::NotFound(_)) => Command::SongSaveConflict { id },
+        Err(e) => Command::SongSaveFailed { id, error: e.to_string() },
+    }
+}
+
 /// Perform one effect and return the command that reports its outcome.
 pub async fn perform<S: Storage>(storage: &S, effect: Effect) -> Command {
     match effect {
@@ -179,6 +212,7 @@ pub async fn perform<S: Storage>(storage: &S, effect: Effect) -> Command {
             };
             Command::ImageLoaded { name, bytes }
         }
+        Effect::WriteSong { id, song, expect, as_copy } => save_song(storage, id, &song, expect, as_copy).await,
         Effect::LoadSong(id) => {
             let parsed = match storage.read_song(&id).await {
                 Ok(stored) => serviceflow_opensong::read_song(&stored.bytes).map(|song| (song, stored.hash)).map_err(|e| e.to_string()),

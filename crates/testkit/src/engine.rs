@@ -98,6 +98,21 @@ impl EngineHarness {
         crate::block_on(self.storage().read_settings(&SettingsId("PresentSettings".into()))).ok().map(|s| s.bytes)
     }
 
+    /// The bytes of a song file in storage (`None`: there is none).
+    pub fn song_bytes(&self, id: &SongId) -> Option<Vec<u8>> {
+        crate::block_on(self.storage().read_song(id)).ok().map(|s| s.bytes)
+    }
+
+    /// Every song id in storage.
+    pub fn song_ids(&self) -> Vec<SongId> {
+        crate::block_on(self.storage().list_songs()).expect("listing songs")
+    }
+
+    /// Write a song file behind the engine's back (another program or instance changing it).
+    pub fn write_song_file(&self, id: &SongId, bytes: &[u8]) {
+        crate::block_on(self.storage().write_song(id, bytes.to_vec(), Expect::Any)).expect("writing a song");
+    }
+
     pub fn with_storage(storage: MemoryStorage) -> Self {
         Self { driver: Driver::new(storage) }
     }

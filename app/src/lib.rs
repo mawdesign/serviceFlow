@@ -358,6 +358,15 @@ fn problems(ui: &mut egui::Ui, state: &State) {
             Problem::SettingsUnreadable { file, error } => {
                 ui.colored_label(ui.visuals().error_fg_color, format!("{} {file}: {error}", tl!("Could not import the OpenSong settings file")));
             }
+            Problem::SongUnsaved { id, error } => {
+                ui.colored_label(ui.visuals().error_fg_color, format!("{} “{id}”: {error}", tl!("Could not save the song")));
+            }
+            Problem::TagsNotRenamed { id } => {
+                ui.colored_label(
+                    ui.visuals().warn_fg_color,
+                    format!("“{id}” {}", tl!("was saved with its section tags as written: renaming them would have merged two sections.")),
+                );
+            }
             Problem::FontSubstituted { requested, used } => {
                 ui.colored_label(
                     ui.visuals().warn_fg_color,

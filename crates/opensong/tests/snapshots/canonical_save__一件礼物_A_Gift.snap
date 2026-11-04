@@ -1,0 +1,65 @@
+---
+source: crates/opensong/tests/canonical_save.rs
+expression: lines_of(&out)
+---
+<?xml version="1.0" encoding="UTF-8"?>
+<song>
+  <title>一件礼物 (A Gift)</title>
+  <author></author>
+  <copyright></copyright>
+  <hymn_number></hymn_number>
+  <presentation></presentation>
+  <ccli></ccli>
+  <capo print="false" sharp="true"></capo>
+  <key></key>
+  <aka></aka>
+  <key_line></key_line>
+  <user1></user1>
+  <user2></user2>
+  <user3></user3>
+  <theme></theme>
+  <linked_songs/>
+  <tempo></tempo>
+  <time_sig></time_sig>
+  <lyrics>[V1] (L)
+ 有一件礼物 你收到没有
+ There is a gift, have you received yet?
+ 眼睛看不到 你心会知道
+ You cannot see it, your but your heart knows.
+ 这一件礼物 心门外等候
+ The gift is waiting for you outside of your heart,
+ 是为了你准备 别人不能收
+ it is prepared for you, others cannot receive it for you.
+
+[V2] (L)
+ 生命有限 时光也会走
+ Life is short, time will pass, if you don't grasp it,
+ 如果你不珍惜 机会难留
+ the opportunity will go away.
+ 礼物虽然好 如果你不要
+ Although the gift is good, if you don't accept it,
+ 你怎么能够得到? 怎么能得到?
+ how can you get it? How can you get it?
+
+[V3] (L)
+ 亲爱的朋友 你是否想到
+ Dear friend, if have you ever thought...
+ 马槽的婴孩是为你而来
+ that the baby in the manger came for you.
+ 亲爱的朋友 你是否了解
+ Dear friend, do you understand that
+ 最好的礼物是人子主耶稣
+ the best gift is the Son of Man, the Lord Jesus.
+
+[V4] (L)
+ 生命有限 时光也会走
+ Life is short, time will pass, if you don't grasp it,
+ 如果你不珍惜 机会难留
+ the opportunity will go away.
+ 礼物虽然好 如果你不要
+ Although the gift is good, if you don't accept it,
+ 你怎么能够得到? 怎么能得到?
+ how can you get it? How can you get it?
+</lyrics>
+  <backgrounds resize="screen" keep_aspect="true" link="false" background_as_text="false"/>
+</song>

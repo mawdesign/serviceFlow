@@ -1,0 +1,81 @@
+---
+source: crates/opensong/tests/canonical_save.rs
+expression: lines_of(&out)
+---
+<?xml version="1.0" encoding="UTF-8"?>
+<song>
+  <title>How Deep the Father's Love 天父的爱何其深长</title>
+  <author>Stuart Townend</author>
+  <copyright>© 1995 Thankyou Music</copyright>
+  <hymn_number></hymn_number>
+  <presentation></presentation>
+  <ccli>1558110</ccli>
+  <capo print="false"></capo>
+  <key></key>
+  <aka></aka>
+  <key_line></key_line>
+  <user1></user1>
+  <user2></user2>
+  <user3></user3>
+  <theme></theme>
+  <linked_songs/>
+  <tempo></tempo>
+  <time_sig></time_sig>
+  <lyrics>[V1] (L)
+ How deep the Father’s love for us
+ 天父的爱何其深长，
+ How vast beyond all measure
+ 广阔而无法测量，
+ That He should give His only Son
+ 祂赐下祂独生爱子
+ To make a wretch His treasure...
+ 使罪魁成为祂宝贝。
+ ||
+ How great the pain of searing loss
+ 离弃之痛是何其深，
+ The Father turns His face away
+ 当天父掩面不看祂，
+ As wounds which mar the Chosen One
+ 赎罪羔羊流血舍命
+ Bring many sons to glory
+ 引神儿女进荣光中。
+
+[V2] (L)
+ Behold the Man upon across,
+ 人子被挂在十架上，
+ My sin upon His shoulders.
+ 祂为我背负众罪孽。
+ Ashamed, I hear my mocking voice
+ 羞愧的我曾与众人
+ Call out among the scoffers.
+ 嘲笑爱我的耶稣。
+ ||
+ It was my sin that held Him there
+ 祂为我罪甘愿受苦，
+ Until it was accomplished;
+ 完成使命义无反顾；
+ His dying breath has brought me life.
+ 耶稣舍命，赐我生命，
+ I know that it is finished.
+ 祂已完成救赎大功。
+
+[V3] (L)
+ I will not boast in anything:
+ 我没有可夸耀之处：
+ No gifts, no power, no wisdom.
+ 无财、无势、无智慧。
+ But I will boast in Jesus Christ:
+ 但因救主受死复活，
+ His death and resurrection.
+ 我能夸耀耶稣基督。
+ ||
+ Why should I gain from His reward?
+ 为何蒙主施恩赐福？
+ I cannot give an answer.
+ 我不知如何配得。
+ But this I know with all my heart:
+ 但我心里确信深知，
+ His wounds have paid my ransom.
+ 祂受鞭伤赎我罪债。</lyrics>
+  <backgrounds resize="screen" keep_aspect="true" link="false" background_as_text="false"/>
+</song>

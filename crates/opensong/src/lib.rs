@@ -8,7 +8,7 @@ mod xml;
 
 pub use set::read_set;
 pub use settings::{read_output_settings, read_present_settings, read_slide_colors};
-pub use song::read_song;
+pub use song::{read_song, write_song};
 
 /// Why bytes could not be read as an OpenSong document.
 #[derive(Debug, Clone, PartialEq, Eq)]

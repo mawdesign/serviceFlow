@@ -47,6 +47,23 @@ pub async fn a_write_based_on_a_stale_hash_is_a_conflict_and_changes_nothing(sto
     assert_eq!(storage.read_song(&id).await.unwrap().bytes, b"someone else");
 }
 
+pub async fn a_write_based_on_the_current_hash_replaces_the_song(storage: impl Storage) {
+    let id = SongId::new("Saved");
+    let first = storage.write_song(&id, b"first".to_vec(), Expect::Any).await.unwrap();
+    let second = storage.write_song(&id, b"second".to_vec(), Expect::Hash(first)).await.unwrap();
+    assert_eq!(second, ContentHash::of(b"second"));
+    assert_eq!(storage.read_song(&id).await.unwrap().bytes, b"second");
+    // And again with the hash the save returned.
+    storage.write_song(&id, b"third".to_vec(), Expect::Hash(second)).await.unwrap();
+}
+
+pub async fn a_write_based_on_a_hash_of_a_removed_song_is_a_conflict(storage: impl Storage) {
+    let id = SongId::new("Gone");
+    let result = storage.write_song(&id, SONG.to_vec(), Expect::Hash(ContentHash::of(SONG))).await;
+    assert_eq!(result, Err(StorageError::Conflict(Key::Song(id.clone()))));
+    assert_eq!(storage.read_song(&id).await, Err(StorageError::NotFound(Key::Song(id))));
+}
+
 pub async fn creating_a_song_that_already_exists_is_a_conflict(storage: impl Storage) {
     let id = SongId::new("Taken");
     storage.write_song(&id, SONG.to_vec(), Expect::Absent).await.unwrap();
@@ -141,6 +158,8 @@ macro_rules! storage_contract {
     ($make:expr) => {
         $crate::storage_contract!(@tests $make;
             a_written_song_reads_back_with_the_same_bytes_and_hash,
+            a_write_based_on_the_current_hash_replaces_the_song,
+            a_write_based_on_a_hash_of_a_removed_song_is_a_conflict,
             written_songs_are_listed_sorted_with_their_category,
             reading_a_missing_song_is_not_found,
             a_write_based_on_a_stale_hash_is_a_conflict_and_changes_nothing,
