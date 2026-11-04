@@ -33,8 +33,12 @@ const SET: &str = r#"<?xml version="1.0" encoding="UTF-8"?>
 const PRESENT_SETTINGS: &str = r#"<present_settings><default_style><body font="DefaultFont" size="40"/></default_style></present_settings>"#;
 
 fn open() -> EngineHarness {
-    let mut harness =
-        EngineHarness::with_data(SONGS, &[("Sunday", SET)], &[("PresentSettings", PRESENT_SETTINGS)], &[("red.png", b"RED"), ("Sub/blue.jpg", b"BLUE")]);
+    let mut harness = EngineHarness::with_data(
+        SONGS,
+        &[("Sunday", SET)],
+        &[("PresentSettings", PRESENT_SETTINGS)],
+        &[("red.png", b"RED"), ("Sub/blue.jpg", b"BLUE")],
+    );
     harness.send(Command::ImportOpenSongStyles { trigger: ImportTrigger::FirstRun });
     harness.send(Command::RefreshLibrary);
     harness.send(Command::RefreshSets);

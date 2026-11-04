@@ -176,7 +176,10 @@ fn new_custom_image_and_style_items_are_written_as_opensong_reads_them() {
     let item = |name: &str, kind| SetItem { name: name.into(), notes: String::new(), style: None, kind };
     let mut set = Set { name: "New".into(), ..Set::default() };
     set.items.push(item("Notices", ItemKind::Custom(CustomItem { title: "Notices".into(), slides: vec!["Tea".into()], ..CustomItem::default() })));
-    set.items.push(SetItem { notes: "Two pictures".into(), ..item("Pictures", ItemKind::Image(ImageItem { slides: pictures.clone(), ..ImageItem::default() })) });
+    set.items.push(SetItem {
+        notes: "Two pictures".into(),
+        ..item("Pictures", ItemKind::Image(ImageItem { slides: pictures.clone(), ..ImageItem::default() }))
+    });
     set.items.push(SetItem {
         style: Some(Arc::new(fixture_styles().default)),
         ..item("Blue", ItemKind::Style { action: StyleAction::New, xml: String::new() })
@@ -216,9 +219,17 @@ fn a_pushed_style_is_written_in_opensong_units_and_reads_back_the_same() {
     let read = read_set(out.as_bytes()).unwrap().items[0].style.clone().expect("a style");
     let close = |a: f32, b: f32| (a - b).abs() < 0.05;
     for (a, b) in [(&read.body.text, &pushed.body.text), (&read.title.text, &pushed.title.text), (&read.subtitle.text, &pushed.subtitle.text)] {
-        assert_eq!((&a.font, a.color, a.align, a.valign, a.bold, a.outline, a.shadow), (&b.font, b.color, b.align, b.valign, b.bold, b.outline, b.shadow));
+        assert_eq!(
+            (&a.font, a.color, a.align, a.valign, a.bold, a.outline, a.shadow),
+            (&b.font, b.color, b.align, b.valign, b.bold, b.outline, b.shadow)
+        );
         assert!(close(a.size, b.size), "{} vs {}", a.size, b.size);
-        for (x, y) in [(a.margins.left, b.margins.left), (a.margins.top, b.margins.top), (a.margins.right, b.margins.right), (a.margins.bottom, b.margins.bottom)] {
+        for (x, y) in [
+            (a.margins.left, b.margins.left),
+            (a.margins.top, b.margins.top),
+            (a.margins.right, b.margins.right),
+            (a.margins.bottom, b.margins.bottom),
+        ] {
             assert!(close(x, y), "{x} vs {y}");
         }
     }

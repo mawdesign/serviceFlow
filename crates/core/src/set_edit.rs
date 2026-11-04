@@ -56,7 +56,10 @@ pub enum SetEdit {
 pub(crate) enum Change {
     Inserted(usize),
     Removed(usize),
-    Moved { from: usize, to: usize },
+    Moved {
+        from: usize,
+        to: usize,
+    },
     /// The items stayed where they were.
     InPlace,
 }

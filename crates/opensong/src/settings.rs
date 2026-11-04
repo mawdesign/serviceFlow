@@ -5,6 +5,7 @@ use std::sync::Arc;
 
 use serviceflow_core::output::{InitialMode, Logo, OutputSettings, SlideColors, SlideKind};
 use serviceflow_core::style::{Align, ImagePosition, ImageSource, Margins, Rgba, Style, Styles, SubtitleField, TextStyle, VAlign};
+
 use crate::CodecError;
 use crate::xml::{self, Element};
 

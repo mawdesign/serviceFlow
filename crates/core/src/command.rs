@@ -298,10 +298,14 @@ pub enum Command {
     SaveSet,
     /// Save the open set, with its edits, as a new set `name` (a file name under `Sets/`); the
     /// open set becomes the new one and the old file stays as it was.
-    SaveSetAs { name: String },
+    SaveSetAs {
+        name: String,
+    },
     /// Make a new set `name` holding the open set as it is saved (without its edits); the open set
     /// stays open.
-    DuplicateSet { name: String },
+    DuplicateSet {
+        name: String,
+    },
     /// The operator's answer to the open set having changed on disk while it has edits.
     ResolveSetConflict(ConflictChoice),
     /// Storage result of [`Effect::WriteSet`]: set `id` was written to `saved_as`, which now holds

@@ -123,11 +123,7 @@ pub(super) fn end_group(state: &mut State) {
 
 /// Apply an edit of the open set (`edit` gives the changed set, or `None` when it does not
 /// apply). An edit that changes nothing is not an undo step; edits of the same `target` join.
-pub(super) fn change(
-    state: &mut State,
-    target: Option<crate::set_edit::Target>,
-    edit: impl FnOnce(&Set) -> Option<(Set, Change)>,
-) -> Vec<Effect> {
+pub(super) fn change(state: &mut State, target: Option<crate::set_edit::Target>, edit: impl FnOnce(&Set) -> Option<(Set, Change)>) -> Vec<Effect> {
     let Some(open) = &mut state.set else { return Vec::new() };
     let Some((set, change)) = edit(&open.set) else { return Vec::new() };
     if set == *open.set {

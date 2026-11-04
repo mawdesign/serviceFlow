@@ -123,7 +123,13 @@ impl SetView {
             // Below the last item: dropping here puts it at the end.
             let (rect, end) = ui.allocate_exact_size(egui::vec2(ui.available_width(), 28.0_f32.max(ui.available_height())), egui::Sense::hover());
             if len == 0 {
-                ui.painter().text(rect.left_top(), egui::Align2::LEFT_TOP, tl!("Drag songs here from the library."), egui::TextStyle::Body.resolve(ui.style()), ui.visuals().weak_text_color());
+                ui.painter().text(
+                    rect.left_top(),
+                    egui::Align2::LEFT_TOP,
+                    tl!("Drag songs here from the library."),
+                    egui::TextStyle::Body.resolve(ui.style()),
+                    ui.visuals().weak_text_color(),
+                );
             }
             drop_onto(ui, &end, len, len, commands);
         });
@@ -283,7 +289,16 @@ impl SetView {
 
     /// One text field of an item. Each change is an edit; leaving the field ends the undo step.
     #[allow(clippy::too_many_arguments)]
-    pub fn field(&mut self, ui: &mut egui::Ui, item: &SetItem, index: usize, field: ItemField, label: &str, multiline: bool, commands: &mut Vec<Command>) {
+    pub fn field(
+        &mut self,
+        ui: &mut egui::Ui,
+        item: &SetItem,
+        index: usize,
+        field: ItemField,
+        label: &str,
+        multiline: bool,
+        commands: &mut Vec<Command>,
+    ) {
         let Some(current) = field_text(item, field) else { return };
         let key = (index, field);
         let mut text = match &self.typing {
