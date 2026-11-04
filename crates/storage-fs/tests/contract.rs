@@ -235,3 +235,25 @@ fn dropping_the_storage_ends_the_stream() {
     });
     assert!(ended);
 }
+
+#[test]
+fn renaming_moves_the_file_into_a_new_category_folder_and_deleting_removes_it() {
+    let (storage, root) = fixtures_copy();
+    let from = SongId::new("It Is Well With My Soul");
+    let to = SongId::new("Hymns/It Is Well.xml");
+    let hash = block_on(storage.rename_song(&from, &to, Expect::Any)).unwrap();
+    assert!(!root.join("Songs/It Is Well With My Soul").exists());
+    assert_eq!(std::fs::read(root.join("Songs/Hymns/It Is Well.xml")).unwrap(), fixture_song("It Is Well With My Soul"));
+    block_on(storage.delete_song(&to, Expect::Hash(hash))).unwrap();
+    assert!(!root.join("Songs/Hymns/It Is Well.xml").exists());
+}
+
+#[test]
+fn a_rename_that_changes_only_letter_case_is_allowed() {
+    let (storage, root) = fixtures_copy();
+    let from = SongId::new("It Is Well With My Soul");
+    let to = SongId::new("IT IS WELL WITH MY SOUL");
+    block_on(storage.rename_song(&from, &to, Expect::Any)).unwrap();
+    let names: Vec<_> = std::fs::read_dir(root.join("Songs")).unwrap().map(|e| e.unwrap().file_name().to_string_lossy().into_owned()).collect();
+    assert!(names.contains(&"IT IS WELL WITH MY SOUL".to_owned()), "{names:?}");
+}

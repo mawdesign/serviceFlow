@@ -8,8 +8,8 @@ use futures::StreamExt as _;
 use futures::channel::mpsc;
 use serviceflow_storage::{
     AssetId, AssetRepository, ChangeEvent, ChangeEvents, ChangeKind, ChangeStream, ContentHash, DocumentId, Expect, Key, Result, SetId,
-    SetRepository, SettingsId, SettingsRepository, SidecarRepository, SongId, SongRepository, StorageError, Stored, check_path, is_ignored_path,
-    key_path,
+    SetRepository, SettingsId, SettingsRepository, SidecarRepository, SongId, SongRepository, StorageError, Stored, check_path, expect_holds,
+    is_ignored_path, key_path,
 };
 
 /// Storage held in memory. Every write is announced on [`ChangeEvents::changes`].
@@ -64,13 +64,7 @@ impl MemoryStorage {
         let hash = stored.hash;
         {
             let mut documents = self.lock_documents();
-            let current = documents.get(&key).map(|s| s.hash);
-            let allowed = match expect {
-                Expect::Any => true,
-                Expect::Absent => current.is_none(),
-                Expect::Hash(expected) => current == Some(expected),
-            };
-            if !allowed {
+            if !expect_holds(expect, documents.get(&key).map(|s| s.hash)) {
                 return Err(StorageError::Conflict(key));
             }
             documents.insert(key.clone(), stored);
@@ -79,8 +73,8 @@ impl MemoryStorage {
         Ok(hash)
     }
 
-    /// Delete a document, announcing [`ChangeKind::Removed`] if it existed. The storage traits
-    /// have no delete yet (#20/#21 add one); tests and the engine harness use this.
+    /// Delete a document, announcing [`ChangeKind::Removed`] if it existed. Unlike the
+    /// trait's delete it has no precondition, for tests and the engine harness.
     pub fn remove(&self, key: &Key) {
         if self.lock_documents().remove(key).is_some() {
             self.announce(ChangeEvent { key: key.clone(), kind: ChangeKind::Removed });
@@ -90,6 +84,42 @@ impl MemoryStorage {
     /// Write a document without a precondition, as if another program had.
     pub fn write_key(&self, key: &Key, bytes: &[u8]) {
         self.write(key.clone(), bytes.to_vec(), Expect::Any).expect("writing a document");
+    }
+
+    fn delete(&self, key: Key, expect: Expect) -> Result<()> {
+        check_path(key_path(&key))?;
+        {
+            let mut documents = self.lock_documents();
+            let Some(current) = documents.get(&key) else { return Err(StorageError::NotFound(key)) };
+            if !expect_holds(expect, Some(current.hash)) {
+                return Err(StorageError::Conflict(key));
+            }
+            documents.remove(&key);
+        }
+        self.announce(ChangeEvent { key, kind: ChangeKind::Removed });
+        Ok(())
+    }
+
+    fn rename(&self, from: Key, to: Key, expect: Expect) -> Result<ContentHash> {
+        check_path(key_path(&from))?;
+        check_path(key_path(&to))?;
+        let hash = {
+            let mut documents = self.lock_documents();
+            let Some(hash) = documents.get(&from).map(|s| s.hash) else { return Err(StorageError::NotFound(from)) };
+            if !expect_holds(expect, Some(hash)) {
+                return Err(StorageError::Conflict(from));
+            }
+            if to != from && documents.contains_key(&to) {
+                return Err(StorageError::Conflict(to));
+            }
+            if let Some(stored) = documents.remove(&from) {
+                documents.insert(to.clone(), stored);
+            }
+            hash
+        };
+        self.announce(ChangeEvent { key: from, kind: ChangeKind::Removed });
+        self.announce(ChangeEvent { key: to, kind: ChangeKind::Written });
+        Ok(hash)
     }
 
     fn list<T>(&self, pick: impl Fn(&Key) -> Option<T>) -> Vec<T> {
@@ -142,6 +172,14 @@ impl SongRepository for MemoryStorage {
     async fn write_song(&self, id: &SongId, bytes: Vec<u8>, expect: Expect) -> Result<ContentHash> {
         self.write(Key::Song(id.clone()), bytes, expect)
     }
+
+    async fn delete_song(&self, id: &SongId, expect: Expect) -> Result<()> {
+        self.delete(Key::Song(id.clone()), expect)
+    }
+
+    async fn rename_song(&self, from: &SongId, to: &SongId, expect: Expect) -> Result<ContentHash> {
+        self.rename(Key::Song(from.clone()), Key::Song(to.clone()), expect)
+    }
 }
 
 impl SetRepository for MemoryStorage {
@@ -158,6 +196,14 @@ impl SetRepository for MemoryStorage {
 
     async fn write_set(&self, id: &SetId, bytes: Vec<u8>, expect: Expect) -> Result<ContentHash> {
         self.write(Key::Set(id.clone()), bytes, expect)
+    }
+
+    async fn delete_set(&self, id: &SetId, expect: Expect) -> Result<()> {
+        self.delete(Key::Set(id.clone()), expect)
+    }
+
+    async fn rename_set(&self, from: &SetId, to: &SetId, expect: Expect) -> Result<ContentHash> {
+        self.rename(Key::Set(from.clone()), Key::Set(to.clone()), expect)
     }
 }
 

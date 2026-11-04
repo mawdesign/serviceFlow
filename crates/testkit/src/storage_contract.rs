@@ -14,7 +14,9 @@
 use std::time::{Duration, Instant};
 
 use futures::{FutureExt as _, StreamExt as _};
-use serviceflow_storage::{AssetId, ChangeEvent, ChangeStream, ChangeKind, ContentHash, DocumentId, Expect, Key, SetId, SettingsId, SongId, Storage, StorageError};
+use serviceflow_storage::{
+    AssetId, ChangeEvent, ChangeKind, ChangeStream, ContentHash, DocumentId, Expect, Key, SetId, SettingsId, SongId, Storage, StorageError,
+};
 
 const SONG: &[u8] = b"<song><title>Contract</title></song>";
 
@@ -235,6 +237,84 @@ pub async fn sets_and_settings_changed_from_outside_are_announced<S: Storage>(st
     assert_eq!(next_changes(&mut changes, 1), [removed(set)]);
 }
 
+pub async fn deleting_a_song_removes_it_and_emits_a_removed_event(storage: impl Storage) {
+    let id = SongId::new("Hymns/Doomed");
+    let hash = storage.write_song(&id, SONG.to_vec(), Expect::Any).await.unwrap();
+    storage.write_song(&SongId::new("Kept"), SONG.to_vec(), Expect::Any).await.unwrap();
+    let mut changes = storage.changes();
+    storage.delete_song(&id, Expect::Hash(hash)).await.unwrap();
+    assert_eq!(changes.next().await, Some(ChangeEvent { key: Key::Song(id.clone()), kind: ChangeKind::Removed }));
+    assert_eq!(storage.read_song(&id).await, Err(StorageError::NotFound(Key::Song(id))));
+    assert_eq!(storage.list_songs().await.unwrap(), [SongId::new("Kept")]);
+}
+
+pub async fn deleting_a_song_with_a_stale_hash_is_a_conflict_and_keeps_it(storage: impl Storage) {
+    let id = SongId::new("Shared");
+    let first = storage.write_song(&id, b"first".to_vec(), Expect::Any).await.unwrap();
+    storage.write_song(&id, b"someone else".to_vec(), Expect::Any).await.unwrap();
+    assert_eq!(storage.delete_song(&id, Expect::Hash(first)).await, Err(StorageError::Conflict(Key::Song(id.clone()))));
+    assert_eq!(storage.delete_song(&id, Expect::Absent).await, Err(StorageError::Conflict(Key::Song(id.clone()))));
+    assert_eq!(storage.read_song(&id).await.unwrap().bytes, b"someone else");
+}
+
+pub async fn deleting_a_missing_song_is_not_found(storage: impl Storage) {
+    let id = SongId::new("Nowhere");
+    assert_eq!(storage.delete_song(&id, Expect::Any).await, Err(StorageError::NotFound(Key::Song(id.clone()))));
+    assert_eq!(storage.delete_song(&id, Expect::Hash(ContentHash::of(SONG))).await, Err(StorageError::NotFound(Key::Song(id))));
+}
+
+pub async fn renaming_a_song_moves_its_bytes_to_another_category(storage: impl Storage) {
+    let from = SongId::new("Old Name");
+    let to = SongId::new("Hymns/New Name.xml");
+    let hash = storage.write_song(&from, SONG.to_vec(), Expect::Any).await.unwrap();
+    let mut changes = storage.changes();
+    assert_eq!(storage.rename_song(&from, &to, Expect::Hash(hash)).await, Ok(hash));
+    assert_eq!(changes.next().await, Some(ChangeEvent { key: Key::Song(from.clone()), kind: ChangeKind::Removed }));
+    assert_eq!(changes.next().await, Some(ChangeEvent { key: Key::Song(to.clone()), kind: ChangeKind::Written }));
+    assert_eq!(storage.read_song(&from).await, Err(StorageError::NotFound(Key::Song(from))));
+    let stored = storage.read_song(&to).await.unwrap();
+    assert_eq!((stored.bytes, stored.hash), (SONG.to_vec(), hash));
+    assert_eq!(storage.list_songs().await.unwrap(), [to]);
+}
+
+pub async fn renaming_a_song_onto_an_existing_one_is_a_conflict_and_changes_nothing(storage: impl Storage) {
+    let from = SongId::new("Mine");
+    let to = SongId::new("Theirs");
+    storage.write_song(&from, b"mine".to_vec(), Expect::Any).await.unwrap();
+    storage.write_song(&to, b"theirs".to_vec(), Expect::Any).await.unwrap();
+    assert_eq!(storage.rename_song(&from, &to, Expect::Any).await, Err(StorageError::Conflict(Key::Song(to.clone()))));
+    assert_eq!(storage.read_song(&from).await.unwrap().bytes, b"mine");
+    assert_eq!(storage.read_song(&to).await.unwrap().bytes, b"theirs");
+}
+
+pub async fn renaming_a_song_with_a_stale_hash_is_a_conflict_and_a_missing_one_is_not_found(storage: impl Storage) {
+    let from = SongId::new("Shared");
+    let to = SongId::new("Moved");
+    let first = storage.write_song(&from, b"first".to_vec(), Expect::Any).await.unwrap();
+    storage.write_song(&from, b"second".to_vec(), Expect::Any).await.unwrap();
+    assert_eq!(storage.rename_song(&from, &to, Expect::Hash(first)).await, Err(StorageError::Conflict(Key::Song(from.clone()))));
+    assert_eq!(storage.read_song(&to).await, Err(StorageError::NotFound(Key::Song(to.clone()))));
+    let missing = SongId::new("Nowhere");
+    assert_eq!(storage.rename_song(&missing, &to, Expect::Any).await, Err(StorageError::NotFound(Key::Song(missing))));
+    let escape = storage.rename_song(&from, &SongId::new("../escape"), Expect::Any).await;
+    assert!(matches!(escape, Err(StorageError::Other(_))), "{escape:?}");
+    assert_eq!(storage.list_songs().await.unwrap(), [from]);
+}
+
+pub async fn sets_can_be_renamed_and_deleted(storage: impl Storage) {
+    let from = SetId::new("Draft");
+    let to = SetId::new("Sunday");
+    let hash = storage.write_set(&from, b"set".to_vec(), Expect::Any).await.unwrap();
+    storage.write_set(&SetId::new("Other"), b"other".to_vec(), Expect::Any).await.unwrap();
+    assert_eq!(storage.rename_set(&from, &SetId::new("Other"), Expect::Any).await, Err(StorageError::Conflict(Key::Set(SetId::new("Other")))));
+    assert_eq!(storage.rename_set(&from, &to, Expect::Hash(hash)).await, Ok(hash));
+    assert_eq!(storage.list_sets().await.unwrap(), [SetId::new("Other"), to.clone()]);
+    assert_eq!(storage.delete_set(&to, Expect::Hash(ContentHash::of(b"stale"))).await, Err(StorageError::Conflict(Key::Set(to.clone()))));
+    storage.delete_set(&to, Expect::Hash(hash)).await.unwrap();
+    assert_eq!(storage.delete_set(&to, Expect::Any).await, Err(StorageError::NotFound(Key::Set(to))));
+    assert_eq!(storage.list_sets().await.unwrap(), [SetId::new("Other")]);
+}
+
 /// Generate one `#[test]` per contract check, each given a fresh storage from `$make`.
 #[macro_export]
 macro_rules! storage_contract {
@@ -256,6 +336,13 @@ macro_rules! storage_contract {
             settings_round_trip_and_a_missing_file_is_not_found,
             sidecars_are_optional_and_never_appear_as_songs_or_sets,
             a_song_and_a_set_with_the_same_name_are_different_documents,
+            deleting_a_song_removes_it_and_emits_a_removed_event,
+            deleting_a_song_with_a_stale_hash_is_a_conflict_and_keeps_it,
+            deleting_a_missing_song_is_not_found,
+            renaming_a_song_moves_its_bytes_to_another_category,
+            renaming_a_song_onto_an_existing_one_is_a_conflict_and_changes_nothing,
+            renaming_a_song_with_a_stale_hash_is_a_conflict_and_a_missing_one_is_not_found,
+            sets_can_be_renamed_and_deleted,
         );
     };
     ($make:expr, outside: $write:expr, $remove:expr) => {

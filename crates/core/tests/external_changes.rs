@@ -252,7 +252,7 @@ fn open_set() -> EngineHarness {
 #[test]
 fn a_set_added_or_deleted_on_disk_changes_the_set_list() {
     let mut harness = open_set();
-    harness.write_set_file(&SetId::new("Easter"), SET.as_bytes());
+    harness.write_set_file("Easter", SET.as_bytes());
     harness.settle();
     assert_eq!(harness.state().sets, [SetId::new("Easter"), SetId::new("Test")]);
     harness.remove_set_file(&SetId::new("Easter"));
@@ -265,7 +265,7 @@ fn the_open_set_reloads_when_it_changes_on_disk() {
     let mut harness = open_set();
     harness.send(Command::SelectItem(1));
     assert_eq!(harness.state().song.as_ref().unwrap().id, SongId::new("Other"));
-    harness.write_set_file(&SetId::new("Test"), SET_CHANGED.as_bytes());
+    harness.write_set_file("Test", SET_CHANGED.as_bytes());
     harness.settle();
     let state = harness.state();
     let set = state.set.as_ref().unwrap();
@@ -283,7 +283,7 @@ fn a_set_with_unsaved_relinking_is_marked_changed_on_disk_instead_of_reloaded() 
     let mut harness = open_set();
     harness.send(Command::RelinkItem { item: 1, song: id() });
     assert!(harness.state().set.as_ref().unwrap().modified);
-    harness.write_set_file(&SetId::new("Test"), SET_CHANGED.as_bytes());
+    harness.write_set_file("Test", SET_CHANGED.as_bytes());
     harness.settle();
     let state = harness.state();
     let set = state.set.as_ref().unwrap();
@@ -300,7 +300,7 @@ fn a_set_with_unsaved_relinking_is_marked_changed_on_disk_instead_of_reloaded() 
 #[test]
 fn a_song_added_on_disk_clears_a_missing_marker_in_the_open_set() {
     let mut harness = open_set();
-    harness.write_set_file(&SetId::new("Test"), SET_CHANGED.as_bytes());
+    harness.write_set_file("Test", SET_CHANGED.as_bytes());
     harness.settle();
     assert!(harness.state().set.as_ref().unwrap().is_missing(2));
     harness.write_song_file(&SongId::new("Missing"), song("Missing", "[V1]\n found").as_bytes());

@@ -10,6 +10,7 @@ use std::sync::Arc;
 use crate::edit::SongEdit;
 use crate::ids::{ContentHash, Expect, SetId, SongId};
 use crate::output::{OutputSettings, SlideColors};
+use crate::plan::{ChangePlan, GatheredSet, PlanFailure, WrittenSong};
 use crate::set::Set;
 use crate::song::{LanguageMode, SlideOptions, Song};
 use crate::style::Styles;
@@ -215,6 +216,42 @@ pub enum Command {
         id: SetId,
         file: Reloaded<Set>,
     },
+    /// Rename or move a song file (another filename and/or category). The song's title is not
+    /// changed. Makes a change plan that also rewrites every set item referring to the song;
+    /// nothing is written until [`Command::ConfirmPlan`].
+    RenameSong {
+        from: SongId,
+        to: SongId,
+    },
+    /// Delete a song file. Makes a change plan that lists the sets still using it, as a warning;
+    /// nothing is deleted until [`Command::ConfirmPlan`].
+    DeleteSong(SongId),
+    /// Create a song titled `title` in `category` (`""`: the top level). Its filename is the
+    /// sanitised title plus `.xml`, with ` (2)`-style suffixes when taken. Makes a change plan.
+    NewSong {
+        category: String,
+        title: String,
+    },
+    /// Storage result of [`Effect::GatherForPlan`]: the song list, every readable set with its
+    /// hash, the sets that could not be read, and the hash of the plan's song (`None`: missing).
+    /// `error`: the library could not be listed.
+    PlanGathered {
+        songs: Vec<SongId>,
+        sets: Vec<GatheredSet>,
+        unreadable_sets: Vec<SetId>,
+        subject: Option<ContentHash>,
+        error: Option<String>,
+    },
+    /// Apply the change plan the operator has been shown.
+    ConfirmPlan,
+    /// Drop the change plan; nothing is written.
+    CancelPlan,
+    /// Storage result of [`Effect::ApplyPlan`]: every step was written (with the songs written,
+    /// as read back), or why it stopped.
+    PlanApplied {
+        plan: Arc<ChangePlan>,
+        result: Result<Vec<WrittenSong>, PlanFailure>,
+    },
 }
 
 /// A document read again after storage announced a change.
@@ -293,6 +330,12 @@ pub enum Effect {
     /// [`Command::SongSaved`], [`Command::SongSaveConflict`] (the file changed or vanished) or
     /// [`Command::SongSaveFailed`].
     WriteSong { id: SongId, song: Arc<Song>, expect: Expect, as_copy: bool },
+    /// List the songs, read and parse every set and read the hash of song `subject`, to make a
+    /// change plan; answer with [`Command::PlanGathered`].
+    GatherForPlan { subject: Option<SongId> },
+    /// Check every step of the plan against storage, then write them in order; answer with
+    /// [`Command::PlanApplied`].
+    ApplyPlan(Arc<ChangePlan>),
     /// Read a file of `Backgrounds/`; answer with [`Command::ImageLoaded`].
     LoadImage(String),
     /// Read and parse `Settings/PresentSettings`; answer with [`Command::StylesImported`] or

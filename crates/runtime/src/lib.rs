@@ -13,9 +13,10 @@ use futures::executor::{LocalPool, LocalSpawner};
 use futures::task::LocalSpawnExt as _;
 use serviceflow_core::command::{Command, Effect, Reloaded, SettingsFault};
 use serviceflow_core::engine::Engine;
+use serviceflow_core::plan::{ChangePlan, GatheredSet, PlanFailure, PlanStep, WrittenSong};
 use serviceflow_core::song::Song;
 use serviceflow_core::state::State;
-use serviceflow_storage::{ChangeEvent, Expect, Key, SongId, Storage};
+use serviceflow_storage::{ChangeEvent, ContentHash, Expect, Key, SongId, Storage, StorageError, expect_holds};
 
 /// Runs the engine against a storage.
 pub struct Driver<S> {
@@ -161,6 +162,106 @@ async fn save_song<S: Storage>(storage: &S, id: SongId, song: &Song, expect: Exp
     }
 }
 
+/// Read what a change plan is made from: the song list, every set (parsed, with its hash) and the
+/// hash of the plan's song.
+async fn gather_for_plan<S: Storage>(storage: &S, subject: Option<SongId>) -> Command {
+    let mut error = None;
+    let songs = storage.list_songs().await.unwrap_or_else(|e| {
+        error = Some(e.to_string());
+        Vec::new()
+    });
+    let mut sets = Vec::new();
+    let mut unreadable_sets = Vec::new();
+    match storage.list_sets().await {
+        Ok(ids) => {
+            for id in ids {
+                let read = storage.read_set(&id).await.ok().and_then(|stored| {
+                    serviceflow_opensong::read_set(&stored.bytes).ok().map(|set| GatheredSet {
+                        id: id.clone(),
+                        set: Arc::new(set),
+                        hash: stored.hash,
+                    })
+                });
+                match read {
+                    Some(set) => sets.push(set),
+                    None => unreadable_sets.push(id),
+                }
+            }
+        }
+        Err(e) => error = Some(e.to_string()),
+    }
+    let subject = match subject {
+        Some(id) => song_hash(storage, &id).await,
+        None => None,
+    };
+    Command::PlanGathered { songs, sets, unreadable_sets, subject, error }
+}
+
+async fn song_hash<S: Storage>(storage: &S, id: &SongId) -> Option<ContentHash> {
+    storage.read_song(id).await.ok().map(|s| s.hash)
+}
+
+/// Whether a step can still be written as planned: its file is as it was when the plan was made.
+async fn step_holds<S: Storage>(storage: &S, step: &PlanStep) -> bool {
+    match step {
+        PlanStep::WriteSet { id, expect, .. } => expect_holds(*expect, storage.read_set(id).await.ok().map(|s| s.hash)),
+        PlanStep::WriteSong { id, expect, .. } => expect_holds(*expect, song_hash(storage, id).await),
+        PlanStep::DeleteSong { id, expect } => {
+            let current = song_hash(storage, id).await;
+            current.is_some() && expect_holds(*expect, current)
+        }
+        PlanStep::RenameSong { from, to, expect } => {
+            let current = song_hash(storage, from).await;
+            let same_file = from.as_str().to_lowercase() == to.as_str().to_lowercase();
+            current.is_some() && expect_holds(*expect, current) && (same_file || song_hash(storage, to).await.is_none())
+        }
+    }
+}
+
+/// Write one step; a written song is read back from its bytes.
+async fn write_step<S: Storage>(storage: &S, step: &PlanStep) -> Result<Option<WrittenSong>, StorageError> {
+    match step {
+        PlanStep::WriteSet { id, set, expect } => storage.write_set(id, serviceflow_opensong::write_set(set), *expect).await.map(|_| None),
+        PlanStep::WriteSong { id, song, expect } => {
+            let tags_kept = serviceflow_core::canonical::canonicalize(song).tags_kept;
+            let bytes = serviceflow_opensong::write_song(song);
+            let hash = storage.write_song(id, bytes.clone(), *expect).await?;
+            let read = serviceflow_opensong::read_song(&bytes).map_err(|e| StorageError::Other(format!("written but unreadable: {e}")))?;
+            Ok(Some(WrittenSong { id: id.clone(), song: Arc::new(read), hash, tags_kept }))
+        }
+        PlanStep::RenameSong { from, to, expect } => storage.rename_song(from, to, *expect).await.map(|_| None),
+        PlanStep::DeleteSong { id, expect } => storage.delete_song(id, *expect).await.map(|_| None),
+    }
+}
+
+/// Apply a change plan: check every step first, so a file changed since the plan was made stops
+/// it before anything is written; then write the steps in order (sets first, the song last).
+async fn apply_plan<S: Storage>(storage: &S, plan: Arc<ChangePlan>) -> Command {
+    for step in &plan.steps {
+        if !step_holds(storage, step).await {
+            let failure =
+                PlanFailure { written: Vec::new(), failed: step.file(), conflict: true, error: "changed since the plan was made".to_owned() };
+            return Command::PlanApplied { plan, result: Err(failure) };
+        }
+    }
+    let mut written = Vec::new();
+    let mut songs = Vec::new();
+    for step in &plan.steps {
+        match write_step(storage, step).await {
+            Ok(song) => {
+                written.push(step.file());
+                songs.extend(song);
+            }
+            Err(e) => {
+                let conflict = matches!(e, StorageError::Conflict(_) | StorageError::NotFound(_));
+                let failure = PlanFailure { written, failed: step.file(), conflict, error: e.to_string() };
+                return Command::PlanApplied { plan, result: Err(failure) };
+            }
+        }
+    }
+    Command::PlanApplied { plan, result: Ok(songs) }
+}
+
 /// Perform one effect and return the command that reports its outcome.
 pub async fn perform<S: Storage>(storage: &S, effect: Effect) -> Command {
     match effect {
@@ -259,6 +360,8 @@ pub async fn perform<S: Storage>(storage: &S, effect: Effect) -> Command {
             };
             Command::SetReloaded { id, file }
         }
+        Effect::GatherForPlan { subject } => gather_for_plan(storage, subject).await,
+        Effect::ApplyPlan(plan) => apply_plan(storage, plan).await,
         Effect::LoadSong(id) => {
             let parsed = match storage.read_song(&id).await {
                 Ok(stored) => serviceflow_opensong::read_song(&stored.bytes).map(|song| (song, stored.hash)).map_err(|e| e.to_string()),
