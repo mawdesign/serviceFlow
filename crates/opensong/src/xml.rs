@@ -60,6 +60,11 @@ impl Element {
         }
     }
 
+    /// Remove attribute `name`, if present.
+    pub fn remove_attr(&mut self, name: &str) {
+        self.attributes.retain(|(k, _)| k != name);
+    }
+
     /// Replace the first child element named like `element`, in place, or add it at the end.
     pub fn set_child(&mut self, element: Element) {
         let slot = self.children.iter_mut().find(|n| matches!(n, Node::Element(e) if e.name == element.name));

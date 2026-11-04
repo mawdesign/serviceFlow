@@ -60,8 +60,10 @@ pub struct CustomItem {
     pub subtitle: String,
     /// The text of each slide (`slides/slide/body`), lines separated by `\n`.
     pub slides: Vec<String>,
+    /// How its slides advance by themselves (`seconds`, `loop`, `transition`).
+    pub advance: Advance,
     /// The whole `slide_group` as read. It keeps the attributes serviceFlow does not model
-    /// (`seconds`, `loop`, `print`, `transition`); a writer starts from it.
+    /// (`link`, `print`); a writer starts from it.
     pub xml: String,
 }
 
@@ -76,6 +78,8 @@ pub struct ImageItem {
     /// Keep the pictures' proportions (`keep_aspect`).
     pub keep_aspect: bool,
     pub slides: Vec<ImageSlide>,
+    /// How its pictures advance by themselves.
+    pub advance: Advance,
     /// The whole `slide_group` as read, as for [`CustomItem::xml`].
     pub xml: String,
 }
@@ -87,6 +91,27 @@ pub struct ImageSlide {
     /// names neither.
     pub image: Option<ImageSource>,
     pub description: String,
+}
+
+/// How the slides of an item advance and fade (GLOSSARY "Auto-advance"): the `seconds`, `loop` and
+/// `transition` attributes of a custom or image `slide_group`.
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+pub struct Advance {
+    /// Seconds each slide stays before the next one follows; 0 = the operator advances.
+    pub seconds: u32,
+    /// After the last slide go back to the first, and keep going. Otherwise stop on the last slide.
+    pub looping: bool,
+    /// Whether the slides of this item crossfade.
+    pub transition: ItemTransition,
+}
+
+/// `slide_group/@transition`: 0 = as the output settings say, 1 = fade, 2 = no fade.
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Hash)]
+pub enum ItemTransition {
+    #[default]
+    Default,
+    On,
+    Off,
 }
 
 /// What a style item does (`slide_group/@action`).

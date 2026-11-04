@@ -180,7 +180,14 @@ impl<S: Storage + 'static> ControlWindow<S> {
     }
 
     pub fn ui(&mut self, ui: &mut egui::Ui) {
+        // Tell the engine the time first, so what this frame's commands start is timed from now.
+        let now = std::time::Duration::from_secs_f64(ui.ctx().input(|i| i.time));
+        self.driver.tick(now);
         self.driver.pump();
+        // The live item's slides advance by themselves: wake up when the next one is due.
+        if let Some(due) = self.driver.snapshot().auto_advance_due() {
+            ui.ctx().request_repaint_after(due.saturating_sub(now));
+        }
         if !self.driver.is_idle() {
             // Storage results arrive outside frames; keep pumping until they are in.
             ui.ctx().request_repaint();
@@ -489,6 +496,7 @@ fn slide_grid(
     let textures = thumbnails.for_song(ui.ctx(), state, size);
     egui::ScrollArea::vertical().show(ui, |ui| {
         ui.horizontal_wrapped(|ui| {
+            let blank = textures.get(open.slides.len());
             for (index, (slide, texture)) in open.slides.iter().zip(textures).enumerate() {
                 ui.vertical(|ui| {
                     let mut image = egui::Image::from_texture((texture.id(), points)).alt_text(slide.lines.join("\n")).sense(egui::Sense::click());
@@ -529,6 +537,25 @@ fn slide_grid(
                             ui.label(egui::RichText::new(&slide.section).weak());
                         }
                     }
+                });
+            }
+            // The blank after the item: not part of the set, only of the presentation.
+            if let Some(texture) = blank {
+                ui.vertical(|ui| {
+                    let image = egui::Image::from_texture((texture.id(), points)).alt_text(tl!("Blank")).sense(egui::Sense::click());
+                    let response = ui.add(image).on_hover_text(tl!("Blank between this item and the next"));
+                    if state.on_blank_after() {
+                        ui.painter().rect_stroke(
+                            response.rect,
+                            0.0,
+                            egui::Stroke::new(3.0, ui.visuals().selection.bg_fill),
+                            egui::StrokeKind::Outside,
+                        );
+                    }
+                    if response.clicked() {
+                        commands.push(Command::GoToItemBlank);
+                    }
+                    ui.label(egui::RichText::new(tl!("Blank")).weak());
                 });
             }
         });

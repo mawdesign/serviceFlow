@@ -35,11 +35,14 @@ impl Default for Thumbnails {
 
 impl Thumbnails {
     /// One texture per slide of the open song, drawn at `size` pixels with the style each slide
-    /// has in `state` (set item, song, style stack) and its song background.
+    /// has in `state` (set item, song, style stack) and its song background. When a blank follows
+    /// the item (GLOSSARY "Blank"), one more: the blank, as the last.
     pub fn for_song(&mut self, ctx: &egui::Context, state: &State, size: Size) -> &[egui::TextureHandle] {
         let Some(open) = &state.song else { return &[] };
-        let resolved: Vec<(Slide, ResolvedStyle)> =
+        let mut resolved: Vec<(Slide, ResolvedStyle)> =
             open.slides.iter().map(|slide| (slide.clone(), state.resolved_of(&open.id, &open.song, slide))).collect();
+        let slides = resolved.len();
+        resolved.extend(state.blank_after().map(|blank| (Slide::default(), blank)));
         let fresh = matches!(&self.key, Some((slides, st, im, s)) if *slides == resolved && Arc::ptr_eq(st, &state.styles) && Arc::ptr_eq(im, &state.images) && *s == size);
         if !fresh {
             self.textures = resolved
@@ -47,9 +50,11 @@ impl Thumbnails {
                 .enumerate()
                 .map(|(i, (slide, resolved))| {
                     let style = resolved.style(&state.styles);
-                    let captions = Captions::for_song(&open.song, &style);
+                    // The blank has no text, so no title either.
+                    let captions = if i < slides { Captions::for_song(&open.song, &style) } else { Captions::default() };
                     let image = self.renderer.render_with_images(slide, &captions, &style, &state.images, size);
-                    ctx.load_texture(format!("slide thumbnail {}", i + 1), color_image(&image), egui::TextureOptions::LINEAR)
+                    let name = if i < slides { format!("slide thumbnail {}", i + 1) } else { "blank thumbnail".to_owned() };
+                    ctx.load_texture(name, color_image(&image), egui::TextureOptions::LINEAR)
                 })
                 .collect();
             self.key = Some((resolved, Arc::clone(&state.styles), Arc::clone(&state.images), size));

@@ -157,6 +157,13 @@ The slide currently shown on the outputs.
 **Blank**:
 An output state showing the style's background with no text.
 
+**Blank between items**:
+A slide of only a background, no text, that stepping reaches between two set items. It stops the next item (a video, say) starting the moment the operator steps past the end of the last one. Shown only while presenting: never in the set or the set builder. Only with the `blanks` setting on; none before the first item or after the last, and none between two items with the same name (so the operator can group items into one). Its background is the item before's, or the item after's with `blank_uses_next`, including that item's own style.
+_Avoid_: Spacer, separator slide
+
+**Auto-advance**:
+A custom or image item moving to its next slide by itself after its `seconds`. With `loop` it returns to the first slide after the last; without it stops on the last slide and never carries on into the next item. Any manual step, blank, black or logo, or leaving the item, stops or restarts it.
+
 **Black**:
 An output state showing pure black.
 

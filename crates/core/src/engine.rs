@@ -1,9 +1,12 @@
 //! The engine: the single writer of [`State`] (ADR-0001).
 
 use std::sync::Arc;
+use std::time::Duration;
 
 use crate::command::{Command, Effect, ImportTrigger};
 
+mod auto;
+mod blanks;
 mod edit;
 mod external;
 mod plan;
@@ -24,6 +27,8 @@ use crate::style::ImageSource;
 #[derive(Debug, Default)]
 pub struct Engine {
     state: Arc<State>,
+    /// The time of the last tick; not in the state, so a tick that changes nothing copies nothing.
+    now: Duration,
 }
 
 impl Engine {
@@ -38,10 +43,19 @@ impl Engine {
 
     /// Apply one command and return the IO it asks for.
     pub fn apply(&mut self, command: Command) -> Vec<Effect> {
+        if let Command::Tick { now } = command {
+            self.now = now;
+            // Most ticks find nothing due: leave the state (and the snapshots of it) alone.
+            if !self.state.output.auto_due.is_some_and(|due| due <= now) {
+                return Vec::new();
+            }
+        }
         // Copy-on-write: snapshots handed out earlier keep the old state.
         let state = Arc::make_mut(&mut self.state);
+        state.now = self.now;
         let mut effects = step(state, command);
         effects.extend(request_images(state));
+        effects.extend(blanks::peeks(state));
         effects
     }
 }
@@ -160,6 +174,25 @@ fn step(state: &mut State, command: Command) -> Vec<Effect> {
                 }
                 Vec::new()
             }
+            Command::Tick { now } => {
+                auto::tick(state, now);
+                Vec::new()
+            }
+            Command::SongPeeked { id, song } => {
+                blanks::peeked(state, &id, song);
+                Vec::new()
+            }
+            Command::GoToItemBlank => {
+                if let Some((before, after)) = blanks::across(state, true) {
+                    blanks::enter(state, before, after);
+                }
+                Vec::new()
+            }
+            Command::NextSlide if blanks::on_item_blank(state) => {
+                // From the blank between two items into the later one.
+                let after = state.output.item_blank.as_ref().map_or(0, |b| b.after);
+                blanks::leave(state, after, true)
+            }
             Command::NextSlide => {
                 // Only slides in the flow; a greyed slide is past its end.
                 let in_flow = state.song.as_ref().map_or(0, |open| open.in_flow);
@@ -168,13 +201,12 @@ fn step(state: &mut State, command: Command) -> Vec<Effect> {
                 if target < in_flow {
                     go_live(state, target);
                     Vec::new()
-                } else if state.output_settings.blanks
-                    && live_index(state).is_some_and(|i| i + 1 == in_flow)
+                } else if let Some((before, after)) = blanks::across(state, true)
+                    && live.is_some_and(|i| i + 1 == in_flow)
                     && state.output.mode == OutputMode::Normal
                 {
-                    // OpenSong puts a blank after each item.
-                    toggle(state, OutputMode::Blank);
-                    state.output.blank_after_end = true;
+                    // A blank between this item and the next.
+                    blanks::enter(state, before, after);
                     Vec::new()
                 } else if live.is_some() {
                     // Past the end of the item: carry on into the next song item of the set.
@@ -183,10 +215,10 @@ fn step(state: &mut State, command: Command) -> Vec<Effect> {
                     Vec::new()
                 }
             }
-            Command::PreviousSlide if state.output.blank_after_end && state.output.mode == OutputMode::Blank => {
-                // Back from the blank after the last slide: that slide again.
-                toggle(state, OutputMode::Blank);
-                Vec::new()
+            Command::PreviousSlide if blanks::on_item_blank(state) => {
+                // Back from the blank between two items into the earlier one.
+                let before = state.output.item_blank.as_ref().map_or(0, |b| b.before);
+                blanks::leave(state, before, false)
             }
             Command::PreviousSlide => {
                 // From a greyed slide, back to the last slide of the flow.
@@ -197,8 +229,14 @@ fn step(state: &mut State, command: Command) -> Vec<Effect> {
                             go_live(state, i);
                             Vec::new()
                         }
-                        // Before the first slide: back into the previous song item of the set.
-                        None => sets::advance(state, false),
+                        // Before the first slide: the blank before this item, else the previous item.
+                        None => match blanks::across(state, false) {
+                            Some((before, after)) => {
+                                blanks::enter(state, before, after);
+                                Vec::new()
+                            }
+                            None => sets::advance(state, false),
+                        },
                     },
                     None => Vec::new(),
                 }
@@ -426,17 +464,21 @@ fn go_live(state: &mut State, index: usize) {
     let Some(open) = &state.song else { return };
     let Some(slide) = open.slides.get(index) else { return };
     let resolved = state.resolved_of(&open.id, &open.song, slide);
-    state.output.live = Some(LiveSlide { song: open.id.clone(), index, slide: slide.clone(), source: Arc::clone(&open.song), resolved });
+    let advance = state.open_advance();
+    state.output.live = Some(LiveSlide { song: open.id.clone(), index, slide: slide.clone(), source: Arc::clone(&open.song), resolved, advance });
     state.output.mode = OutputMode::Normal;
-    state.output.blank_after_end = false;
+    state.output.item_blank = None;
     state.output.changes += 1;
+    auto::schedule(state);
 }
 
 /// Switch `mode` on, or back to normal when it is already on. Blank and black replace each other.
 fn toggle(state: &mut State, mode: OutputMode) {
     state.output.mode = if state.output.mode == mode { OutputMode::Normal } else { mode };
-    state.output.blank_after_end = false;
+    state.output.item_blank = None;
     state.output.changes += 1;
+    // Blank, black and logo stop auto-advance; showing the slide again starts it afresh.
+    auto::schedule(state);
 }
 
 /// Songs read per background step: small enough that the window stays responsive.

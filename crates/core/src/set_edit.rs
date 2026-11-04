@@ -8,7 +8,7 @@ use std::sync::Arc;
 
 use crate::ids::SongId;
 use crate::search::{category, filename};
-use crate::set::{CustomItem, ImageItem, ImageSlide, ItemKind, Set, SetItem, SongItem, StyleAction};
+use crate::set::{Advance, CustomItem, ImageItem, ImageSlide, ItemKind, ItemTransition, Set, SetItem, SongItem, StyleAction};
 use crate::style::{ImageSource, Style};
 
 /// A text of a set item the operator can edit.
@@ -28,6 +28,12 @@ pub enum ItemField {
     /// The slides of a custom item, as typed: one slide after another, separated by lines holding
     /// only `---` (OpenSong's custom slide editor).
     Slides,
+    /// Seconds each slide of a custom or image item stays (digits; empty or 0 = no auto-advance).
+    Seconds,
+    /// Whether a custom or image item's slides loop (`true` / `false`).
+    Loop,
+    /// Whether a custom or image item's slides crossfade: `default`, `on` or `off`.
+    Transition,
 }
 
 /// One change to the open set. `at` is where a new item goes: `None` puts it after the selected
@@ -163,9 +169,30 @@ fn set_field(item: &mut SetItem, field: ItemField, text: &str) -> Option<()> {
             *subtitle = text.to_owned()
         }
         (ItemField::Slides, ItemKind::Custom(custom)) => custom.slides = CustomItem::slides_from_text(text),
+        (
+            ItemField::Seconds | ItemField::Loop | ItemField::Transition,
+            ItemKind::Custom(CustomItem { advance, .. }) | ItemKind::Image(ImageItem { advance, .. }),
+        ) => match field {
+            ItemField::Seconds => advance.seconds = text.trim().parse().unwrap_or(0),
+            ItemField::Loop => advance.looping = text.trim().eq_ignore_ascii_case("true"),
+            _ => {
+                advance.transition = match text.trim().to_ascii_lowercase().as_str() {
+                    "on" => ItemTransition::On,
+                    "off" => ItemTransition::Off,
+                    _ => ItemTransition::Default,
+                }
+            }
+        },
         _ => return None,
     }
     Some(())
+}
+
+fn advance_of(item: &SetItem) -> Option<Advance> {
+    match &item.kind {
+        ItemKind::Custom(CustomItem { advance, .. }) | ItemKind::Image(ImageItem { advance, .. }) => Some(*advance),
+        _ => None,
+    }
 }
 
 /// The text of an item's field as the editor shows it (`None`: the kind has no such text).
@@ -177,6 +204,14 @@ pub fn field_text(item: &SetItem, field: ItemField) -> Option<String> {
         (ItemField::Title, ItemKind::Custom(CustomItem { title, .. }) | ItemKind::Image(ImageItem { title, .. })) => title.clone(),
         (ItemField::Subtitle, ItemKind::Custom(CustomItem { subtitle, .. }) | ItemKind::Image(ImageItem { subtitle, .. })) => subtitle.clone(),
         (ItemField::Slides, ItemKind::Custom(custom)) => custom.slides_text(),
+        (ItemField::Seconds, _) => advance_of(item)?.seconds.to_string(),
+        (ItemField::Loop, _) => advance_of(item)?.looping.to_string(),
+        (ItemField::Transition, _) => match advance_of(item)?.transition {
+            ItemTransition::Default => "default",
+            ItemTransition::On => "on",
+            ItemTransition::Off => "off",
+        }
+        .to_owned(),
         _ => return None,
     })
 }

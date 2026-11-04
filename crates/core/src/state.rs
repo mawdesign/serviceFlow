@@ -3,6 +3,7 @@
 
 use std::collections::{BTreeMap, VecDeque};
 use std::sync::Arc;
+use std::time::Duration;
 
 use crate::edit::Draft;
 use crate::ids::{ContentHash, SetId, SongId};
@@ -11,7 +12,7 @@ use crate::output::{OutputSettings, SlideColors};
 use crate::plan::{ChangePlan, PlanAction, PlanFailure, PlanRefusal, PlanRequest};
 use crate::resolve::{self, ImageFile, Images, ResolvedStyle};
 use crate::search::SearchIndex;
-use crate::set::{ItemKind, Set};
+use crate::set::{Advance, ItemKind, ItemTransition, Set};
 use crate::set_edit::SetHistory;
 use crate::sidecar::{ItemKey, ItemSettings, SetSidecar};
 use crate::song::{Slide, SlideOptions, Song};
@@ -65,6 +66,9 @@ pub struct State {
     pub applying_plan: bool,
     /// The picture files in `Backgrounds/`, listed when the operator looks for a missing image.
     pub backgrounds: Vec<String>,
+    /// The time of the last [`Command::Tick`](crate::command::Command), which the caller measures
+    /// (the engine has no clock). Auto-advance is scheduled from it.
+    pub(crate) now: Duration,
 }
 
 /// The open set and where the operator is in it.
@@ -101,6 +105,9 @@ pub struct OpenSet {
     /// What to send live once the selected item's song has loaded (moving on from the end of
     /// the previous item).
     pub(crate) pending: Option<Pending>,
+    /// The songs of the neighbouring song items, read ahead (when blanks are on) to know what a
+    /// blank between items looks like.
+    pub(crate) peeked: Vec<(SongId, Option<Arc<Song>>)>,
 }
 
 /// Which slide to send live when a song loads.
@@ -127,6 +134,7 @@ impl OpenSet {
             history: SetHistory::default(),
             sidecar,
             pending: None,
+            peeked: Vec::new(),
         }
     }
 
@@ -235,6 +243,47 @@ impl State {
         resolve::choose(item, Some(song), self.output_settings.song_style_preferred)
     }
 
+    /// How slide `slide` of the item at `index` of the open set is drawn, whatever item is
+    /// selected (see [`resolved_of`](Self::resolved_of)).
+    pub fn resolved_in_item(&self, index: usize, song: &Song, slide: &Slide) -> ResolvedStyle {
+        let item = self.set.as_ref().map(|open| (&*open.set, index));
+        ResolvedStyle {
+            style: resolve::choose(item, Some(song), self.output_settings.song_style_preferred),
+            background: resolve::slide_background(song, slide),
+        }
+    }
+
+    /// How the open song's item advances and fades (the defaults for songs and for a song opened
+    /// from the library).
+    pub fn open_advance(&self) -> Advance {
+        let item = self.set.as_ref().and_then(|open| {
+            let index = open.selected?;
+            let item = open.set.items.get(index)?;
+            (item.open_id(index).as_ref() == self.song.as_ref().map(|s| &s.id)).then_some(item)
+        });
+        match item.map(|i| &i.kind) {
+            Some(ItemKind::Custom(c)) => c.advance,
+            Some(ItemKind::Image(i)) => i.advance,
+            _ => Advance::default(),
+        }
+    }
+
+    /// How long the next change of what is shown crossfades, or `None` for a cut: the output
+    /// settings, unless the live item says otherwise (`slide_group/@transition`).
+    pub fn fade_ms(&self) -> Option<u32> {
+        let settings = &self.output_settings;
+        match self.output.live.as_ref().map_or(ItemTransition::Default, |live| live.advance.transition) {
+            ItemTransition::Default => settings.fade_ms(),
+            ItemTransition::On => Some(settings.transition_ms.max(1)),
+            ItemTransition::Off => None,
+        }
+    }
+
+    /// When the live slide advances by itself, on the clock of [`Command::Tick`](crate::command::Command).
+    pub fn auto_advance_due(&self) -> Option<Duration> {
+        self.output.auto_due
+    }
+
     /// The first picture of image item `item` whose file is not in `Backgrounds/` (known once it
     /// has been looked for), as its slide index.
     pub fn missing_image(&self, item: usize) -> Option<usize> {
@@ -299,9 +348,22 @@ pub struct Output {
     pub changes: u64,
     /// Which outputs show chords (GLOSSARY "Chord line"). All off by default.
     pub chords: OutputChords,
-    /// Blank mode was entered by moving past the last slide (OpenSong's blank between items), so
-    /// Previous returns to that last slide rather than going back one.
-    pub(crate) blank_after_end: bool,
+    /// The blank between two items (GLOSSARY "Blank") when that is what is shown (then `mode` is
+    /// `Blank`). Any other change of what is shown clears it.
+    pub item_blank: Option<ItemBlank>,
+    /// When the live slide advances by itself (GLOSSARY "Auto-advance"), measured on the clock of
+    /// [`Command::Tick`](crate::command::Command). `None`: no auto-advance is running.
+    pub auto_due: Option<Duration>,
+}
+
+/// The blank between two set items: stepping past the end of item `before`, or back past the
+/// start of item `after`, lands on it.
+#[derive(Debug, Clone, PartialEq)]
+pub struct ItemBlank {
+    pub before: usize,
+    pub after: usize,
+    /// The look of its background: the item before's, or the item after's with `blank_uses_next`.
+    pub resolved: ResolvedStyle,
 }
 
 /// The outputs a slide is shown on, each with its own chord toggle.
@@ -349,6 +411,8 @@ pub struct LiveSlide {
     pub source: Arc<Song>,
     /// The style and song background it was sent live with.
     pub resolved: ResolvedStyle,
+    /// How its item advances and fades, captured when it went live.
+    pub advance: Advance,
 }
 
 /// How the outputs show the live slide (GLOSSARY "Blank", "Black").

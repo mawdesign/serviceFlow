@@ -74,6 +74,12 @@ impl<S: Storage + 'static> Driver<S> {
         }
     }
 
+    /// Tell the engine what time it is, on any clock that only moves forward (the app uses the
+    /// UI's frame time, tests a fake one). The live item's auto-advance runs from this.
+    pub fn tick(&mut self, now: std::time::Duration) {
+        self.send(Command::Tick { now });
+    }
+
     /// Advance in-flight effects as far as they can go without waiting, applying every result
     /// command (and starting any effects those ask for). Never blocks.
     pub fn pump(&mut self) {
@@ -468,6 +474,13 @@ pub async fn perform<S: Storage>(storage: &S, effect: Effect) -> Command {
         Effect::GatherForPlan { subject } => gather_for_plan(storage, subject).await,
         Effect::GatherForTidy => gather_for_tidy(storage).await,
         Effect::ApplyPlan(plan) => apply_plan(storage, plan).await,
+        Effect::PeekSong(id) => {
+            let song = match storage.read_song(&id).await {
+                Ok(stored) => serviceflow_opensong::read_song(&stored.bytes).ok().map(Arc::new),
+                Err(_) => None,
+            };
+            Command::SongPeeked { id, song }
+        }
         Effect::LoadSong(id) => {
             let parsed = match storage.read_song(&id).await {
                 Ok(stored) => serviceflow_opensong::read_song(&stored.bytes).map(|song| (song, stored.hash)).map_err(|e| e.to_string()),

@@ -191,14 +191,26 @@ pub(super) fn check_songs(state: &State) -> Vec<Effect> {
 pub(super) fn advance(state: &mut State, forward: bool) -> Vec<Effect> {
     let Some(set) = &state.set else { return Vec::new() };
     let Some(current) = set.selected else { return Vec::new() };
+    match neighbour(set, current, forward) {
+        Some(i) => select(state, i, Some(if forward { Pending::First } else { Pending::Last })),
+        None => Vec::new(),
+    }
+}
+
+/// The nearest item after (`forward`) or before item `current` that can be presented.
+pub(super) fn neighbour(set: &OpenSet, current: usize, forward: bool) -> Option<usize> {
     let presentable = |i: &usize| {
         let item = &set.set.items[*i];
         matches!(item.kind, ItemKind::Custom(_) | ItemKind::Image(_)) || (item.song_id().is_some() && !set.is_missing(*i))
     };
-    let target = if forward { (current + 1..set.set.items.len()).find(presentable) } else { (0..current).rev().find(presentable) };
-    match target {
-        Some(i) => select(state, i, Some(if forward { Pending::First } else { Pending::Last })),
-        None => Vec::new(),
+    if forward { (current + 1..set.set.items.len()).find(presentable) } else { (0..current).rev().find(presentable) }
+}
+
+/// A song as song item `item` shows it: with the item's presentation order, if it has one.
+pub(super) fn ordered(item: &SetItem, song: &Arc<Song>) -> Arc<Song> {
+    match &item.kind {
+        ItemKind::Song(s) if !s.presentation.is_empty() => Arc::new(Song { presentation: s.presentation.clone(), ..(**song).clone() }),
+        _ => Arc::clone(song),
     }
 }
 

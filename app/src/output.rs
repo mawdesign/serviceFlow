@@ -88,7 +88,14 @@ impl OutputFrame {
         let content = match output.mode {
             OutputMode::Black => Content::Black,
             OutputMode::Logo => Content::Logo(state.output_settings.logo.clone().map(SameLogo)),
-            OutputMode::Blank => Content::Slide(None, output.live.as_ref().map(|live| live.resolved.clone()).unwrap_or_default()),
+            // The blank between two items has its own background; a blank on a slide uses the slide's.
+            OutputMode::Blank => Content::Slide(
+                None,
+                match &output.item_blank {
+                    Some(blank) => blank.resolved.clone(),
+                    None => output.live.as_ref().map(|live| live.resolved.clone()).unwrap_or_default(),
+                },
+            ),
             OutputMode::Normal => Content::Slide(
                 // Chords are shown only on outputs whose chord toggle is on.
                 output.live.as_ref().map(|live| (shown_slide(&live.slide, output.chords.get(self.id)), Arc::clone(&live.source))),
@@ -107,7 +114,7 @@ impl OutputFrame {
             let image = color_image(&self.render(&shown, styles, &state.images));
             // A slide change starts a crossfade from what was on screen; a resize or restyle
             // just redraws.
-            let fade = if changed { state.output_settings.fade_ms() } else { None };
+            let fade = if changed { state.fade_ms() } else { None };
             match (&mut self.texture, fade) {
                 (Some((_, old)), Some(ms)) => {
                     let old = old.clone();
