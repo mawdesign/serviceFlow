@@ -80,6 +80,7 @@ pub fn read_song(bytes: &[u8]) -> Result<Song, CodecError> {
         backgrounds: root.child("backgrounds").map(read_backgrounds),
         other_elements,
         warnings,
+        captions: None,
     })
 }
 

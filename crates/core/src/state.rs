@@ -7,11 +7,12 @@ use std::sync::Arc;
 use crate::edit::Draft;
 use crate::ids::{ContentHash, SetId, SongId};
 use crate::output::{OutputSettings, SlideColors};
-use crate::resolve::{self, Images, ResolvedStyle};
+use crate::resolve::{self, ImageFile, Images, ResolvedStyle};
 use crate::search::SearchIndex;
-use crate::set::Set;
+use crate::set::{ItemKind, Set};
+use crate::output::SlideKind;
 use crate::song::{Slide, SlideOptions, Song};
-use crate::style::Styles;
+use crate::style::{ImageSource, Styles};
 
 #[derive(Debug, Clone, Default, PartialEq)]
 pub struct State {
@@ -52,6 +53,8 @@ pub struct State {
     pub save_conflicts: Vec<SongId>,
     /// Songs being saved.
     pub saving: Vec<SongId>,
+    /// The picture files in `Backgrounds/`, listed when the operator looks for a missing image.
+    pub backgrounds: Vec<String>,
 }
 
 /// The open set and where the operator is in it.
@@ -65,6 +68,9 @@ pub struct OpenSet {
     pub missing: Vec<SongId>,
     /// The song item being relinked: the library search is for its replacement.
     pub relinking: Option<usize>,
+    /// The picture (item, slide) the operator is looking for a file for: choose one of
+    /// [`State::backgrounds`].
+    pub finding_image: Option<(usize, usize)>,
     /// What to send live once the selected item's song has loaded (moving on from the end of
     /// the previous item).
     pub(crate) pending: Option<Pending>,
@@ -79,7 +85,7 @@ pub(crate) enum Pending {
 
 impl OpenSet {
     pub(crate) fn new(id: SetId, set: Arc<Set>) -> Self {
-        Self { id, set, selected: None, missing: Vec::new(), relinking: None, pending: None }
+        Self { id, set, selected: None, missing: Vec::new(), relinking: None, finding_image: None, pending: None }
     }
 
     /// Whether item `index` is a song item whose song is not in the library.
@@ -127,6 +133,9 @@ pub struct OpenSong {
     pub slides: Vec<Slide>,
     /// How many of [`slides`](Self::slides) are in the flow.
     pub in_flow: usize,
+    /// `Some` when this is a custom or image item's stand-in song, with the colour kind of its
+    /// thumbnails. Its slides are fixed: they do not follow the slide options.
+    pub item_kind: Option<SlideKind>,
 }
 
 impl State {
@@ -152,9 +161,19 @@ impl State {
     pub fn style_choice(&self, id: &SongId, song: &Song) -> resolve::StyleChoice {
         let item = self.set.as_ref().and_then(|open| {
             let index = open.selected?;
-            (open.set.items.get(index)?.song_id().as_ref() == Some(id)).then_some((&*open.set, index))
+            (open.set.items.get(index)?.open_id(index).as_ref() == Some(id)).then_some((&*open.set, index))
         });
         resolve::choose(item, Some(song), self.output_settings.song_style_preferred)
+    }
+
+    /// The first picture of image item `item` whose file is not in `Backgrounds/` (known once it
+    /// has been looked for), as its slide index.
+    pub fn missing_image(&self, item: usize) -> Option<usize> {
+        let ItemKind::Image(image) = &self.set.as_ref()?.set.items.get(item)?.kind else { return None };
+        image.slides.iter().position(|slide| match &slide.image {
+            Some(ImageSource::File(name)) => matches!(self.images.get(name), Some(ImageFile::Missing)),
+            _ => false,
+        })
     }
 
     /// The look of slide `index` of the open song.
@@ -168,11 +187,22 @@ impl OpenSong {
     /// Build the grid for `song` with these options.
     pub fn new(id: SongId, song: Arc<Song>, hash: ContentHash, options: &SlideOptions) -> Self {
         let (slides, in_flow) = Self::grid(&song, options);
-        Self { id, file: Arc::clone(&song), song, hash, slides, in_flow }
+        Self { id, file: Arc::clone(&song), song, hash, slides, in_flow, item_kind: None }
+    }
+
+    /// A custom or image item shown as `slides` (all in the flow). `song` carries the title,
+    /// subtitle and backgrounds.
+    pub fn of_item(id: SongId, song: Song, slides: Vec<Slide>, kind: SlideKind) -> Self {
+        let song = Arc::new(song);
+        let in_flow = slides.len();
+        Self { id, file: Arc::clone(&song), song, hash: ContentHash::of(&[]), slides, in_flow, item_kind: Some(kind) }
     }
 
     /// Rebuild the grid with these options, keeping everything else.
     pub fn regrid(&mut self, options: &SlideOptions) {
+        if self.item_kind.is_some() {
+            return;
+        }
         (self.slides, self.in_flow) = Self::grid(&self.song, options);
     }
 

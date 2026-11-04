@@ -2,7 +2,7 @@
 
 use std::sync::Arc;
 
-use crate::style::{ImageSource, Resize, Style};
+use crate::style::{Captions, ImageSource, Resize, Style};
 
 /// A song as read from the library (GLOSSARY "Song").
 ///
@@ -44,6 +44,9 @@ pub struct Song {
     pub other_elements: Vec<RawElement>,
     /// Problems in the lyrics worth showing in the editor. The song still reads.
     pub warnings: Vec<SongWarning>,
+    /// Only for the stand-in song a custom or image item is shown as: the title and subtitle
+    /// boxes' text, instead of the ones built from the song's fields.
+    pub captions: Option<Captions>,
 }
 
 /// A song's background images (OpenSong `<backgrounds>`).
