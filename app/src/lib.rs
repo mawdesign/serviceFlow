@@ -25,7 +25,7 @@ use craft_ui::docking::{DockArea, DockContent, DockStyle, Layout, Node};
 use craft_ui::layout::{SplitAxis, SplitSize};
 use serviceflow_core::command::{Command, ImportTrigger};
 use serviceflow_core::song::LanguageMode;
-use serviceflow_core::state::{OutputMode, Problem, State};
+use serviceflow_core::state::{OutputId, OutputMode, Problem, State};
 use serviceflow_render::Size;
 use serviceflow_runtime::Driver;
 use serviceflow_storage::Storage;
@@ -139,8 +139,8 @@ impl<S: Storage + 'static> ControlWindow<S> {
         Self {
             driver,
             thumbnails: thumbnails::Thumbnails::default(),
-            mirror: OutputFrame::new("output monitor"),
-            screen: OutputFrame::new("output window"),
+            mirror: OutputFrame::new("output monitor", OutputId::Monitor),
+            screen: OutputFrame::new("output window", OutputId::Window),
             output_open: false,
             monitors: Monitors::default(),
             prefs: Prefs::default(),
@@ -340,6 +340,14 @@ fn live_buttons(ui: &mut egui::Ui, state: &State, commands: &mut Vec<Command>) {
     }
     if ui.selectable_label(state.output.mode == OutputMode::Logo, tl!("Logo")).clicked() {
         commands.push(Command::ToggleLogo);
+    }
+    ui.separator();
+    // Chords on each output (GLOSSARY "Chord line"); off until chosen.
+    if ui.selectable_label(state.output.chords.window, tl!("Chords on output")).clicked() {
+        commands.push(Command::ToggleChords(OutputId::Window));
+    }
+    if ui.selectable_label(state.output.chords.monitor, tl!("Chords on monitor")).clicked() {
+        commands.push(Command::ToggleChords(OutputId::Monitor));
     }
     ui.separator();
     // The language mode of multilanguage sections (GLOSSARY "Language mode").

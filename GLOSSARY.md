@@ -73,7 +73,7 @@ A marker (`||`) that splits a section across several slides.
 A marker (`|`) that forces a new line on screen within a lyric line.
 
 **Chord line**:
-A line of chords positioned by column above the lyric line that follows it.
+A line of chords positioned by column above the lyric line that follows it. Each output has its own chord toggle, off by default; control-window thumbnails and the editor preview always show chords. In a multilanguage section chords sit above primary lines only.
 
 **Transposition**:
 A shift of a song's chords by a number of semitones, applied only to a set item's display. It changes the song itself only when the operator explicitly saves the song in the new key.

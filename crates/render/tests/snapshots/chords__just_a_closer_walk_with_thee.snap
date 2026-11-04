@@ -1,0 +1,158 @@
+---
+source: crates/render/tests/chords.rs
+expression: "layout_of(&harness, Size { width: 960, height: 540 })"
+---
+# slide 1 (V1)
+frame 960x540 background Rgba { r: 0, g: 0, b: 0, a: 255 }
+box Body at (27.0, 27.0) size 906.0x486.0
+  line Chord "G Em G Am D" size 21.0 x 206.2 baseline 153.1 width 547.6
+    run font 0 rtl false color Rgba { r: 255, g: 200, b: 0, a: 255 }: 42@206.2
+    run font 0 rtl false color Rgba { r: 255, g: 200, b: 0, a: 255 }: 40@346.2 80@360.2
+    run font 0 rtl false color Rgba { r: 255, g: 200, b: 0, a: 255 }: 42@500.3
+    run font 0 rtl false color Rgba { r: 255, g: 200, b: 0, a: 255 }: 36@643.7 80@657.7
+    run font 0 rtl false color Rgba { r: 255, g: 200, b: 0, a: 255 }: 39@753.8
+  line Lyric "I am       weak but Thou art strong;" size 36.0 x 206.2 baseline 192.5 width 547.6
+    run font 0 rtl false color Rgba { r: 255, g: 255, b: 255, a: 255 }: 44@206.2 3@216.2 68@226.2 80@246.2 3@276.2 3@286.2 3@296.2 3@306.2 3@316.2 3@326.2 3@336.2 90@346.2 72@372.2 68@392.2 78@412.3 3@430.3 69@440.3 88@460.3 87@480.3 3@490.3 55@499.7 75@521.7 82@541.7 88@561.7 3@581.7 68@591.7 85@611.7 87@623.7 3@633.7 86@643.7 87@661.7 85@671.7 82@683.7 81@703.8 74@723.8 30@743.8
+  line Chord "D Dsus G" size 21.0 x 225.9 baseline 221.5 width 508.2
+    run font 0 rtl false color Rgba { r: 255, g: 200, b: 0, a: 255 }: 39@225.9
+    run font 0 rtl false color Rgba { r: 255, g: 200, b: 0, a: 255 }: 39@570.0 86@585.2 88@595.7 86@607.4
+    run font 0 rtl false color Rgba { r: 255, g: 200, b: 0, a: 255 }: 42@626.3
+  line Lyric "Jesus keep me from  all  wrong." size 36.0 x 225.9 baseline 260.9 width 508.2
+    run font 0 rtl false color Rgba { r: 255, g: 255, b: 255, a: 255 }: 45@225.9 72@243.9 86@263.9 88@281.9 86@301.9 3@319.9 78@329.9 72@347.9 72@368.0 83@388.0 3@408.0 80@418.0 72@448.0 3@468.0 73@478.0 85@488.0 82@500.0 80@520.0 3@550.0 3@560.0 68@570.0 79@590.0 79@598.0 3@606.0 3@616.0 90@626.0 85@652.0 82@664.0 81@684.1 74@704.1 17@724.1
+  line Chord "G Em C2" size 21.0 x 289.5 baseline 289.9 width 381.1
+    run font 0 rtl false color Rgba { r: 255, g: 200, b: 0, a: 255 }: 42@289.5
+    run font 0 rtl false color Rgba { r: 255, g: 200, b: 0, a: 255 }: 40@392.4 80@406.4
+    run font 0 rtl false color Rgba { r: 255, g: 200, b: 0, a: 255 }: 38@602.5 21@617.6
+  line Lyric "I'll be  satisfied as   long" size 36.0 x 289.5 baseline 329.3 width 381.1
+    run font 0 rtl false color Rgba { r: 255, g: 255, b: 255, a: 255 }: 44@289.5 10@299.5 79@306.3 79@314.3 3@322.3 69@332.3 72@352.4 3@372.4 3@382.4 86@392.4 68@410.4 87@430.4 76@440.4 86@448.4 73@466.4 76@476.4 72@484.4 71@504.4 3@524.4 68@534.4 86@554.5 3@572.5 3@582.5 3@592.5 79@602.5 82@610.5 81@630.5 74@650.5
+  line Chord "G D Dsus G" size 21.0 x 160.2 baseline 358.3 width 639.6
+    run font 0 rtl false color Rgba { r: 255, g: 200, b: 0, a: 255 }: 42@272.2
+    run font 0 rtl false color Rgba { r: 255, g: 200, b: 0, a: 255 }: 39@472.3
+    run font 0 rtl false color Rgba { r: 255, g: 200, b: 0, a: 255 }: 39@648.4 86@663.5 88@674.0 86@685.7
+    run font 0 rtl false color Rgba { r: 255, g: 200, b: 0, a: 255 }: 42@708.4
+  line Lyric "As I     walk, let me walk close to   Thee." size 36.0 x 160.2 baseline 397.7 width 639.6
+    run font 0 rtl false color Rgba { r: 255, g: 255, b: 255, a: 255 }: 36@160.2 86@184.2 3@202.2 44@212.2 3@222.2 3@232.2 3@242.2 3@252.2 3@262.2 90@272.2 68@298.2 79@318.3 78@326.3 15@344.3 3@354.3 79@364.3 72@372.3 87@392.3 3@402.3 80@412.3 72@442.3 3@462.3 90@472.3 68@498.3 79@518.3 78@526.3 3@544.3 70@554.3 79@572.3 82@580.3 86@600.3 72@618.3 3@638.4 87@648.4 82@658.4 3@678.4 3@688.4 3@698.4 55@707.7 75@729.7 72@749.7 72@769.8 17@789.8
+
+# slide 2 (V2)
+frame 960x540 background Rgba { r: 0, g: 0, b: 0, a: 255 }
+box Body at (27.0, 27.0) size 906.0x486.0
+  line Chord "G Em G Am D" size 21.0 x 211.4 baseline 153.1 width 537.1
+    run font 0 rtl false color Rgba { r: 255, g: 200, b: 0, a: 255 }: 42@211.4
+    run font 0 rtl false color Rgba { r: 255, g: 200, b: 0, a: 255 }: 40@368.4 80@382.4
+    run font 0 rtl false color Rgba { r: 255, g: 200, b: 0, a: 255 }: 42@504.4
+    run font 0 rtl false color Rgba { r: 255, g: 200, b: 0, a: 255 }: 36@630.5 80@644.5
+    run font 0 rtl false color Rgba { r: 255, g: 200, b: 0, a: 255 }: 39@748.6
+  line Lyric "Thro' this world of toil and snares," size 36.0 x 211.4 baseline 192.5 width 537.1
+    run font 0 rtl false color Rgba { r: 255, g: 255, b: 255, a: 255 }: 55@211.4 75@233.4 85@253.5 82@265.4 10@285.5 3@292.3 87@302.3 75@312.3 76@332.4 86@340.4 3@358.4 90@368.4 82@394.4 85@414.4 79@426.4 71@434.4 3@454.4 82@464.4 73@484.4 3@494.4 87@504.4 82@514.4 76@534.4 79@542.4 3@550.4 68@560.4 81@580.5 71@600.5 3@620.5 86@630.5 81@648.5 68@668.5 85@688.5 72@700.5 86@720.6 15@738.6
+  line Chord "D Dsus G" size 21.0 x 252.9 baseline 221.5 width 454.2
+    run font 0 rtl false color Rgba { r: 255, g: 200, b: 0, a: 255 }: 39@252.9
+    run font 0 rtl false color Rgba { r: 255, g: 200, b: 0, a: 255 }: 39@513.0 86@528.2 88@538.7 86@550.4
+    run font 0 rtl false color Rgba { r: 255, g: 200, b: 0, a: 255 }: 42@599.1
+  line Lyric "If I faulter, Lord  who  cares?" size 36.0 x 252.9 baseline 260.9 width 454.2
+    run font 0 rtl false color Rgba { r: 255, g: 255, b: 255, a: 255 }: 44@252.9 73@262.9 3@272.9 44@282.9 3@292.9 73@302.9 68@312.9 88@332.9 79@352.9 87@360.9 72@370.9 85@391.0 15@401.0 3@411.0 47@421.0 82@441.0 85@461.0 71@473.0 3@493.0 3@503.0 90@513.0 75@539.0 82@559.0 3@579.1 3@589.1 70@599.1 68@617.1 85@637.1 72@649.1 86@669.1 34@687.1
+  line Chord "G Em C2" size 21.0 x 206.9 baseline 289.9 width 546.2
+    run font 0 rtl false color Rgba { r: 255, g: 200, b: 0, a: 255 }: 42@206.9
+    run font 0 rtl false color Rgba { r: 255, g: 200, b: 0, a: 255 }: 40@364.9 80@378.9
+    run font 0 rtl false color Rgba { r: 255, g: 200, b: 0, a: 255 }: 38@625.0 21@640.2
+  line Lyric "Who with me my burden   shares?" size 36.0 x 206.9 baseline 329.3 width 546.2
+    run font 0 rtl false color Rgba { r: 255, g: 255, b: 255, a: 255 }: 58@206.9 75@240.9 82@260.9 3@280.9 90@290.9 76@316.9 87@324.9 75@334.9 3@354.9 80@364.9 72@394.9 3@414.9 80@424.9 92@454.9 3@472.9 69@482.9 88@503.0 85@523.0 71@535.0 72@555.0 81@575.0 3@595.0 3@605.0 3@615.0 86@625.0 75@643.0 68@663.1 85@683.1 72@695.1 86@715.1 34@733.1
+  line Chord "G D Dsus G" size 21.0 x 128.4 baseline 358.3 width 703.2
+    run font 0 rtl false color Rgba { r: 255, g: 200, b: 0, a: 255 }: 42@284.5
+    run font 0 rtl false color Rgba { r: 255, g: 200, b: 0, a: 255 }: 39@488.0
+    run font 0 rtl false color Rgba { r: 255, g: 200, b: 0, a: 255 }: 39@670.1 86@685.3 88@695.8 86@707.5
+    run font 0 rtl false color Rgba { r: 255, g: 200, b: 0, a: 255 }: 42@740.2
+  line Lyric "None but Thee, dear   Lord, none but  Thee." size 36.0 x 128.4 baseline 397.7 width 703.2
+    run font 0 rtl false color Rgba { r: 255, g: 255, b: 255, a: 255 }: 49@128.4 82@154.4 81@174.4 72@194.5 3@214.5 69@224.5 88@244.5 87@264.5 3@274.5 55@283.9 75@305.9 72@325.9 72@345.9 15@365.9 3@375.9 71@385.9 72@406.0 68@426.0 85@446.0 3@458.0 3@468.0 3@478.0 47@488.0 82@508.0 85@528.0 71@540.0 15@560.0 3@570.0 81@580.0 82@600.1 81@620.1 72@640.1 3@660.1 69@670.1 88@690.2 87@710.2 3@720.2 3@730.2 55@739.5 75@761.5 72@781.5 72@801.6 17@821.6
+
+# slide 3 (C)
+frame 960x540 background Rgba { r: 0, g: 0, b: 0, a: 255 }
+box Body at (27.0, 27.0) size 906.0x486.0
+  line Chord "G Em G Am D" size 21.0 x 250.2 baseline 153.1 width 459.5
+    run font 0 rtl false color Rgba { r: 255, g: 200, b: 0, a: 255 }: 42@250.2
+    run font 0 rtl false color Rgba { r: 255, g: 200, b: 0, a: 255 }: 40@356.3 80@370.3
+    run font 0 rtl false color Rgba { r: 255, g: 200, b: 0, a: 255 }: 42@462.3
+    run font 0 rtl false color Rgba { r: 255, g: 200, b: 0, a: 255 }: 36@618.4 80@632.4
+    run font 0 rtl false color Rgba { r: 255, g: 200, b: 0, a: 255 }: 39@709.8
+  line Lyric "Just a closer walk with Thee," size 36.0 x 250.2 baseline 192.5 width 459.5
+    run font 0 rtl false color Rgba { r: 255, g: 255, b: 255, a: 255 }: 45@250.2 88@268.2 86@288.3 87@306.3 3@316.3 68@326.3 3@346.3 70@356.3 79@374.3 82@382.3 86@402.3 72@420.3 85@440.3 3@452.3 90@462.3 68@488.3 79@508.3 78@516.3 3@534.3 90@544.3 76@570.3 87@578.3 75@588.3 3@608.4 55@617.7 75@639.7 72@659.7 72@679.7 15@699.8
+  line Chord "D Dsus G" size 21.0 x 257.9 baseline 221.5 width 444.1
+    run font 0 rtl false color Rgba { r: 255, g: 200, b: 0, a: 255 }: 39@257.9
+    run font 0 rtl false color Rgba { r: 255, g: 200, b: 0, a: 255 }: 39@546.0 86@561.2 88@571.7 86@583.4
+    run font 0 rtl false color Rgba { r: 255, g: 200, b: 0, a: 255 }: 42@624.0
+  line Lyric "Grant it, Jesus, is my   plea." size 36.0 x 257.9 baseline 260.9 width 444.1
+    run font 0 rtl false color Rgba { r: 255, g: 255, b: 255, a: 255 }: 42@257.9 85@285.9 68@297.9 81@317.9 87@338.0 3@348.0 76@358.0 87@366.0 15@376.0 3@386.0 45@396.0 72@414.0 86@434.0 88@452.0 86@472.0 15@490.0 3@500.0 76@510.0 86@518.0 3@536.0 80@546.0 92@576.0 3@594.0 3@604.0 3@614.0 83@624.0 79@644.0 72@652.0 68@672.0 17@692.1
+  line Chord "G Em C2" size 21.0 x 257.2 baseline 289.9 width 445.6
+    run font 0 rtl false color Rgba { r: 255, g: 200, b: 0, a: 255 }: 42@257.2
+    run font 0 rtl false color Rgba { r: 255, g: 200, b: 0, a: 255 }: 40@347.2 80@361.2
+    run font 0 rtl false color Rgba { r: 255, g: 200, b: 0, a: 255 }: 38@611.4 21@626.5
+  line Lyric "Daily walking close to Thee," size 36.0 x 257.2 baseline 329.3 width 445.6
+    run font 0 rtl false color Rgba { r: 255, g: 255, b: 255, a: 255 }: 39@257.2 68@283.2 76@303.2 79@311.2 92@319.2 3@337.2 90@347.2 68@373.2 79@393.3 78@401.3 76@419.3 81@427.3 74@447.3 3@467.3 70@477.3 79@495.3 82@503.3 86@523.3 72@541.3 3@561.3 87@571.3 82@581.3 3@601.4 55@610.7 75@632.7 72@652.7 72@672.8 15@692.8
+  line Chord "G D Dsus G" size 21.0 x 245.9 baseline 358.3 width 468.3
+    run font 0 rtl false color Rgba { r: 255, g: 200, b: 0, a: 255 }: 42@333.9
+    run font 0 rtl false color Rgba { r: 255, g: 200, b: 0, a: 255 }: 39@476.0
+    run font 0 rtl false color Rgba { r: 255, g: 200, b: 0, a: 255 }: 39@616.1 86@631.3 88@641.8 86@653.4
+    run font 0 rtl false color Rgba { r: 255, g: 200, b: 0, a: 255 }: 42@672.3
+  line Lyric "Let it be, dear Lord, let it   be." size 36.0 x 245.9 baseline 397.7 width 468.3
+    run font 0 rtl false color Rgba { r: 255, g: 255, b: 255, a: 255 }: 47@245.9 72@265.9 87@285.9 3@295.9 76@305.9 87@313.9 3@323.9 69@333.9 72@353.9 15@374.0 3@384.0 71@394.0 72@414.0 68@434.0 85@454.0 3@466.0 47@476.0 82@496.0 85@516.1 71@528.0 15@548.1 3@558.1 79@568.1 72@576.1 87@596.1 3@606.1 76@616.1 87@624.1 3@634.1 3@644.1 3@654.1 69@664.1 72@684.1 17@704.1
+
+# slide 4 (V3)
+frame 960x540 background Rgba { r: 0, g: 0, b: 0, a: 255 }
+box Body at (27.0, 27.0) size 906.0x486.0
+  line Chord "G Em G Am D" size 21.0 x 241.4 baseline 153.1 width 477.1
+    run font 0 rtl false color Rgba { r: 255, g: 200, b: 0, a: 255 }: 42@241.4
+    run font 0 rtl false color Rgba { r: 255, g: 200, b: 0, a: 255 }: 40@421.5 80@435.5
+    run font 0 rtl false color Rgba { r: 255, g: 200, b: 0, a: 255 }: 42@549.6
+    run font 0 rtl false color Rgba { r: 255, g: 200, b: 0, a: 255 }: 36@651.6 80@665.6
+    run font 0 rtl false color Rgba { r: 255, g: 200, b: 0, a: 255 }: 39@718.6
+  line Lyric "When this  feeble   life is  o'er," size 36.0 x 241.4 baseline 192.5 width 477.1
+    run font 0 rtl false color Rgba { r: 255, g: 255, b: 255, a: 255 }: 58@241.4 75@275.4 72@295.4 81@315.5 3@335.5 87@345.5 75@355.5 76@375.5 86@383.5 3@401.5 3@411.5 73@421.5 72@431.5 72@451.5 69@471.6 79@491.6 72@499.6 3@519.6 3@529.6 3@539.6 79@549.6 76@557.6 73@565.6 72@575.6 3@595.6 76@605.6 86@613.6 3@631.6 3@641.6 82@651.6 10@671.7 72@678.5 85@698.5 15@708.6
+  line Chord "D Dsus G" size 21.0 x 243.6 baseline 221.5 width 472.8
+    run font 0 rtl false color Rgba { r: 255, g: 200, b: 0, a: 255 }: 39@243.6
+    run font 0 rtl false color Rgba { r: 255, g: 200, b: 0, a: 255 }: 39@554.3 86@569.5 88@580.0 86@591.7
+    run font 0 rtl false color Rgba { r: 255, g: 200, b: 0, a: 255 }: 42@624.4
+  line Lyric "Time for me will be no   more;" size 36.0 x 243.6 baseline 260.9 width 472.8
+    run font 0 rtl false color Rgba { r: 255, g: 255, b: 255, a: 255 }: 55@243.6 76@264.3 80@272.3 72@302.2 3@322.3 73@332.3 82@342.3 85@362.3 3@374.3 80@384.3 72@414.3 3@434.3 90@444.3 76@470.3 79@478.3 79@486.3 3@494.3 69@504.3 72@524.3 3@544.3 81@554.3 82@574.4 3@594.4 3@604.4 3@614.4 80@624.4 82@654.4 85@674.4 72@686.4 30@706.4
+  line Chord "G Em C2" size 21.0 x 258.8 baseline 289.9 width 442.4
+    run font 0 rtl false color Rgba { r: 255, g: 200, b: 0, a: 255 }: 42@258.8
+    run font 0 rtl false color Rgba { r: 255, g: 200, b: 0, a: 255 }: 40@424.9 80@438.9
+    run font 0 rtl false color Rgba { r: 255, g: 200, b: 0, a: 255 }: 38@642.3 21@657.5
+  line Lyric "Guide me gently, safely o'er" size 36.0 x 258.8 baseline 329.3 width 442.4
+    run font 0 rtl false color Rgba { r: 255, g: 255, b: 255, a: 255 }: 42@258.8 88@286.8 76@306.8 71@314.8 72@334.8 3@354.9 80@364.9 72@394.8 3@414.9 74@424.9 72@444.9 81@464.9 87@484.9 79@494.9 92@502.9 15@518.3 3@528.3 86@538.3 68@556.3 73@576.3 72@586.3 79@606.3 92@614.3 3@632.3 82@642.3 10@662.3 72@669.2 85@689.2
+  line Chord "G D Dsus G" size 21.0 x 143.5 baseline 358.3 width 673.0
+    run font 0 rtl false color Rgba { r: 255, g: 200, b: 0, a: 255 }: 42@280.9
+    run font 0 rtl false color Rgba { r: 255, g: 200, b: 0, a: 255 }: 39@477.0
+    run font 0 rtl false color Rgba { r: 255, g: 200, b: 0, a: 255 }: 39@637.1 86@652.2 88@662.7 86@674.4
+    run font 0 rtl false color Rgba { r: 255, g: 200, b: 0, a: 255 }: 42@716.4
+  line Lyric "To Thy   kingdom      shore, to  Thy  shore." size 36.0 x 143.5 baseline 397.7 width 673.0
+    run font 0 rtl false color Rgba { r: 255, g: 255, b: 255, a: 255 }: 55@143.5 82@161.5 3@181.5 55@190.9 75@212.9 92@232.9 3@250.9 3@260.9 3@270.9 78@280.9 76@298.9 81@306.9 74@326.9 71@346.9 82@367.0 80@387.0 3@417.0 3@427.0 3@437.0 3@447.0 3@457.0 3@467.0 86@477.0 75@495.0 82@515.0 85@535.0 72@547.0 15@567.0 3@577.0 87@587.0 82@597.0 3@617.1 3@627.1 55@636.4 75@658.4 92@678.4 3@696.4 3@706.4 86@716.4 75@734.4 82@754.5 85@774.5 72@786.5 17@806.5
+
+# slide 5 (C)
+frame 960x540 background Rgba { r: 0, g: 0, b: 0, a: 255 }
+box Body at (27.0, 27.0) size 906.0x486.0
+  line Chord "G Em G Am D" size 21.0 x 250.2 baseline 153.1 width 459.5
+    run font 0 rtl false color Rgba { r: 255, g: 200, b: 0, a: 255 }: 42@250.2
+    run font 0 rtl false color Rgba { r: 255, g: 200, b: 0, a: 255 }: 40@356.3 80@370.3
+    run font 0 rtl false color Rgba { r: 255, g: 200, b: 0, a: 255 }: 42@462.3
+    run font 0 rtl false color Rgba { r: 255, g: 200, b: 0, a: 255 }: 36@618.4 80@632.4
+    run font 0 rtl false color Rgba { r: 255, g: 200, b: 0, a: 255 }: 39@709.8
+  line Lyric "Just a closer walk with Thee," size 36.0 x 250.2 baseline 192.5 width 459.5
+    run font 0 rtl false color Rgba { r: 255, g: 255, b: 255, a: 255 }: 45@250.2 88@268.2 86@288.3 87@306.3 3@316.3 68@326.3 3@346.3 70@356.3 79@374.3 82@382.3 86@402.3 72@420.3 85@440.3 3@452.3 90@462.3 68@488.3 79@508.3 78@516.3 3@534.3 90@544.3 76@570.3 87@578.3 75@588.3 3@608.4 55@617.7 75@639.7 72@659.7 72@679.7 15@699.8
+  line Chord "D Dsus G" size 21.0 x 257.9 baseline 221.5 width 444.1
+    run font 0 rtl false color Rgba { r: 255, g: 200, b: 0, a: 255 }: 39@257.9
+    run font 0 rtl false color Rgba { r: 255, g: 200, b: 0, a: 255 }: 39@546.0 86@561.2 88@571.7 86@583.4
+    run font 0 rtl false color Rgba { r: 255, g: 200, b: 0, a: 255 }: 42@624.0
+  line Lyric "Grant it, Jesus, is my   plea." size 36.0 x 257.9 baseline 260.9 width 444.1
+    run font 0 rtl false color Rgba { r: 255, g: 255, b: 255, a: 255 }: 42@257.9 85@285.9 68@297.9 81@317.9 87@338.0 3@348.0 76@358.0 87@366.0 15@376.0 3@386.0 45@396.0 72@414.0 86@434.0 88@452.0 86@472.0 15@490.0 3@500.0 76@510.0 86@518.0 3@536.0 80@546.0 92@576.0 3@594.0 3@604.0 3@614.0 83@624.0 79@644.0 72@652.0 68@672.0 17@692.1
+  line Chord "G Em C2" size 21.0 x 257.2 baseline 289.9 width 445.6
+    run font 0 rtl false color Rgba { r: 255, g: 200, b: 0, a: 255 }: 42@257.2
+    run font 0 rtl false color Rgba { r: 255, g: 200, b: 0, a: 255 }: 40@347.2 80@361.2
+    run font 0 rtl false color Rgba { r: 255, g: 200, b: 0, a: 255 }: 38@611.4 21@626.5
+  line Lyric "Daily walking close to Thee," size 36.0 x 257.2 baseline 329.3 width 445.6
+    run font 0 rtl false color Rgba { r: 255, g: 255, b: 255, a: 255 }: 39@257.2 68@283.2 76@303.2 79@311.2 92@319.2 3@337.2 90@347.2 68@373.2 79@393.3 78@401.3 76@419.3 81@427.3 74@447.3 3@467.3 70@477.3 79@495.3 82@503.3 86@523.3 72@541.3 3@561.3 87@571.3 82@581.3 3@601.4 55@610.7 75@632.7 72@652.7 72@672.8 15@692.8
+  line Chord "G D Dsus G" size 21.0 x 245.9 baseline 358.3 width 468.3
+    run font 0 rtl false color Rgba { r: 255, g: 200, b: 0, a: 255 }: 42@333.9
+    run font 0 rtl false color Rgba { r: 255, g: 200, b: 0, a: 255 }: 39@476.0
+    run font 0 rtl false color Rgba { r: 255, g: 200, b: 0, a: 255 }: 39@616.1 86@631.3 88@641.8 86@653.4
+    run font 0 rtl false color Rgba { r: 255, g: 200, b: 0, a: 255 }: 42@672.3
+  line Lyric "Let it be, dear Lord, let it   be." size 36.0 x 245.9 baseline 397.7 width 468.3
+    run font 0 rtl false color Rgba { r: 255, g: 255, b: 255, a: 255 }: 47@245.9 72@265.9 87@285.9 3@295.9 76@305.9 87@313.9 3@323.9 69@333.9 72@353.9 15@374.0 3@384.0 71@394.0 72@414.0 68@434.0 85@454.0 3@466.0 47@476.0 82@496.0 85@516.1 71@528.0 15@548.1 3@558.1 79@568.1 72@576.1 87@596.1 3@606.1 76@616.1 87@624.1 3@634.1 3@644.1 3@654.1 69@664.1 72@684.1 17@704.1

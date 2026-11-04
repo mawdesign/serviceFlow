@@ -192,6 +192,60 @@ pub struct SlideOptions {
     pub language: LanguageMode,
 }
 
+/// A chord above a lyric line, anchored to a character of the line as shown.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct Chord {
+    /// Index (in characters) into the shown line text, `|` included, of the character the chord
+    /// sits above. The line's length means after its last character.
+    pub offset: usize,
+    /// The chord as written.
+    pub text: String,
+}
+
+/// A line as shown with its chords.
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+struct Shown {
+    text: String,
+    chords: Vec<Chord>,
+}
+
+impl Shown {
+    fn plain(text: String) -> Self {
+        Self { text, chords: Vec::new() }
+    }
+
+    /// Split at `|` into at most `n` pieces (the last keeps the rest), each trimmed, with the
+    /// chords following their characters.
+    fn pieces(&self, n: usize) -> Vec<Shown> {
+        let chars: Vec<char> = self.text.chars().collect();
+        // Where each piece starts (just after a `|`).
+        let mut starts = vec![0];
+        for (i, c) in chars.iter().enumerate() {
+            if *c == '|' && starts.len() < n.max(1) {
+                starts.push(i + 1);
+            }
+        }
+        (0..starts.len())
+            .map(|k| {
+                let start = starts[k];
+                let next = starts.get(k + 1).copied();
+                let end = next.map_or(chars.len(), |next| next - 1);
+                let slice = &chars[start..end];
+                let lead = slice.iter().take_while(|c| c.is_whitespace()).count();
+                let text = slice.iter().collect::<String>().trim().to_owned();
+                let len = text.chars().count();
+                let chords = self
+                    .chords
+                    .iter()
+                    .filter(|c| c.offset >= start && next.is_none_or(|next| c.offset < next))
+                    .map(|c| Chord { offset: c.offset.saturating_sub(start + lead).min(len), text: c.text.clone() })
+                    .collect();
+                Shown { text, chords }
+            })
+            .collect()
+    }
+}
+
 /// One slide of a song, in presentation order.
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct Slide {
@@ -199,12 +253,27 @@ pub struct Slide {
     pub section: String,
     /// The lines to show. `|` inside a line is a forced line break, left for the renderer.
     pub lines: Vec<String>,
+    /// The chords above each line, parallel to `lines` (may be shorter: a missing entry means
+    /// none). Translation lines never have any.
+    pub chords: Vec<Vec<Chord>>,
     /// The lines alternate primary line, translation line (even indexes are primary lines; a
     /// last primary line may have no translation). Only set when both languages are shown.
     pub multilanguage: bool,
     /// Which slide of its section this is (0-based, counted afresh each time the presentation
     /// order shows the section). Song backgrounds are chosen by it.
     pub part: usize,
+}
+
+impl Slide {
+    /// The slide without its chords (what an output with chords off shows).
+    pub fn without_chords(&self) -> Slide {
+        Slide { chords: Vec::new(), ..self.clone() }
+    }
+
+    /// Whether any line has a chord.
+    pub fn has_chords(&self) -> bool {
+        self.chords.iter().any(|c| !c.is_empty())
+    }
 }
 
 impl Section {
@@ -222,6 +291,13 @@ impl Section {
     /// several pairs; otherwise only one language's lines are kept (an empty slide stays, so
     /// slide numbers do not change with the language mode).
     pub fn slides(&self, options: &SlideOptions) -> Vec<Vec<String>> {
+        self.chorded_slides(options).into_iter().map(|slide| slide.into_iter().map(|line| line.text).collect()).collect()
+    }
+
+    /// [`slides`](Self::slides) with the chords above each line. A chord line sits above the
+    /// lyric line that follows it; chords belong to primary lines only, so in a multilanguage
+    /// section they stay above the primary line (and are not shown in translation-only mode).
+    fn chorded_slides(&self, options: &SlideOptions) -> Vec<Vec<Shown>> {
         let slides = self.split(options).0;
         if !self.multilanguage {
             return slides;
@@ -233,7 +309,7 @@ impl Section {
                 match options.language {
                     LanguageMode::Both => pairs.flat_map(|pair| split_pair(&pair[0], pair.get(1))).collect(),
                     LanguageMode::Primary => pairs.map(|pair| pair[0].clone()).collect(),
-                    LanguageMode::Translation => pairs.filter_map(|pair| pair.get(1).cloned()).collect(),
+                    LanguageMode::Translation => pairs.filter_map(|pair| pair.get(1).cloned().map(|t| Shown::plain(t.text))).collect(),
                 }
             })
             .collect()
@@ -246,13 +322,15 @@ impl Section {
     }
 
     /// The shown lines per slide (empty slides dropped), and the lines whose break was moved.
-    fn split(&self, options: &SlideOptions) -> (Vec<Vec<String>>, Vec<usize>) {
-        let mut slides: Vec<Vec<String>> = vec![Vec::new()];
+    fn split(&self, options: &SlideOptions) -> (Vec<Vec<Shown>>, Vec<usize>) {
+        let mut slides: Vec<Vec<Shown>> = vec![Vec::new()];
+        // The chord line waiting for the lyric line that follows it.
+        let mut pending: Option<Vec<(usize, &str)>> = None;
         let mut moved = Vec::new();
         // A break is waiting for the current pair's translation line.
         let mut waiting = false;
         // Start a new slide, unless that would part a pair; then wait. True when it waits.
-        let slide_break = |slides: &mut Vec<Vec<String>>, waiting: &mut bool| {
+        let slide_break = |slides: &mut Vec<Vec<Shown>>, waiting: &mut bool| {
             let open_pair = self.multilanguage && slides.last().is_some_and(|s| s.len() % 2 == 1);
             if open_pair {
                 *waiting = true;
@@ -264,12 +342,18 @@ impl Section {
         for (index, line) in self.lines.iter().enumerate() {
             match line {
                 Line::Lyric(text) => {
+                    let chords = pending.take().unwrap_or_default();
+                    let mut piece_start = 0;
+                    let pieces = text.split("||").count();
                     for (i, piece) in text.split("||").enumerate() {
+                        let start = piece_start;
+                        piece_start += piece.chars().count() + 2;
                         if i > 0 && slide_break(&mut slides, &mut waiting) && !moved.contains(&index) {
                             moved.push(index);
                         }
-                        let shown = deflate(piece);
-                        if shown.is_empty() {
+                        let end = if i + 1 == pieces { usize::MAX } else { piece_start };
+                        let shown = deflate_with_chords(piece, chords.iter().filter(|(col, _)| *col >= start && *col < end), start);
+                        if shown.text.is_empty() {
                             continue;
                         }
                         let Some(slide) = slides.last_mut() else { continue };
@@ -281,9 +365,11 @@ impl Section {
                     }
                 }
                 Line::Blank if options.blank_is_slide_change => {
+                    pending = None;
                     slide_break(&mut slides, &mut waiting);
                 }
-                Line::Blank | Line::Chords(_) => {}
+                Line::Chords(text) => pending = Some(chord_columns(text)),
+                Line::Blank => pending = None,
             }
         }
         slides.retain(|slide| !slide.is_empty());
@@ -299,13 +385,34 @@ impl Section {
 }
 
 /// A primary line and its translation as shown one beneath the other. When both hold `|`, the
-/// pieces pair up in order and the last pair keeps whatever is left of the longer one.
-fn split_pair(primary: &str, translation: Option<&String>) -> Vec<String> {
-    let Some(translation) = translation else { return vec![primary.to_owned()] };
-    let n = primary.matches('|').count().min(translation.matches('|').count()) + 1;
-    let p = primary.splitn(n, '|').map(str::trim);
-    let t = translation.splitn(n, '|').map(str::trim);
-    p.zip(t).flat_map(|(p, t)| [p.to_owned(), t.to_owned()]).collect()
+/// pieces pair up in order and the last pair keeps whatever is left of the longer one. The
+/// primary line keeps its chords; the translation has none.
+fn split_pair(primary: &Shown, translation: Option<&Shown>) -> Vec<Shown> {
+    let Some(translation) = translation else { return vec![primary.clone()] };
+    let n = primary.text.matches('|').count().min(translation.text.matches('|').count()) + 1;
+    let p = primary.pieces(n);
+    let t = translation.pieces(n);
+    p.into_iter().zip(t).flat_map(|(p, t)| [p, Shown::plain(t.text)]).collect()
+}
+
+/// The chords of a chord line and the column (character index) each starts at.
+fn chord_columns(line: &str) -> Vec<(usize, &str)> {
+    let mut chords = Vec::new();
+    let mut start: Option<(usize, usize)> = None;
+    for (col, (byte, c)) in line.char_indices().enumerate() {
+        match (c.is_whitespace(), start) {
+            (false, None) => start = Some((col, byte)),
+            (true, Some((first, from))) => {
+                chords.push((first, &line[from..byte]));
+                start = None;
+            }
+            _ => {}
+        }
+    }
+    if let Some((first, from)) = start {
+        chords.push((first, &line[from..]));
+    }
+    chords
 }
 
 /// The section a strict legacy multilanguage tag (`V1-L`, `C-L`, `V1L`) stands for (`V1`, `C`,
@@ -337,6 +444,25 @@ pub fn canonical_tag(tag: &str) -> String {
 /// characters (U+02CD, U+203F) turned into spaces.
 fn deflate(text: &str) -> String {
     text.trim().chars().filter(|&c| c != '_').map(|c| if matches!(c, '\u{2cd}' | '\u{203f}') { ' ' } else { c }).collect()
+}
+
+/// [`deflate`] that also moves chords with their characters. `chords` are (column, chord) in the
+/// whole lyric line; `start` is the column the piece begins at. A chord above trimmed space goes
+/// before the first character, one above `_` or past the end follows the characters before it.
+fn deflate_with_chords<'a>(piece: &str, chords: impl Iterator<Item = &'a (usize, &'a str)>, start: usize) -> Shown {
+    let chars: Vec<char> = piece.chars().collect();
+    let first = chars.iter().position(|c| !c.is_whitespace());
+    let last = chars.iter().rposition(|c| !c.is_whitespace());
+    let (Some(first), Some(last)) = (first, last) else { return Shown::default() };
+    let kept = |i: usize| i >= first && i <= last && chars[i] != '_';
+    let text = deflate(piece);
+    let chords = chords
+        .map(|(col, chord)| {
+            let column = col.saturating_sub(start).min(chars.len());
+            Chord { offset: (0..column).filter(|&i| kept(i)).count(), text: (*chord).to_owned() }
+        })
+        .collect();
+    Shown { text, chords }
 }
 
 impl Song {
@@ -392,9 +518,10 @@ impl Song {
         sections
             .into_iter()
             .flat_map(|section| {
-                section.slides(options).into_iter().enumerate().map(|(part, lines)| Slide {
+                section.chorded_slides(options).into_iter().enumerate().map(|(part, lines)| Slide {
                     section: section.tag.clone(),
-                    lines,
+                    chords: lines.iter().map(|l| l.chords.clone()).collect(),
+                    lines: lines.into_iter().map(|l| l.text).collect(),
                     multilanguage: section.multilanguage && options.language == LanguageMode::Both,
                     part,
                 })

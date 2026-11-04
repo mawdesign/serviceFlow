@@ -10,7 +10,7 @@ use std::sync::Arc;
 use craft_text::bidi::{Direction, Paragraph};
 use craft_text::linebreak::{Item, Params, Rag, break_paragraph};
 use craft_text::segment::{Options, line_breaks};
-use serviceflow_core::song::Slide;
+use serviceflow_core::song::{Chord, Slide};
 use serviceflow_core::style::{Align, Captions, ImagePosition, REFERENCE_HEIGHT, Resize, Rgba, Style, TextStyle, VAlign};
 
 use crate::fonts::{FontId, Fonts};
@@ -97,6 +97,9 @@ pub enum LineRole {
     Lyric,
     /// A translation line of a multilanguage slide, beneath its primary line.
     Translation,
+    /// A chord line above the lyric line that follows it. Its glyphs are positioned relative to
+    /// that lyric line's left edge.
+    Chord,
     Title,
     Subtitle,
 }
@@ -301,21 +304,19 @@ fn body_box(fonts: &Fonts, slide: &Slide, style: &Style, rect: Rect, scale: f32,
     translation.color = style.body.multilanguage_color;
     let at = |factor: f32| {
         let px = text.size * scale * factor;
-        if !slide.multilanguage {
-            let lines = shape(fonts, LineRole::Lyric, &slide.lines, text, px, rect.width, thickness);
-            let gaps = vec![0.0; lines.len()];
-            return (lines, gaps);
-        }
         let tpx = (px * style.body.multilanguage_size as f32 / 100.0).floor().max(1.0);
         let gap = style.pair_gap * tpx * LINE_PITCH;
+        let chords = ChordStyle { px: (px * style.chord_size as f32 / 100.0).floor().max(1.0), color: style.chord_color };
         let (mut lines, mut gaps) = (Vec::new(), Vec::new());
         for (i, line) in slide.lines.iter().enumerate() {
-            let shaped = if i % 2 == 0 {
-                shape(fonts, LineRole::Lyric, std::slice::from_ref(line), text, px, rect.width, thickness)
+            let primary = !slide.multilanguage || i % 2 == 0;
+            let shaped = if primary {
+                let above = slide.chords.get(i).map_or(&[][..], Vec::as_slice);
+                shape_chorded(fonts, line, above, text, px, rect.width, thickness, &chords)
             } else {
                 shape(fonts, LineRole::Translation, std::slice::from_ref(line), &translation, tpx, rect.width, thickness)
             };
-            let first_gap = if i % 2 == 0 && i > 0 { gap } else { 0.0 };
+            let first_gap = if slide.multilanguage && primary && i > 0 { gap } else { 0.0 };
             gaps.extend((0..shaped.len()).map(|j| if j == 0 { first_gap } else { 0.0 }));
             lines.extend(shaped);
         }
@@ -360,13 +361,7 @@ fn finish(fonts: &Fonts, role: BoxRole, style: &TextStyle, mut lines: Vec<Line>,
 /// Breaks and shapes lines at `px`, relative to each line's own origin. `|` forces a break.
 fn shape(fonts: &Fonts, role: LineRole, lines: &[String], style: &TextStyle, px: f32, measure: f32, thickness: f32) -> Vec<Line> {
     let font = fonts.resolve(&style.font);
-    let effects = Effects {
-        outline: style.outline.then_some((style.outline_color, thickness)),
-        shadow: style.shadow.then_some(style.shadow_color),
-        fill: style.fill.then_some(style.fill_color),
-        underline: style.underline,
-        italic: style.italic,
-    };
+    let effects = effects_of(style, thickness);
     let mut placed = Vec::new();
     for paragraph in lines.iter().flat_map(|l| l.split('|')) {
         for range in break_lines(fonts, font, paragraph, px, measure) {
@@ -374,6 +369,93 @@ fn shape(fonts: &Fonts, role: LineRole, lines: &[String], style: &TextStyle, px:
         }
     }
     placed
+}
+
+fn effects_of(style: &TextStyle, thickness: f32) -> Effects {
+    Effects {
+        outline: style.outline.then_some((style.outline_color, thickness)),
+        shadow: style.shadow.then_some(style.shadow_color),
+        fill: style.fill.then_some(style.fill_color),
+        underline: style.underline,
+        italic: style.italic,
+    }
+}
+
+/// Size and colour of chord lines.
+struct ChordStyle {
+    px: f32,
+    color: Rgba,
+}
+
+/// [`shape`] for one lyric line with chords: before each shown line that has chords comes a
+/// chord line, each chord above the character it is anchored to (`Chord::offset` counts
+/// characters of `line`, `|` included). A chord that would overlap the one before moves right.
+#[allow(clippy::too_many_arguments)]
+fn shape_chorded(
+    fonts: &Fonts,
+    line: &str,
+    chords: &[Chord],
+    style: &TextStyle,
+    px: f32,
+    measure: f32,
+    thickness: f32,
+    chord_style: &ChordStyle,
+) -> Vec<Line> {
+    if chords.is_empty() {
+        return shape(fonts, LineRole::Lyric, &[line.to_owned()], style, px, measure, thickness);
+    }
+    let font = fonts.resolve(&style.font);
+    let effects = effects_of(style, thickness);
+    let chord_effects = Effects { italic: false, underline: false, fill: None, ..effects };
+    let paragraphs: Vec<&str> = line.split('|').collect();
+    let mut out = Vec::new();
+    // Character offset in `line` at which the paragraph starts.
+    let mut paragraph_start = 0;
+    for (pi, paragraph) in paragraphs.iter().enumerate() {
+        let paragraph_chars = paragraph.chars().count();
+        let paragraph_end = if pi + 1 == paragraphs.len() { usize::MAX } else { paragraph_start + paragraph_chars + 1 };
+        let ranges = break_lines(fonts, font, paragraph, px, measure);
+        let char_at = |byte: usize| paragraph_start + paragraph[..byte].chars().count();
+        for (ri, range) in ranges.iter().enumerate() {
+            let lo = char_at(range.start);
+            let hi = ranges.get(ri + 1).map_or(paragraph_end, |next| char_at(next.start));
+            let lyric = place_line(fonts, font, paragraph, range.clone(), px, style.color, LineRole::Lyric, effects);
+            let mine: Vec<&Chord> =
+                chords.iter().filter(|c| (if ri == 0 { c.offset >= paragraph_start } else { c.offset >= lo }) && c.offset < hi).collect();
+            if !mine.is_empty() {
+                let rtl = lyric.runs.first().is_some_and(|r| r.rtl);
+                let text = &paragraph[range.clone()];
+                let mut chord_line = Line {
+                    role: LineRole::Chord,
+                    text: mine.iter().map(|c| c.text.as_str()).collect::<Vec<_>>().join(" "),
+                    font_size: chord_style.px,
+                    x: 0.0,
+                    baseline: 0.0,
+                    width: lyric.width,
+                    runs: Vec::new(),
+                };
+                let mut end = f32::MIN;
+                for chord in mine {
+                    let shown = chord.offset.saturating_sub(lo).min(text.chars().count());
+                    let byte = text.char_indices().nth(shown).map_or(text.len(), |(b, _)| b);
+                    let before = fonts.measure(font, &text[..byte], px);
+                    let mut x = if rtl { lyric.width - before } else { before };
+                    x = x.max(end + chord_style.px * 0.4);
+                    let placed =
+                        place_line(fonts, font, &chord.text, 0..chord.text.len(), chord_style.px, chord_style.color, LineRole::Chord, chord_effects);
+                    end = x + placed.width;
+                    for mut run in placed.runs {
+                        run.glyphs.iter_mut().for_each(|g| g.x += x);
+                        chord_line.runs.push(run);
+                    }
+                }
+                out.push(chord_line);
+            }
+            out.push(lyric);
+        }
+        paragraph_start += paragraph_chars + 1;
+    }
+    out
 }
 
 /// Put shaped lines in `rect`: the block by the vertical alignment, each line by the horizontal.
