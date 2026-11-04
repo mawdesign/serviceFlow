@@ -11,6 +11,7 @@ pub mod engine;
 pub mod ids;
 pub mod lyrics;
 pub mod output;
+pub mod plan;
 pub mod resolve;
 pub mod search;
 pub mod set;

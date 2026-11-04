@@ -1,13 +1,15 @@
 //! Canonical save of songs (ADR-0002, GLOSSARY "Canonical save"). Only songs with edits are
 //! written, and only if the file still has the hash it was read with; otherwise the operator
-//! chooses to overwrite, reload or save a copy. Updating sets that refer to a song is not done
-//! here.
+//! chooses to overwrite, reload or save a copy. A save that renames tags goes through a change
+//! plan ([`super::plan`]) when sets refer to the song with an order naming those tags.
 
 use std::sync::Arc;
 
 use super::{refresh_results, show_song};
+use crate::canonical;
 use crate::command::{Command, ConflictChoice, Effect};
 use crate::ids::{Expect, SongId};
+use crate::plan::PlanRequest;
 use crate::song::Song;
 use crate::state::{Problem, State};
 
@@ -20,7 +22,7 @@ pub(super) fn apply(state: &mut State, command: Command) -> Vec<Effect> {
             }
             let Some(draft) = state.drafts.get(&id).filter(|d| d.is_modified()) else { return Vec::new() };
             let expect = Expect::Hash(draft.hash);
-            write(state, id, expect, false)
+            save(state, id, expect)
         }
         Command::SongSaved { id, saved_as, song, hash, tags_kept } => {
             state.saving.retain(|s| *s != id);
@@ -68,7 +70,7 @@ pub(super) fn apply(state: &mut State, command: Command) -> Vec<Effect> {
             }
             state.save_conflicts.retain(|s| *s != id);
             match choice {
-                ConflictChoice::Overwrite => write(state, id, Expect::Any, false),
+                ConflictChoice::Overwrite => save(state, id, Expect::Any),
                 ConflictChoice::SaveAsCopy => write(state, id, Expect::Absent, true),
                 ConflictChoice::Reload => {
                     state.drafts.remove(&id);
@@ -85,8 +87,22 @@ pub(super) fn apply(state: &mut State, command: Command) -> Vec<Effect> {
     }
 }
 
+/// Save the draft of `id`: straight away, or, when its tags get renamed, through a change plan
+/// that also updates the sets whose items name those tags.
+fn save(state: &mut State, id: SongId, expect: Expect) -> Vec<Effect> {
+    let renames = state.drafts.get(&id).is_some_and(|draft| canonical::renames_tags(&draft.song));
+    if !renames {
+        return write(state, id, expect, false);
+    }
+    if super::plan::busy(state) {
+        return Vec::new();
+    }
+    state.saving.push(id.clone());
+    super::plan::request(state, PlanRequest::Save { id, expect })
+}
+
 /// Ask for the draft of `id` to be written.
-fn write(state: &mut State, id: SongId, expect: Expect, as_copy: bool) -> Vec<Effect> {
+pub(super) fn write(state: &mut State, id: SongId, expect: Expect, as_copy: bool) -> Vec<Effect> {
     let Some(draft) = state.drafts.get(&id) else { return Vec::new() };
     let song: Arc<Song> = Arc::clone(&draft.song);
     if !state.saving.contains(&id) {

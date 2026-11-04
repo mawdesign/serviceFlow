@@ -7,6 +7,7 @@ use std::sync::Arc;
 use crate::edit::Draft;
 use crate::ids::{ContentHash, SetId, SongId};
 use crate::output::{OutputSettings, SlideColors};
+use crate::plan::{ChangePlan, PlanAction, PlanFailure, PlanRefusal, PlanRequest};
 use crate::resolve::{self, Images, ResolvedStyle};
 use crate::search::SearchIndex;
 use crate::set::Set;
@@ -53,6 +54,13 @@ pub struct State {
     pub save_conflicts: Vec<SongId>,
     /// Songs being saved.
     pub saving: Vec<SongId>,
+    /// An action whose change plan is being made (storage is being read).
+    pub planning: Option<PlanRequest>,
+    /// A change plan shown to the operator, waiting for [`Command::ConfirmPlan`](crate::command::Command)
+    /// or `CancelPlan`.
+    pub plan: Option<Arc<ChangePlan>>,
+    /// The confirmed plan is being written.
+    pub applying_plan: bool,
 }
 
 /// The open set and where the operator is in it.
@@ -129,6 +137,11 @@ pub enum Problem {
     SidecarUnreadable { id: SetId, error: String },
     /// A set's sidecar could not be saved, so its item settings will be lost at the next session.
     SidecarUnsaved { id: SetId, error: String },
+    /// No change plan could be made for an action.
+    PlanRefused(PlanRefusal),
+    /// A confirmed change plan stopped part-way (or, when `failure.written` is empty, before
+    /// writing anything). Doing the action again finishes it.
+    PlanIncomplete { action: PlanAction, failure: PlanFailure },
 }
 
 #[derive(Debug, Clone, PartialEq)]

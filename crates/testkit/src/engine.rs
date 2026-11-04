@@ -139,6 +139,11 @@ impl EngineHarness {
         Self::with_storage(self.driver.into_storage().expect("no effect is running"))
     }
 
+    /// Write a set file behind the engine's back.
+    pub fn write_set_file(&self, id: &str, bytes: &[u8]) {
+        crate::block_on(self.storage().write_set(&serviceflow_storage::SetId::new(id), bytes.to_vec(), Expect::Any)).expect("writing a set");
+    }
+
     pub fn with_storage(storage: MemoryStorage) -> Self {
         Self { driver: Driver::new(storage) }
     }

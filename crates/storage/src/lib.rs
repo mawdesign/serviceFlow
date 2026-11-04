@@ -83,6 +83,14 @@ pub trait SongRepository {
     async fn read_song(&self, id: &SongId) -> Result<Stored>;
     /// Write a song's bytes and return the new hash.
     async fn write_song(&self, id: &SongId, bytes: Vec<u8>, expect: Expect) -> Result<ContentHash>;
+    /// Remove a song. `expect` must hold for it ([`Expect::Absent`] never does); a missing song is
+    /// [`StorageError::NotFound`]. Announced as [`ChangeKind::Removed`].
+    async fn delete_song(&self, id: &SongId, expect: Expect) -> Result<()>;
+    /// Move song `from` to `to` (another filename, another category, or both), keeping its bytes,
+    /// and return their hash. `expect` must hold for `from`; `to` must not exist
+    /// ([`StorageError::Conflict`] of `to`). A crash leaves the song under one name or the other.
+    /// Announced as `from` removed, then `to` written.
+    async fn rename_song(&self, from: &SongId, to: &SongId, expect: Expect) -> Result<ContentHash>;
 }
 
 /// Sets under `Sets/`.
@@ -91,6 +99,10 @@ pub trait SetRepository {
     async fn list_sets(&self) -> Result<Vec<SetId>>;
     async fn read_set(&self, id: &SetId) -> Result<Stored>;
     async fn write_set(&self, id: &SetId, bytes: Vec<u8>, expect: Expect) -> Result<ContentHash>;
+    /// As [`SongRepository::delete_song`].
+    async fn delete_set(&self, id: &SetId, expect: Expect) -> Result<()>;
+    /// As [`SongRepository::rename_song`].
+    async fn rename_set(&self, from: &SetId, to: &SetId, expect: Expect) -> Result<ContentHash>;
 }
 
 /// Images and other media under `Backgrounds/`.
@@ -162,5 +174,14 @@ pub fn key_path(key: &Key) -> &str {
     match key {
         Key::Song(SongId(p)) | Key::Set(SetId(p)) | Key::Asset(AssetId(p)) | Key::Settings(SettingsId(p)) => p,
         Key::Sidecar(DocumentId::Song(SongId(p))) | Key::Sidecar(DocumentId::Set(SetId(p))) => p,
+    }
+}
+
+/// Whether a document currently hashing to `current` (`None`: absent) meets `expect`.
+pub fn expect_holds(expect: Expect, current: Option<ContentHash>) -> bool {
+    match expect {
+        Expect::Any => true,
+        Expect::Absent => current.is_none(),
+        Expect::Hash(expected) => current == Some(expected),
     }
 }

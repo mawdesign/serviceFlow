@@ -79,6 +79,13 @@ impl Element {
         out
     }
 
+    /// `<name attributes` without the closing `>`, escaped.
+    pub fn start_tag(name: &str, attributes: &[(String, String)]) -> String {
+        let mut out = String::new();
+        Element { name: name.to_owned(), attributes: attributes.to_vec(), children: Vec::new() }.write_start(&mut out);
+        out
+    }
+
     fn write_start(&self, out: &mut String) {
         out.push('<');
         out.push_str(&self.name);
