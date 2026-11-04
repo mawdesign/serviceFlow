@@ -6,7 +6,7 @@ mod settings;
 mod song;
 mod xml;
 
-pub use set::read_set;
+pub use set::{read_set, write_set};
 pub use settings::{read_output_settings, read_present_settings, read_slide_colors};
 pub use song::{read_song, write_song};
 
