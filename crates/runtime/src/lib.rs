@@ -13,7 +13,7 @@ use futures::executor::{LocalPool, LocalSpawner};
 use futures::task::LocalSpawnExt as _;
 use serviceflow_core::command::{Command, Effect, Reloaded, SettingsFault};
 use serviceflow_core::engine::Engine;
-use serviceflow_core::plan::{ChangePlan, GatheredSet, PlanFailure, PlanStep, WrittenSong};
+use serviceflow_core::plan::{ChangePlan, GatheredSet, PlanFailure, PlanStep, TidySet, TidySong, WrittenSong};
 use serviceflow_core::sidecar::SetSidecar;
 use serviceflow_core::song::Song;
 use serviceflow_core::state::State;
@@ -217,6 +217,54 @@ async fn gather_for_plan<S: Storage>(storage: &S, subject: Option<SongId>) -> Co
     Command::PlanGathered { songs, sets, unreadable_sets, subject, error }
 }
 
+/// Read every song and set for a tidy. A song is listed only when its bytes differ from what a save
+/// would write (the canonical form, ADR-0002); sets are all listed, with that flag, because tag
+/// renames in songs can change them too. A file that cannot be read or parsed is reported.
+async fn gather_for_tidy<S: Storage>(storage: &S) -> Command {
+    let mut error = None;
+    let mut songs = Vec::new();
+    let mut unreadable_songs = Vec::new();
+    match storage.list_songs().await {
+        Ok(ids) => {
+            for id in ids {
+                let read = match storage.read_song(&id).await {
+                    Ok(stored) => serviceflow_opensong::read_song(&stored.bytes).map(|song| (song, stored)).map_err(|e| e.to_string()),
+                    Err(e) => Err(e.to_string()),
+                };
+                match read {
+                    Ok((song, stored)) if serviceflow_opensong::write_song(&song) != stored.bytes => {
+                        songs.push(TidySong { id, song: Arc::new(song), hash: stored.hash });
+                    }
+                    Ok(_) => {}
+                    Err(e) => unreadable_songs.push((id, e)),
+                }
+            }
+        }
+        Err(e) => error = Some(e.to_string()),
+    }
+    let mut sets = Vec::new();
+    let mut unreadable_sets = Vec::new();
+    match storage.list_sets().await {
+        Ok(ids) => {
+            for id in ids {
+                let read = match storage.read_set(&id).await {
+                    Ok(stored) => serviceflow_opensong::read_set(&stored.bytes).map(|set| (set, stored)).map_err(|e| e.to_string()),
+                    Err(e) => Err(e.to_string()),
+                };
+                match read {
+                    Ok((set, stored)) => {
+                        let canonical = serviceflow_opensong::write_set(&set) == stored.bytes;
+                        sets.push(TidySet { id, set: Arc::new(set), hash: stored.hash, canonical });
+                    }
+                    Err(e) => unreadable_sets.push((id, e)),
+                }
+            }
+        }
+        Err(e) => error = Some(e.to_string()),
+    }
+    Command::TidyGathered { songs, sets, unreadable_songs, unreadable_sets, error }
+}
+
 async fn song_hash<S: Storage>(storage: &S, id: &SongId) -> Option<ContentHash> {
     storage.read_song(id).await.ok().map(|s| s.hash)
 }
@@ -418,6 +466,7 @@ pub async fn perform<S: Storage>(storage: &S, effect: Effect) -> Command {
             Command::SetReloaded { id, file }
         }
         Effect::GatherForPlan { subject } => gather_for_plan(storage, subject).await,
+        Effect::GatherForTidy => gather_for_tidy(storage).await,
         Effect::ApplyPlan(plan) => apply_plan(storage, plan).await,
         Effect::LoadSong(id) => {
             let parsed = match storage.read_song(&id).await {

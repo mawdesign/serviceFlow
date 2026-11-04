@@ -10,7 +10,7 @@ use std::sync::Arc;
 use crate::edit::SongEdit;
 use crate::ids::{ContentHash, Expect, SetId, SongId};
 use crate::output::{OutputSettings, SlideColors};
-use crate::plan::{ChangePlan, GatheredSet, PlanFailure, WrittenSong};
+use crate::plan::{ChangePlan, GatheredSet, PlanFailure, TidySet, TidySong, WrittenSong};
 use crate::set::Set;
 use crate::set_edit::SetEdit;
 use crate::sidecar::SetSidecar;
@@ -274,6 +274,20 @@ pub enum Command {
         subject: Option<ContentHash>,
         error: Option<String>,
     },
+    /// Tidy library (ADR-0002): make a change plan that rewrites every song and set not yet in
+    /// canonical form, with the set rewrites tag renames need. The plan is the dry-run list;
+    /// nothing is written until [`Command::ConfirmPlan`].
+    TidyLibrary,
+    /// Storage result of [`Effect::GatherForTidy`]: the songs not in canonical form, every
+    /// readable set, and the files that could not be read (with why). `error`: the library could
+    /// not be listed.
+    TidyGathered {
+        songs: Vec<TidySong>,
+        sets: Vec<TidySet>,
+        unreadable_songs: Vec<(SongId, String)>,
+        unreadable_sets: Vec<(SetId, String)>,
+        error: Option<String>,
+    },
     /// Apply the change plan the operator has been shown.
     ConfirmPlan,
     /// Drop the change plan; nothing is written.
@@ -440,6 +454,9 @@ pub enum Effect {
     /// List the songs, read and parse every set and read the hash of song `subject`, to make a
     /// change plan; answer with [`Command::PlanGathered`].
     GatherForPlan { subject: Option<SongId> },
+    /// Read every song and set to see which are not in canonical form (their bytes differ from
+    /// what a save writes); answer with [`Command::TidyGathered`]. Never writes.
+    GatherForTidy,
     /// Check every step of the plan against storage, then write them in order; answer with
     /// [`Command::PlanApplied`].
     ApplyPlan(Arc<ChangePlan>),

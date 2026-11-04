@@ -98,6 +98,9 @@ impl DockContent<Panel> for Panels<'_> {
     fn body(&mut self, ui: &mut egui::Ui, panel: &Panel) {
         match panel {
             Panel::Library => {
+                ui.horizontal_wrapped(|ui| {
+                    self.files.tidy_button(ui, self.state, self.commands);
+                });
                 self.files.new_song(ui, self.state, self.commands);
                 self.library.ui(ui, self.state, self.commands);
             }

@@ -38,6 +38,8 @@ pub enum PlanAction {
         from: SetId,
         to: SetId,
     },
+    /// Rewrite every song and set not yet in canonical form (ADR-0002, GLOSSARY "Tidy library").
+    TidyLibrary,
 }
 
 /// One file written by a plan.
@@ -104,6 +106,61 @@ pub struct ChangePlan {
     pub users: Vec<SetId>,
     /// Sets that could not be read, so could not be checked or updated.
     pub unreadable_sets: Vec<SetId>,
+    /// For [`PlanAction::TidyLibrary`]: what changes in each file, and what was left alone.
+    pub tidy: Option<TidyReport>,
+}
+
+/// What a library tidy does to one file, in words the operator can check.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum TidyChange {
+    /// Section tags renamed to the canonical form, as (before, after).
+    TagsRenamed(Vec<(String, String)>),
+    /// The song's presentation order names the renamed tags.
+    OrderRewritten,
+    /// Spaces at the ends of lyrics lines removed.
+    TrailingSpaces,
+    /// Set items (by name) whose presentation order names tags the tidy renames.
+    ItemOrders(Vec<String>),
+    /// Nothing but the file layout: encoding, line endings, element order, indentation.
+    Layout,
+}
+
+/// Why a file was left alone by a tidy.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum TidySkip {
+    /// Renaming the tags would merge two sections (ADR-0002).
+    TagCollision,
+    /// The file could not be read or parsed.
+    Unreadable(String),
+    /// The open song has unsaved edits.
+    UnsavedEdits,
+}
+
+/// The dry-run list of a tidy.
+#[derive(Debug, Clone, PartialEq, Eq, Default)]
+pub struct TidyReport {
+    /// Every file that will be rewritten, sets first and then songs, each in name order.
+    pub changes: Vec<(PlanFile, Vec<TidyChange>)>,
+    /// Files left alone, and why.
+    pub skipped: Vec<(PlanFile, TidySkip)>,
+}
+
+/// A song read for a tidy that is not in canonical form (its bytes differ from what a save writes).
+#[derive(Debug, Clone, PartialEq)]
+pub struct TidySong {
+    pub id: SongId,
+    pub song: Arc<Song>,
+    pub hash: ContentHash,
+}
+
+/// A set read for a tidy. Canonical sets are listed too: song tag renames may still change them.
+#[derive(Debug, Clone, PartialEq)]
+pub struct TidySet {
+    pub id: SetId,
+    pub set: Arc<Set>,
+    pub hash: ContentHash,
+    /// The file's bytes are what a save would write.
+    pub canonical: bool,
 }
 
 /// An action waiting for storage to be read so its plan can be made.
@@ -123,6 +180,7 @@ pub enum PlanRequest {
         category: String,
         title: String,
     },
+    Tidy,
 }
 
 /// A set read while building a plan, with the hash its file had.
@@ -165,6 +223,8 @@ pub enum PlanRefusal {
     /// The new name is not a usable file name (empty, or a part starting with `.` or `_`, which
     /// OpenSong would hide).
     BadName(SongId),
+    /// The open set has unsaved edits, which a tidy would overwrite.
+    UnsavedSet(SetId),
     /// Storage could not be read to make the plan.
     Unreadable(String),
 }
