@@ -5,6 +5,7 @@
 //! implementation (`cargo xtask layers`).
 
 pub mod canonical;
+pub mod chord;
 pub mod command;
 pub mod edit;
 pub mod engine;

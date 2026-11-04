@@ -9,6 +9,7 @@ pub mod editor;
 pub mod files;
 pub mod fonts;
 pub mod i18n;
+pub mod key_bar;
 pub mod library;
 pub mod monitors;
 #[cfg(not(target_arch = "wasm32"))]
@@ -486,6 +487,7 @@ fn slide_grid(
         }
     });
     ui.horizontal_wrapped(|ui| files.song_buttons(ui, state, commands));
+    key_bar::key_bar(ui, state, commands);
     if open.id.is_set_item() {
         set_panel::image_notice(ui, state, commands);
     }

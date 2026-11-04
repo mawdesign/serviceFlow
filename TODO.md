@@ -36,6 +36,16 @@ Run the real OpenSong (or read its source, notes in `.sf-notes/opensong.md`) and
   external, style, missing songs) are passed over, so the blank sits between the two presentable
   items either side of them, and the same-name rule compares those two. Confirm that is what the
   operator wants. A song opened straight from the library (no set) has no blank after it.
+- [ ] **Capo display (#25).** We show chord shapes relative to the capo (the sounding chord moved
+  down by the capo fret, spelled for the key the shapes are played in) and offer the sounding key
+  beside them. OpenSong's source was not at hand: check in the running OpenSong what a song with
+  `<capo print="true">` prints (shapes, or the written chords with a "Capo n" line), and whether
+  `sharp="true"` on `<capo>` means sharp spelling. We apply a song's own capo only when
+  `print` is true, and the item's capo replaces it.
+- [ ] **Sharps and flats for transposed chords (#25).** The target key's usual signature decides
+  (G up one = Ab major, so flats; F# and Gb major both take sharps; Eb minor takes flats). A song
+  with no key takes sharps going up and flats going down. Ask a musician whether the choices read
+  right, in particular for keys with six accidentals.
 - [ ] **Logo mask (#10).** `logo_mask` is read but not applied. What does it do?
 - [ ] **Unit conversion for imported styles (#8).** We scale OpenSong sizes and margins (640-wide
   reference) by 3 and add the border of width/50 to each margin. Compare an imported style against
@@ -99,6 +109,10 @@ cannot cover them.
 - [ ] **Chords on the projector (#24).** The chord toggles for the output window and the control
   monitor, on a real second screen. Their state is not remembered between runs.
 
+- [ ] **Transposition and capo with a band (#25).** Transpose a real song for a service, check
+  the chord names on the monitor read right, that a capo shows the shapes a guitarist expects, and
+  that "Save in this key" leaves OpenSong able to open the song with the chords still lined up
+  over the words (a chord that grows pushes its neighbours right, so very tight lines may shift).
 - [ ] **Blanks and auto-advance on the projector (#29).** With `blanks` on, step through a set on
   the real output: check the blank between items looks right (previous item's background, or the
   next item's with `blank_uses_next`; a set item style shows), that Next and Previous pass through
