@@ -17,6 +17,7 @@ serviceflow-storage-memory = { path = "crates/storage-memory" }
 serviceflow-storage-fs = { path = "crates/storage-fs" }
 serviceflow-storage-web = { path = "crates/storage-web" }
 serviceflow-opensong = { path = "crates/opensong" }
+serviceflow-sidecar = { path = "crates/sidecar" }
 serviceflow-render = { path = "crates/render" }
 serviceflow-runtime = { path = "crates/runtime" }
 serviceflow-testkit = { path = "crates/testkit" }
@@ -61,6 +62,7 @@ tempfile = "3"
 
 # tooling
 serde_json = "1"
+toml = { version = "1", default-features = false, features = ["std", "serde", "parse", "display"] }
 
 [workspace.lints.rust]
 unsafe_code = "forbid"

@@ -358,6 +358,18 @@ fn problems(ui: &mut egui::Ui, state: &State) {
             Problem::SettingsUnreadable { file, error } => {
                 ui.colored_label(ui.visuals().error_fg_color, format!("{} {file}: {error}", tl!("Could not import the OpenSong settings file")));
             }
+            Problem::SidecarUnreadable { id, error } => {
+                ui.colored_label(
+                    ui.visuals().warn_fg_color,
+                    format!("{} “{id}”, {}: {error}", tl!("serviceFlow's own settings for the set"), tl!("so the defaults are used")),
+                );
+            }
+            Problem::SidecarUnsaved { id, error } => {
+                ui.colored_label(
+                    ui.visuals().error_fg_color,
+                    format!("{} “{id}”: {error}", tl!("Could not save serviceFlow's own settings for the set")),
+                );
+            }
             Problem::SongUnsaved { id, error } => {
                 ui.colored_label(ui.visuals().error_fg_color, format!("{} “{id}”: {error}", tl!("Could not save the song")));
             }

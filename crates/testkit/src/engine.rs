@@ -15,7 +15,10 @@ use std::sync::Arc;
 use serviceflow_core::command::Command;
 use serviceflow_core::state::State;
 use serviceflow_runtime::Driver;
-use serviceflow_storage::{AssetRepository as _, Expect, SetRepository as _, SettingsId, SettingsRepository as _, SongId, SongRepository as _};
+use serviceflow_storage::{
+    AssetRepository as _, DocumentId, Expect, SetRepository as _, SettingsId, SettingsRepository as _, SidecarRepository as _, SongId,
+    SongRepository as _,
+};
 use serviceflow_storage_memory::MemoryStorage;
 
 pub struct EngineHarness {
@@ -111,6 +114,29 @@ impl EngineHarness {
     /// Write a song file behind the engine's back (another program or instance changing it).
     pub fn write_song_file(&self, id: &SongId, bytes: &[u8]) {
         crate::block_on(self.storage().write_song(id, bytes.to_vec(), Expect::Any)).expect("writing a song");
+    }
+
+    /// The bytes of a set file in storage (`None`: there is none).
+    pub fn set_bytes(&self, set: &str) -> Option<Vec<u8>> {
+        crate::block_on(self.storage().read_set(&serviceflow_storage::SetId::new(set))).ok().map(|s| s.bytes)
+    }
+
+    /// The bytes of a set's sidecar in storage (`None`: there is none).
+    pub fn sidecar_bytes(&self, set: &str) -> Option<Vec<u8>> {
+        let owner = DocumentId::Set(serviceflow_storage::SetId::new(set));
+        crate::block_on(self.storage().read_sidecar(&owner)).ok().flatten().map(|s| s.bytes)
+    }
+
+    /// Write a set's sidecar behind the engine's back (a hand edit, a sync, or damage).
+    pub fn write_sidecar_file(&self, set: &str, bytes: &[u8]) {
+        let owner = DocumentId::Set(serviceflow_storage::SetId::new(set));
+        crate::block_on(self.storage().write_sidecar(&owner, bytes.to_vec(), Expect::Any)).expect("writing a sidecar");
+    }
+
+    /// Quit and start again over the same storage: a new engine with empty state, as after
+    /// restarting the app.
+    pub fn restart(self) -> Self {
+        Self::with_storage(self.driver.into_storage().expect("no effect is running"))
     }
 
     pub fn with_storage(storage: MemoryStorage) -> Self {

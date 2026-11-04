@@ -199,6 +199,7 @@ fn step(state: &mut State, command: Command) -> Vec<Effect> {
             }
             Command::SetLanguageMode(language) => {
                 state.slide_options.language = language;
+                let effects = sets::remember_language(state, language);
                 let options = state.slide_options;
                 if let Some(open) = &mut state.song {
                     open.regrid(&options);
@@ -212,7 +213,7 @@ fn step(state: &mut State, command: Command) -> Vec<Effect> {
                     live.resolved.background = resolve::slide_background(&live.source, slide);
                     state.output.changes += 1;
                 }
-                Vec::new()
+                effects
             }
             Command::ToggleBlank => {
                 toggle(state, OutputMode::Blank);
@@ -228,6 +229,8 @@ fn step(state: &mut State, command: Command) -> Vec<Effect> {
             | Command::SetsListFailed { .. }
             | Command::OpenSet(_)
             | Command::SetLoaded { .. }
+            | Command::SidecarSaved { .. }
+            | Command::SidecarSaveFailed { .. }
             | Command::SetLoadFailed { .. }
             | Command::SongsChecked { .. }
             | Command::SelectItem(_)

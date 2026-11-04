@@ -145,6 +145,41 @@ pub async fn sidecars_are_optional_and_never_appear_as_songs_or_sets(storage: im
     assert_eq!(storage.list_sets().await.unwrap(), []);
 }
 
+pub async fn a_sidecar_write_based_on_the_current_hash_replaces_it_and_a_stale_one_conflicts(storage: impl Storage) {
+    let set = DocumentId::Set(SetId::new("Sunday"));
+    let first = storage.write_sidecar(&set, b"version = 1\n".to_vec(), Expect::Absent).await.unwrap();
+    let second = storage.write_sidecar(&set, b"version = 2\n".to_vec(), Expect::Hash(first)).await.unwrap();
+    assert_ne!(first, second);
+    assert_eq!(storage.read_sidecar(&set).await.unwrap().unwrap().bytes, b"version = 2\n");
+    assert_eq!(storage.write_sidecar(&set, b"late".to_vec(), Expect::Hash(first)).await, Err(StorageError::Conflict(Key::Sidecar(set.clone()))));
+    assert_eq!(storage.read_sidecar(&set).await.unwrap().unwrap().bytes, b"version = 2\n");
+}
+
+pub async fn a_song_sidecar_and_a_set_sidecar_with_the_same_name_are_different_documents(storage: impl Storage) {
+    let song = DocumentId::Song(SongId::new("Same"));
+    let set = DocumentId::Set(SetId::new("Same"));
+    storage.write_sidecar(&song, b"song".to_vec(), Expect::Any).await.unwrap();
+    assert_eq!(storage.read_sidecar(&set).await, Ok(None));
+    storage.write_sidecar(&set, b"set".to_vec(), Expect::Any).await.unwrap();
+    assert_eq!(storage.read_sidecar(&song).await.unwrap().unwrap().bytes, b"song");
+    assert_eq!(storage.read_sidecar(&set).await.unwrap().unwrap().bytes, b"set");
+}
+
+pub async fn sidecar_owners_cannot_leave_the_sidecar_folder(storage: impl Storage) {
+    for id in ["../escape", "a/../../escape", "/absolute", ""] {
+        let owner = DocumentId::Set(SetId::new(id));
+        assert!(matches!(storage.write_sidecar(&owner, b"x".to_vec(), Expect::Any).await, Err(StorageError::Other(_))), "{id:?}");
+        assert!(matches!(storage.read_sidecar(&owner).await, Err(StorageError::Other(_))), "{id:?}");
+    }
+}
+
+pub async fn writing_a_sidecar_emits_a_change_event(storage: impl Storage) {
+    let mut changes = storage.changes();
+    let owner = DocumentId::Set(SetId::new("Announced"));
+    storage.write_sidecar(&owner, b"x".to_vec(), Expect::Any).await.unwrap();
+    assert_eq!(changes.next().await, Some(ChangeEvent { key: Key::Sidecar(owner), kind: ChangeKind::Written }));
+}
+
 pub async fn a_song_and_a_set_with_the_same_name_are_different_documents(storage: impl Storage) {
     storage.write_song(&SongId::new("Same"), b"song".to_vec(), Expect::Any).await.unwrap();
     storage.write_set(&SetId::new("Same"), b"set".to_vec(), Expect::Any).await.unwrap();
@@ -173,6 +208,10 @@ macro_rules! storage_contract {
             settings_round_trip_and_a_missing_file_is_not_found,
             sidecars_are_optional_and_never_appear_as_songs_or_sets,
             a_song_and_a_set_with_the_same_name_are_different_documents,
+            a_sidecar_write_based_on_the_current_hash_replaces_it_and_a_stale_one_conflicts,
+            a_song_sidecar_and_a_set_sidecar_with_the_same_name_are_different_documents,
+            sidecar_owners_cannot_leave_the_sidecar_folder,
+            writing_a_sidecar_emits_a_change_event,
         );
     };
     (@tests $make:expr; $($check:ident),* $(,)?) => {
