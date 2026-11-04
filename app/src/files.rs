@@ -3,7 +3,7 @@
 
 use serviceflow_core::command::Command;
 use serviceflow_core::ids::SongId;
-use serviceflow_core::plan::{ChangePlan, PlanAction, PlanFailure, PlanFile, PlanRefusal, PlanStep};
+use serviceflow_core::plan::{ChangePlan, PlanAction, PlanFailure, PlanFile, PlanRefusal, PlanStep, TidyChange, TidySkip};
 use serviceflow_core::search::category;
 use serviceflow_core::state::State;
 
@@ -42,6 +42,14 @@ impl FileActions {
             } else if ui.button(tl!("Cancel")).clicked() {
                 self.rename_to = None;
             }
+        }
+    }
+
+    /// "Tidy library…": the dry-run list of every file not in canonical form (ADR-0002).
+    pub fn tidy_button(&mut self, ui: &mut egui::Ui, state: &State, commands: &mut Vec<Command>) {
+        let busy = state.planning.is_some() || state.plan.is_some();
+        if ui.add_enabled(!busy, egui::Button::new(tl!("Tidy library…"))).clicked() {
+            commands.push(Command::TidyLibrary);
         }
     }
 
@@ -92,6 +100,7 @@ fn action_text(action: &PlanAction) -> String {
         PlanAction::NewSong(id) => format!("{} “{id}”", tl!("New song")),
         PlanAction::SaveSetAs { from, to } => format!("{} “{from}” {} “{to}”", tl!("Save set"), tl!("as")),
         PlanAction::DuplicateSet { from, to } => format!("{} “{from}” {} “{to}”", tl!("Duplicate set"), tl!("as")),
+        PlanAction::TidyLibrary => tl!("Tidy library: rewrite files not yet in canonical form").to_string(),
     }
 }
 
@@ -120,7 +129,7 @@ pub fn plan_panel(ui: &mut egui::Ui, state: &State, commands: &mut Vec<Command>)
             if state.applying_plan {
                 ui.label(tl!("Writing…"));
             } else {
-                if ui.button(tl!("Apply changes")).clicked() {
+                if !plan.steps.is_empty() && ui.button(tl!("Apply changes")).clicked() {
                     commands.push(Command::ConfirmPlan);
                 }
                 if ui.button(tl!("Cancel")).clicked() {
@@ -131,8 +140,50 @@ pub fn plan_panel(ui: &mut egui::Ui, state: &State, commands: &mut Vec<Command>)
     });
 }
 
+fn tidy_change_text(change: &TidyChange) -> String {
+    match change {
+        TidyChange::TagsRenamed(tags) => {
+            let tags: Vec<String> = tags.iter().map(|(from, to)| format!("{from} → {to}")).collect();
+            format!("{} ({})", tl!("section tags renamed"), tags.join(", "))
+        }
+        TidyChange::OrderRewritten => tl!("presentation order follows the new tags").to_string(),
+        TidyChange::TrailingSpaces => tl!("spaces at the ends of lines removed").to_string(),
+        TidyChange::ItemOrders(items) => format!("{}: {}", tl!("presentation order updated for"), items.join(", ")),
+        TidyChange::Layout => tl!("file layout (encoding, line endings, element order)").to_string(),
+    }
+}
+
+fn tidy_skip_text(skip: &TidySkip) -> String {
+    match skip {
+        TidySkip::TagCollision => tl!("left alone: renaming its section tags would merge two sections").to_string(),
+        TidySkip::Unreadable(error) => format!("{}: {error}", tl!("left alone: it could not be read")),
+        TidySkip::UnsavedEdits => tl!("left alone: it has unsaved edits").to_string(),
+    }
+}
+
+/// The dry-run list of a library tidy: what changes in each file, and what is left alone.
+fn tidy_body(ui: &mut egui::Ui, plan: &ChangePlan) {
+    let Some(report) = &plan.tidy else { return };
+    if report.changes.is_empty() {
+        ui.label(tl!("Nothing to tidy: every file is already in canonical form."));
+    } else {
+        ui.label(tl!("These files will be rewritten:"));
+    }
+    for (file, changes) in &report.changes {
+        let changes: Vec<String> = changes.iter().map(tidy_change_text).collect();
+        ui.label(format!("• {}: {}", file_name(file), changes.join("; ")));
+    }
+    for (file, skip) in &report.skipped {
+        ui.colored_label(ui.visuals().warn_fg_color, format!("• {}: {}", file_name(file), tidy_skip_text(skip)));
+    }
+}
+
 fn plan_body(ui: &mut egui::Ui, plan: &ChangePlan) {
     ui.label(egui::RichText::new(action_text(&plan.action)).strong());
+    if plan.tidy.is_some() {
+        tidy_body(ui, plan);
+        return;
+    }
     ui.label(tl!("These files will be written:"));
     for step in &plan.steps {
         ui.label(format!("• {}", step_text(step)));
@@ -159,6 +210,7 @@ pub fn refusal_text(refusal: &PlanRefusal) -> String {
         PlanRefusal::SongMissing(id) => format!("“{id}” {}", tl!("is no longer in the library.")),
         PlanRefusal::NameTaken(id) => format!("“{id}” {}", tl!("already exists.")),
         PlanRefusal::BadName(id) => format!("“{id}” {}", tl!("cannot be used as a song file name.")),
+        PlanRefusal::UnsavedSet(id) => format!("“{id}” {}", tl!("has unsaved edits. Save or discard them before tidying the library.")),
         PlanRefusal::Unreadable(error) => format!("{}: {error}", tl!("Could not read the library")),
     }
 }

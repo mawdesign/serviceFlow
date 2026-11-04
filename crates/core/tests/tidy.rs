@@ -183,3 +183,16 @@ fn a_file_changed_after_the_list_was_shown_stops_the_tidy_before_anything_is_wri
     assert!(matches!(harness.state().problems.last(), Some(Problem::PlanIncomplete { action: PlanAction::TidyLibrary, .. })));
     assert_eq!(everything(&harness), before);
 }
+
+#[test]
+fn content_serviceflow_does_not_model_survives_a_tidy() {
+    let song = "<song><title>Odd</title><alttheme>Warm</alttheme><custom_thing a=\"1\"><x>y</x></custom_thing>\
+<lyrics>[1]\n Verse</lyrics></song>";
+    let set = "<set name=\"S\" extra=\"kept\"><slide_groups><slide_group name=\"Odd\" type=\"song\" path=\"\" transition=\"1\"/></slide_groups></set>";
+    let mut harness = EngineHarness::with_songs_and_sets(&[("Odd", song)], &[("S", set)]);
+    harness.send(Command::TidyLibrary).send(Command::ConfirmPlan);
+    let song = String::from_utf8(harness.song_bytes(&SongId::new("Odd")).unwrap()).unwrap();
+    assert!(song.contains("<alttheme>Warm</alttheme>") && song.contains("<custom_thing a=\"1\"><x>y</x></custom_thing>"), "{song}");
+    let set = String::from_utf8(harness.set_bytes("S").unwrap()).unwrap();
+    assert!(set.contains("extra=\"kept\"") && set.contains("transition=\"1\""), "{set}");
+}
