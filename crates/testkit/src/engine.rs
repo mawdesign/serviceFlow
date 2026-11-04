@@ -23,6 +23,8 @@ use serviceflow_storage_memory::MemoryStorage;
 
 pub struct EngineHarness {
     driver: Driver<MemoryStorage>,
+    /// The fake clock the engine is told the time from (see [`advance`](Self::advance)).
+    clock: std::time::Duration,
 }
 
 impl EngineHarness {
@@ -94,6 +96,14 @@ impl EngineHarness {
                 .expect("seeding a background");
         }
         Self::with_storage(storage)
+    }
+
+    /// Move the fake clock forward by `by` and tell the engine, which advances the live item's
+    /// slides if their time has come. The clock starts at zero and never moves by itself.
+    pub fn advance(&mut self, by: std::time::Duration) -> &mut Self {
+        self.clock += by;
+        self.driver.tick(self.clock);
+        self
     }
 
     /// The bytes of `Settings/PresentSettings` in storage, to check that nothing wrote them.
@@ -173,7 +183,7 @@ impl EngineHarness {
     }
 
     pub fn with_storage(storage: MemoryStorage) -> Self {
-        Self { driver: Driver::new(storage) }
+        Self { driver: Driver::new(storage), clock: std::time::Duration::ZERO }
     }
 
     /// Send a command and run everything it causes until the engine is idle.

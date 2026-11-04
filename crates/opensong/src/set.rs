@@ -2,7 +2,7 @@
 
 use std::sync::Arc;
 
-use serviceflow_core::set::{CustomItem, ImageItem, ImageSlide, ItemKind, Set, SetItem, SongItem, StyleAction};
+use serviceflow_core::set::{Advance, CustomItem, ImageItem, ImageSlide, ItemKind, ItemTransition, Set, SetItem, SongItem, StyleAction};
 use serviceflow_core::song::RawElement;
 use serviceflow_core::style::{ImageSource, Resize};
 
@@ -76,6 +76,7 @@ fn read_item(group: &Element) -> SetItem {
             title: group.child_text("title").trim().to_owned(),
             subtitle: group.child_text("subtitle").trim().to_owned(),
             slides: slides(group).map(|slide| body_text(&slide.child_text("body"))).collect(),
+            advance: advance(group),
             xml: group.to_xml(),
         })
     } else if item_type.eq_ignore_ascii_case("image") {
@@ -90,12 +91,48 @@ fn read_item(group: &Element) -> SetItem {
             resize,
             keep_aspect: crate::settings::flag(group, "keep_aspect", false),
             slides: slides(group).map(image_slide).collect(),
+            advance: advance(group),
             xml: group.to_xml(),
         })
     } else {
         ItemKind::Placeholder { item_type: item_type.to_ascii_lowercase(), xml: group.to_xml() }
     };
     SetItem { name, notes, style, kind }
+}
+
+/// `seconds`, `loop` and `transition` of a custom or image item. (`link` is not read: it is kept
+/// in the item's XML and written back untouched.)
+fn advance(group: &Element) -> Advance {
+    let seconds =
+        group.attr("seconds").and_then(|v| v.trim().parse::<f64>().ok()).filter(|s| s.is_finite() && *s >= 0.0).map_or(0, |s| s.round() as u32);
+    let transition = match group.attr("transition").map(str::trim) {
+        Some("1") => ItemTransition::On,
+        Some("2") => ItemTransition::Off,
+        _ => ItemTransition::Default,
+    };
+    Advance { seconds, looping: crate::settings::flag(group, "loop", false), transition }
+}
+
+/// Set the attributes of `group` that differ from what `new` says (so unreadable values and
+/// attributes serviceFlow does not model stay as they were).
+fn set_advance(group: &mut Element, new: Advance) {
+    let old = advance(group);
+    if old.seconds != new.seconds {
+        if new.seconds == 0 { group.remove_attr("seconds") } else { group.set_attr("seconds", &new.seconds.to_string()) }
+    }
+    if old.looping != new.looping {
+        group.set_attr("loop", if new.looping { "true" } else { "false" });
+    }
+    if old.transition != new.transition {
+        group.set_attr(
+            "transition",
+            match new.transition {
+                ItemTransition::Default => "0",
+                ItemTransition::On => "1",
+                ItemTransition::Off => "2",
+            },
+        );
+    }
 }
 
 /// OpenSong's `CleanPath`: `\` and `/` separators, no leading, trailing or doubled ones.
@@ -220,6 +257,7 @@ fn rebuilt(item: &SetItem, mut group: Element) -> Element {
     match &item.kind {
         ItemKind::Custom(custom) => {
             group.set_attr("type", "custom");
+            set_advance(&mut group, custom.advance);
             group.set_child(text("title", &custom.title));
             group.set_child(text("subtitle", &custom.subtitle));
             group.set_child(text("notes", &item.notes));
@@ -228,6 +266,7 @@ fn rebuilt(item: &SetItem, mut group: Element) -> Element {
         }
         ItemKind::Image(image) => {
             group.set_attr("type", "image");
+            set_advance(&mut group, image.advance);
             group.set_attr(
                 "resize",
                 match image.resize {

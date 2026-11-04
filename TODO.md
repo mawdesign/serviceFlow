@@ -10,15 +10,32 @@ Run the real OpenSong (or read its source, notes in `.sf-notes/opensong.md`) and
 
 - [ ] **Image item titles (#15).** Do image items show their title or subtitle over the picture? We
   show the picture alone. Also check what `descriptions_in_subtitle` does.
-- [ ] **Per-item slide options (#15, #10, #16).** What do `seconds`, `loop`, `transition` and `link`
-  on a custom or image item (`slide_group`) do? We read and ignore them. Check the per-item
-  `@transition` override as well.
+- [x] **Per-item slide options (#15, #10, #16, #29).** Settled by the operator: `seconds` is how
+  long each slide of the item shows before advancing; `loop` returns to the first slide after the
+  last (otherwise it stops there and does not run into the next item); `transition` is the fade
+  between the item's slides. Built for custom and image items (GLOSSARY "Auto-advance").
+- [ ] **`link` on a custom or image item (#15, #29).** Still unknown. We keep it in the item's XML
+  and write it back untouched; we do not interpret it. The operator will search historic sets to
+  see whether any use it.
+- [ ] **`transition` values (#29).** OpenSong's source has 0 = as the output settings, 1 = fade,
+  2 = no fade. We follow that and fade for the output's `transition_time`. If a set uses
+  `transition` as a time in milliseconds instead, tell us.
+- [ ] **Auto-advance on song items (#29).** Only custom and image items advance by themselves. A
+  song item with `seconds`/`loop` attributes keeps them but ignores them. Does OpenSong honour
+  them on songs?
 - [ ] **Image paths outside `Backgrounds/` (#15).** We treat `../x` and similar as missing. Does
   OpenSong follow them?
 - [ ] **Song style when `song_style_preferred` is off (#16).** We follow the source: the song's own
   style still applies when no style item is in effect. Confirm in the running app.
-- [ ] **Blank between set items (#10).** `blanks` and `blank_uses_next` are stored but not used
-  between items. What exactly does OpenSong show, and in which style?
+- [x] **Blank between set items (#10, #29).** Settled by the operator and built: with `blanks` on,
+  stepping past the end of an item (or back past its start) lands on a blank showing the item
+  before's background (the item after's with `blank_uses_next`), including that item's style. None
+  between two items with the same name, none before the first item or after the last. Blanks
+  appear only in the presentation helper, never in the set.
+- [ ] **Blank beside placeholders and missing songs (#29).** Items we cannot present (scripture,
+  external, style, missing songs) are passed over, so the blank sits between the two presentable
+  items either side of them, and the same-name rule compares those two. Confirm that is what the
+  operator wants. A song opened straight from the library (no set) has no blank after it.
 - [ ] **Logo mask (#10).** `logo_mask` is read but not applied. What does it do?
 - [ ] **Unit conversion for imported styles (#8).** We scale OpenSong sizes and margins (640-wide
   reference) by 3 and add the border of width/50 to each margin. Compare an imported style against
@@ -30,8 +47,8 @@ Run the real OpenSong (or read its source, notes in `.sf-notes/opensong.md`) and
   translation lines.
 - [ ] **Missing songs in a set (#14).** OpenSong drops them; we show a placeholder. Is a song
   "missing" by exact id only? Check case sensitivity and categories.
-- [ ] **Moving past the last slide of an item (#14, #10).** We carry on to the next set item, with a
-  blank first when `blanks` is on. Confirm the order of those two.
+- [x] **Moving past the last slide of an item (#14, #10, #29).** The blank comes first, then the
+  next item. Going back is the mirror: the blank, then the earlier item's last slide.
 - [ ] **Search (#12).** OpenSong searches filenames only; we search more fields, and `#n` matches the
   hymn number or a `#n` in the filename not followed by another digit. Confirm `#n` finds the same
   songs OpenSong finds on a real library.
@@ -81,6 +98,14 @@ cannot cover them.
 
 - [ ] **Chords on the projector (#24).** The chord toggles for the output window and the control
   monitor, on a real second screen. Their state is not remembered between runs.
+
+- [ ] **Blanks and auto-advance on the projector (#29).** With `blanks` on, step through a set on
+  the real output: check the blank between items looks right (previous item's background, or the
+  next item's with `blank_uses_next`; a set item style shows), that Next and Previous pass through
+  it in order, and that items with the same name run together without one. Then run a custom or
+  image item with `seconds` set: timing against a wall clock, `loop`, the fade between slides
+  (`transition`), and that a manual step, B/W/L or leaving the item stops or restarts it. The
+  timer was only tested with a fake clock.
 
 ### Data and files
 - [ ] **Canonical save on a real library (#19).** Copy a real data root, save a few edited songs,

@@ -6,6 +6,7 @@
 //! sends the outcome back as another command, so the engine itself never waits.
 
 use std::sync::Arc;
+use std::time::Duration;
 
 use crate::edit::SongEdit;
 use crate::ids::{ContentHash, Expect, SetId, SongId};
@@ -70,6 +71,21 @@ pub enum Command {
     /// Go live with the slide before the live one. Does nothing on the first slide or when
     /// nothing is live.
     PreviousSlide,
+    /// The time is now `now` (measured by whoever sends it from any fixed start; the engine has
+    /// no clock). Runs the auto-advance of the live item when it is due. A live action; the
+    /// driver sends it each frame, tests send it with a fake clock.
+    Tick {
+        now: Duration,
+    },
+    /// Storage result: the song of a neighbouring set item, read ahead by [`Effect::PeekSong`]
+    /// (`None`: it could not be read).
+    SongPeeked {
+        id: SongId,
+        song: Option<Arc<Song>>,
+    },
+    /// Go live on the blank after the selected item (the one a Next past its last slide reaches).
+    /// Ignored when there is none: blanks off, no later item, or the next item has the same name.
+    GoToItemBlank,
     /// Toggle blank mode (the style's background, no text).
     ToggleBlank,
     /// Toggle black mode (pure black).
@@ -429,6 +445,8 @@ impl Command {
                 | Command::JumpToSection { .. }
                 | Command::NextSlide
                 | Command::PreviousSlide
+                | Command::Tick { .. }
+                | Command::GoToItemBlank
                 | Command::ToggleBlank
                 | Command::ToggleBlack
                 | Command::ToggleLogo
@@ -473,6 +491,9 @@ pub enum Effect {
     ReadOpenSongSettings(ImportTrigger),
     /// Read and parse a song; answer with [`Command::SongLoaded`] or [`Command::SongLoadFailed`].
     LoadSong(SongId),
+    /// Read and parse a song without opening it, to know how a blank next to it looks; answer
+    /// with [`Command::SongPeeked`].
+    PeekSong(SongId),
     /// List the library; answer with [`Command::LibraryListed`] or [`Command::LibraryListFailed`].
     ListLibrary { generation: u64 },
     /// Read these songs for the search index; answer with [`Command::SongsIndexed`].

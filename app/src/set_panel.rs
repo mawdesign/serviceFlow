@@ -281,6 +281,9 @@ impl SetView {
             for (field, label, multiline) in fields {
                 self.field(ui, item, index, *field, label, *multiline, commands);
             }
+            if matches!(item.kind, ItemKind::Custom(_) | ItemKind::Image(_)) {
+                advance_editor(ui, item, index, commands);
+            }
             if matches!(item.kind, ItemKind::Song(_)) {
                 ui.weak(tl!("Section tags separated by spaces. Empty: the song's own order."));
             }
@@ -320,6 +323,37 @@ impl SetView {
             commands.push(Command::EndEditGroup);
         }
     }
+}
+
+/// How a custom or image item's slides advance by themselves: seconds per slide, loop, fade.
+fn advance_editor(ui: &mut egui::Ui, item: &SetItem, index: usize, commands: &mut Vec<Command>) {
+    let text = |field| field_text(item, field).unwrap_or_default();
+    let edit = |field, text: String| Command::EditSet(SetEdit::Field { item: index, field, text });
+    ui.horizontal(|ui| {
+        let mut seconds: u32 = text(ItemField::Seconds).parse().unwrap_or(0);
+        ui.label(tl!("Seconds per slide"));
+        if ui.add(egui::DragValue::new(&mut seconds).range(0..=3600)).on_hover_text(tl!("0: advance by hand")).changed() {
+            commands.push(edit(ItemField::Seconds, seconds.to_string()));
+            commands.push(Command::EndEditGroup);
+        }
+        let mut looping = text(ItemField::Loop) == "true";
+        if ui.checkbox(&mut looping, tl!("Loop")).changed() {
+            commands.push(edit(ItemField::Loop, looping.to_string()));
+        }
+        let current = text(ItemField::Transition);
+        let name = |value: &str| match value {
+            "on" => tl!("Fade"),
+            "off" => tl!("No fade"),
+            _ => tl!("Fade as the output settings say"),
+        };
+        egui::ComboBox::from_label(tl!("Transition")).selected_text(name(&current)).show_ui(ui, |ui| {
+            for value in ["default", "on", "off"] {
+                if ui.selectable_label(current == value, name(value)).clicked() {
+                    commands.push(edit(ItemField::Transition, value.to_owned()));
+                }
+            }
+        });
+    });
 }
 
 /// Something dropped on a row (or, with `index == len`, below the last one): a library song is

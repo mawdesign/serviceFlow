@@ -77,9 +77,11 @@ fn logo_toggles_and_replaces_blank_and_black() {
 
 #[test]
 fn with_blanks_on_going_past_the_last_slide_blanks_and_previous_returns() {
+    // A blank sits between two items of a set; see tests/blanks.rs for the rest.
     let song = "<song><lyrics>[V1]\n one\n[V2]\n two</lyrics></song>";
-    let mut harness = EngineHarness::with_files(&[("A", song)], &[("PresentSettings", &present(r#"blanks="true""#))]);
-    harness.send(FIRST_RUN).send(Command::OpenSong(SongId::new("A")));
+    let set = r#"<set><slide_groups><slide_group name="A" type="song"/><slide_group name="B" type="song"/></slide_groups></set>"#;
+    let mut harness = EngineHarness::with_data(&[("A", song), ("B", song)], &[("S", set)], &[("PresentSettings", &present(r#"blanks="true""#))], &[]);
+    harness.send(FIRST_RUN).send(Command::OpenSet(serviceflow_core::ids::SetId::new("S"))).send(Command::SelectItem(0));
     harness.send(Command::NextSlide).send(Command::NextSlide);
     assert_eq!(harness.state().output.live.as_ref().unwrap().index, 1);
     assert_eq!(mode(&harness), OutputMode::Normal);
