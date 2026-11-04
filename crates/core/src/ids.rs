@@ -35,6 +35,33 @@ impl SongId {
     }
 }
 
+impl SongId {
+    /// The id of a new song titled `title` in `category` (`""`: the top level): the title made
+    /// safe as a filename, plus `.xml`, with ` (2)`, ` (3)`… before the extension when the name
+    /// is taken (compared without regard to case, as Windows and macOS disks do).
+    pub fn for_new_song(category: &str, title: &str, taken: &[SongId]) -> SongId {
+        let stem = sanitise_filename(title);
+        let stem = if stem.is_empty() { "Untitled".to_owned() } else { stem };
+        let taken: Vec<String> = taken.iter().map(|id| id.0.to_lowercase()).collect();
+        let category = category.trim_matches('/');
+        let named = |n: usize| {
+            let file = if n == 1 { format!("{stem}.xml") } else { format!("{stem} ({n}).xml") };
+            SongId(if category.is_empty() { file } else { format!("{category}/{file}") })
+        };
+        (1..=taken.len() + 1).map(named).find(|id| !taken.contains(&id.0.to_lowercase())).unwrap_or_else(|| named(taken.len() + 2))
+    }
+}
+
+/// `text` as a filename every disk and OpenSong accept: no `/ \ : * ? " < > |` or control
+/// characters, runs of spaces made one, no leading `.`/`_` (OpenSong hides those) and no
+/// trailing `.` (Windows drops it).
+pub fn sanitise_filename(text: &str) -> String {
+    let cleaned: String =
+        text.chars().map(|c| if c.is_control() || matches!(c, '/' | '\\' | ':' | '*' | '?' | '"' | '<' | '>' | '|') { ' ' } else { c }).collect();
+    let joined = cleaned.split_whitespace().collect::<Vec<_>>().join(" ");
+    joined.trim_start_matches(['.', '_', ' ']).trim_end_matches(['.', ' ']).to_owned()
+}
+
 impl SetId {
     pub fn new(name: impl Into<String>) -> Self {
         Self(name.into())
