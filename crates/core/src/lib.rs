@@ -15,6 +15,7 @@ pub mod plan;
 pub mod resolve;
 pub mod search;
 pub mod set;
+pub mod sidecar;
 pub mod song;
 pub mod state;
 pub mod style;

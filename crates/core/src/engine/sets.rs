@@ -7,7 +7,7 @@ use crate::command::{Command, Effect};
 use crate::ids::SongId;
 use crate::search::{category, filename};
 use crate::set::ItemKind;
-use crate::song::Song;
+use crate::song::{LanguageMode, Song};
 use crate::state::{OpenSet, Pending, Problem, State};
 
 pub(super) fn apply(state: &mut State, command: Command) -> Vec<Effect> {
@@ -27,7 +27,7 @@ pub(super) fn apply(state: &mut State, command: Command) -> Vec<Effect> {
             state.loading_set = Some(id.clone());
             vec![Effect::LoadSet(id)]
         }
-        Command::SetLoaded { id, set } => {
+        Command::SetLoaded { id, set, sidecar, sidecar_error } => {
             if state.loading_set.as_ref() != Some(&id) {
                 return Vec::new();
             }
@@ -35,8 +35,16 @@ pub(super) fn apply(state: &mut State, command: Command) -> Vec<Effect> {
             let mut ids: Vec<SongId> = set.items.iter().filter_map(|item| item.song_id()).collect();
             ids.sort();
             ids.dedup();
-            state.set = Some(OpenSet::new(id.clone(), set));
+            if let Some(error) = sidecar_error {
+                state.problems.push(Problem::SidecarUnreadable { id: id.clone(), error });
+            }
+            state.set = Some(OpenSet::new(id.clone(), set, sidecar));
             if ids.is_empty() { Vec::new() } else { vec![Effect::CheckSetSongs { set: id, ids }] }
+        }
+        Command::SidecarSaved { .. } => Vec::new(),
+        Command::SidecarSaveFailed { set, error } => {
+            state.problems.push(Problem::SidecarUnsaved { id: set, error });
+            Vec::new()
         }
         Command::SetLoadFailed { id, error } => {
             if state.loading_set.as_ref() == Some(&id) {
@@ -99,6 +107,8 @@ fn select(state: &mut State, index: usize, pending: Option<Pending>) -> Vec<Effe
     let Some(item) = set.set.items.get(index) else { return Vec::new() };
     let id = item.song_id();
     set.selected = Some(index);
+    // The item's own language mode replaces whatever the last item was shown in.
+    state.slide_options.language = set.item_settings(index).language;
     state.song = None;
     state.loading = None;
     match id {
@@ -151,4 +161,19 @@ pub(super) fn go_pending(state: &mut State) {
         Pending::First => go_live(state, 0),
         Pending::Last => go_live(state, in_flow.saturating_sub(1)),
     }
+}
+
+/// The operator chose a language mode: if a song item of the open set is selected, keep the choice
+/// for that item in the set's sidecar (a song opened from the library has no item to keep it for).
+pub(super) fn remember_language(state: &mut State, language: LanguageMode) -> Vec<Effect> {
+    let Some(set) = &mut state.set else { return Vec::new() };
+    let Some(index) = set.selected else { return Vec::new() };
+    let Some(key) = set.item_key(index) else { return Vec::new() };
+    let mut settings = set.sidecar.get(&key);
+    if settings.language == language {
+        return Vec::new();
+    }
+    settings.language = language;
+    Arc::make_mut(&mut set.sidecar).set(key, settings);
+    vec![Effect::WriteSidecar { set: set.id.clone(), sidecar: Arc::clone(&set.sidecar) }]
 }

@@ -44,6 +44,7 @@ pub const TABLE: &[(&str, Class)] = &[
     // L1: storage traits and the OpenSong codec, over the core.
     ("storage", Class::Layer(1)),
     ("opensong", Class::Layer(1)),
+    ("sidecar", Class::Layer(1)),
     // L2: concrete storage implementations, the renderer, and the runtime that performs the
     // engine's effects through storage and the codec.
     ("runtime", Class::Layer(2)),

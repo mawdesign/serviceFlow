@@ -14,9 +14,10 @@ use futures::task::LocalSpawnExt as _;
 use serviceflow_core::command::{Command, Effect, SettingsFault};
 use serviceflow_core::engine::Engine;
 use serviceflow_core::plan::{ChangePlan, GatheredSet, PlanFailure, PlanStep, WrittenSong};
+use serviceflow_core::sidecar::SetSidecar;
 use serviceflow_core::song::Song;
 use serviceflow_core::state::State;
-use serviceflow_storage::{ContentHash, Expect, SongId, Storage, StorageError, expect_holds};
+use serviceflow_storage::{ContentHash, Expect, SetId, SongId, Storage, StorageError, expect_holds};
 
 /// Runs the engine against a storage.
 pub struct Driver<S> {
@@ -44,6 +45,12 @@ impl<S: Storage + 'static> Driver<S> {
 
     pub fn storage(&self) -> &S {
         &self.storage
+    }
+
+    /// Give the storage back, ending this session (a new `Driver` over it is a restart). `None`
+    /// while an effect still holds the storage.
+    pub fn into_storage(self) -> Option<S> {
+        Rc::try_unwrap(self.storage).ok()
     }
 
     /// Apply a command now and start the IO it asks for. Results arrive on later [`pump`]s.
@@ -103,6 +110,19 @@ async fn read_settings_file<S: Storage, T>(
     match storage.read_settings(&serviceflow_storage::SettingsId(file.to_owned())).await {
         Ok(stored) => parse(&stored.bytes).map_err(|e| fault(e.to_string(), false)),
         Err(e) => Err(fault(e.to_string(), matches!(e, serviceflow_storage::StorageError::NotFound(_)))),
+    }
+}
+
+/// A set's sidecar. A missing, unreadable or corrupt one gives the defaults (and, if it exists, the
+/// reason); it never stops the set from opening (ADR-0003).
+async fn read_sidecar<S: Storage>(storage: &S, set: &SetId) -> (SetSidecar, Option<String>) {
+    match storage.read_sidecar(&serviceflow_storage::DocumentId::Set(set.clone())).await {
+        Ok(None) => (SetSidecar::default(), None),
+        Ok(Some(stored)) => match serviceflow_sidecar::read_set_sidecar(&stored.bytes) {
+            Ok(sidecar) => (sidecar, None),
+            Err(e) => (SetSidecar::default(), Some(e.to_string())),
+        },
+        Err(e) => (SetSidecar::default(), Some(e.to_string())),
     }
 }
 
@@ -280,8 +300,18 @@ pub async fn perform<S: Storage>(storage: &S, effect: Effect) -> Command {
                 Err(e) => Err(e.to_string()),
             };
             match parsed {
-                Ok(set) => Command::SetLoaded { id, set: Arc::new(set) },
+                Ok(set) => {
+                    let (sidecar, sidecar_error) = read_sidecar(storage, &id).await;
+                    Command::SetLoaded { id, set: Arc::new(set), sidecar: Arc::new(sidecar), sidecar_error }
+                }
                 Err(error) => Command::SetLoadFailed { id, error },
+            }
+        }
+        Effect::WriteSidecar { set, sidecar } => {
+            let bytes = serviceflow_sidecar::write_set_sidecar(&sidecar);
+            match storage.write_sidecar(&serviceflow_storage::DocumentId::Set(set.clone()), bytes, Expect::Any).await {
+                Ok(_) => Command::SidecarSaved { set },
+                Err(e) => Command::SidecarSaveFailed { set, error: e.to_string() },
             }
         }
         Effect::CheckSetSongs { set, ids } => {

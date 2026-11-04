@@ -12,6 +12,7 @@ publish = false
 serviceflow-core = { workspace = true }
 serviceflow-storage = { workspace = true }
 serviceflow-opensong = { workspace = true }
+serviceflow-sidecar = { workspace = true }
 futures = { workspace = true }
 
 [lints]

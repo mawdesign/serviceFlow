@@ -11,6 +11,7 @@ use crate::plan::{ChangePlan, PlanAction, PlanFailure, PlanRefusal, PlanRequest}
 use crate::resolve::{self, Images, ResolvedStyle};
 use crate::search::SearchIndex;
 use crate::set::Set;
+use crate::sidecar::{ItemKey, ItemSettings, SetSidecar};
 use crate::song::{Slide, SlideOptions, Song};
 use crate::style::Styles;
 
@@ -73,6 +74,8 @@ pub struct OpenSet {
     pub missing: Vec<SongId>,
     /// The song item being relinked: the library search is for its replacement.
     pub relinking: Option<usize>,
+    /// The set's serviceFlow-only item settings (ADR-0003), read with the set.
+    pub sidecar: Arc<SetSidecar>,
     /// What to send live once the selected item's song has loaded (moving on from the end of
     /// the previous item).
     pub(crate) pending: Option<Pending>,
@@ -86,8 +89,20 @@ pub(crate) enum Pending {
 }
 
 impl OpenSet {
-    pub(crate) fn new(id: SetId, set: Arc<Set>) -> Self {
-        Self { id, set, selected: None, missing: Vec::new(), relinking: None, pending: None }
+    pub(crate) fn new(id: SetId, set: Arc<Set>, sidecar: Arc<SetSidecar>) -> Self {
+        Self { id, set, selected: None, missing: Vec::new(), relinking: None, sidecar, pending: None }
+    }
+
+    /// The sidecar key of song item `index` (`None` for any other kind of item).
+    pub fn item_key(&self, index: usize) -> Option<ItemKey> {
+        let song = self.set.items.get(index)?.song_id()?;
+        let occurrence = self.set.items[..index].iter().filter(|item| item.song_id().as_ref() == Some(&song)).count();
+        Some(ItemKey { song, occurrence })
+    }
+
+    /// The serviceFlow-only settings of item `index` (the defaults for items without any).
+    pub fn item_settings(&self, index: usize) -> ItemSettings {
+        self.item_key(index).map(|key| self.sidecar.get(&key)).unwrap_or_default()
     }
 
     /// Whether item `index` is a song item whose song is not in the library.
@@ -117,6 +132,11 @@ pub enum Problem {
     /// A song was saved, but its section tags were left as written: renaming them to the
     /// canonical form would have made two sections one (ADR-0002).
     TagsNotRenamed { id: SongId },
+    /// A set's sidecar (serviceFlow-only item settings) could not be read, so the set opened with
+    /// default settings.
+    SidecarUnreadable { id: SetId, error: String },
+    /// A set's sidecar could not be saved, so its item settings will be lost at the next session.
+    SidecarUnsaved { id: SetId, error: String },
     /// No change plan could be made for an action.
     PlanRefused(PlanRefusal),
     /// A confirmed change plan stopped part-way (or, when `failure.written` is empty, before

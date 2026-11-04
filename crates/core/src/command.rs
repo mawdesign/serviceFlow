@@ -12,6 +12,7 @@ use crate::ids::{ContentHash, Expect, SetId, SongId};
 use crate::output::{OutputSettings, SlideColors};
 use crate::plan::{ChangePlan, GatheredSet, PlanFailure, WrittenSong};
 use crate::set::Set;
+use crate::sidecar::SetSidecar;
 use crate::song::{LanguageMode, SlideOptions, Song};
 use crate::style::Styles;
 
@@ -143,6 +144,19 @@ pub enum Command {
     SetLoaded {
         id: SetId,
         set: Arc<Set>,
+        /// The set's item settings; the defaults when it has no sidecar or its sidecar is unreadable.
+        sidecar: Arc<SetSidecar>,
+        /// Why the sidecar was not used, when it exists but could not be read.
+        sidecar_error: Option<String>,
+    },
+    /// Storage result: a set's sidecar was written.
+    SidecarSaved {
+        set: SetId,
+    },
+    /// Storage result: a set's sidecar could not be written.
+    SidecarSaveFailed {
+        set: SetId,
+        error: String,
     },
     /// Storage result: a set could not be read or parsed.
     SetLoadFailed {
@@ -318,8 +332,11 @@ pub enum Effect {
     IndexSongs { generation: u64, ids: Vec<SongId> },
     /// List the sets; answer with [`Command::SetsListed`] or [`Command::SetsListFailed`].
     ListSets,
-    /// Read and parse a set; answer with [`Command::SetLoaded`] or [`Command::SetLoadFailed`].
+    /// Read and parse a set and its sidecar (a missing or unreadable sidecar gives the defaults); answer with [`Command::SetLoaded`] or [`Command::SetLoadFailed`].
     LoadSet(SetId),
+    /// Write the set's sidecar (TOML, ADR-0003); answer with [`Command::SidecarSaved`] or
+    /// [`Command::SidecarSaveFailed`]. LoadSet reads it back with the set.
+    WriteSidecar { set: SetId, sidecar: Arc<SetSidecar> },
     /// Find which of these songs are not in the library; answer with [`Command::SongsChecked`].
     CheckSetSongs { set: SetId, ids: Vec<SongId> },
 }
