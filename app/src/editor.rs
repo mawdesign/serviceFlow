@@ -3,11 +3,13 @@
 //! the real slide renderer and the current style.
 //!
 //! Every change is an [`EditSong`](Command::EditSong) command and undo/redo are commands too
-//! (ADR-0001); nothing here keeps a copy of the song. Nothing is saved (ADR-0002, #19).
+//! (ADR-0001); nothing here keeps a copy of the song. "Save" sends
+//! [`SaveSong`](Command::SaveSong) (canonical save, ADR-0002); when the file changed on disk the
+//! editor asks whether to overwrite it, reload it or save a copy.
 
 use egui::text::{LayoutJob, TextFormat};
 use egui::{Color32, FontId, Key, Modifiers, TextStyle};
-use serviceflow_core::command::Command;
+use serviceflow_core::command::{Command, ConflictChoice};
 use serviceflow_core::edit::{SongEdit, SongField};
 use serviceflow_core::lyrics::{Highlight, highlight};
 use serviceflow_core::song::SongWarning;
@@ -39,6 +41,12 @@ pub fn ui(ui: &mut egui::Ui, state: &State, thumbnails: &mut Thumbnails, command
     if redo {
         commands.push(Command::Redo);
     }
+    let modified = draft.is_some_and(|d| d.is_modified());
+    let saving = state.saving.contains(&open.id);
+    let conflict = state.has_save_conflict();
+    if ui.input_mut(|input| input.consume_key(Modifiers::COMMAND, Key::S)) && modified {
+        commands.push(Command::SaveSong(open.id.clone()));
+    }
 
     let mut done = false;
     ui.horizontal(|ui| {
@@ -49,10 +57,18 @@ pub fn ui(ui: &mut egui::Ui, state: &State, thumbnails: &mut Thumbnails, command
         if ui.add_enabled(draft.is_some_and(|d| d.can_redo()), egui::Button::new(tl!("Redo"))).clicked() {
             commands.push(Command::Redo);
         }
-        if draft.is_some_and(|d| d.is_modified()) {
+        if ui.add_enabled(modified && !saving && !conflict, egui::Button::new(tl!("Save"))).clicked() {
+            commands.push(Command::SaveSong(open.id.clone()));
+        }
+        if saving {
+            ui.label(egui::RichText::new(tl!("Saving…")).weak());
+        } else if modified {
             ui.label(egui::RichText::new(tl!("Edited, not saved")).weak());
         }
     });
+    if conflict {
+        conflict_bar(ui, &open.id, commands);
+    }
     ui.separator();
 
     ui.columns(2, |columns| {
@@ -66,6 +82,26 @@ pub fn ui(ui: &mut egui::Ui, state: &State, thumbnails: &mut Thumbnails, command
         preview(&mut columns[1], state, thumbnails);
     });
     done
+}
+
+/// The song's file changed on disk since it was read: nothing was written, and the operator
+/// chooses what happens to the edits.
+fn conflict_bar(ui: &mut egui::Ui, id: &serviceflow_core::ids::SongId, commands: &mut Vec<Command>) {
+    ui.group(|ui| {
+        ui.colored_label(ui.visuals().warn_fg_color, tl!("This song was changed on disk since it was opened, so it was not saved."));
+        ui.horizontal(|ui| {
+            let choices = [
+                (ConflictChoice::Overwrite, tl!("Overwrite")),
+                (ConflictChoice::Reload, tl!("Reload (discard my edits)")),
+                (ConflictChoice::SaveAsCopy, tl!("Save as a copy")),
+            ];
+            for (choice, label) in choices {
+                if ui.button(label).clicked() {
+                    commands.push(Command::ResolveSaveConflict { id: id.clone(), choice });
+                }
+            }
+        });
+    });
 }
 
 /// The metadata form.
