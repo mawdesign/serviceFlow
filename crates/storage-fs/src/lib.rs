@@ -14,13 +14,23 @@
 //!   OpenSong has no locking either, so this narrows the window rather than closing it.)
 //! * File IO is blocking `std::fs` inside `async fn`s: the futures complete on first poll. That
 //!   suits one operator on a local disk; move it to a thread if a slow share ever matters.
-//! * This storage announces its own writes on [`ChangeEvents::changes`]. Watching the folder for
-//!   other programs' changes is a separate piece of work (library auto-refresh).
+//! * [`ChangeEvents::changes`] announces this storage's own writes at once, and changes made by
+//!   anything else (OpenSong, another serviceFlow, a sync tool) once the folder has been quiet
+//!   for a poll. Watching is a background thread that scans `Songs/ Sets/ Settings/ Backgrounds/`
+//!   every [`DEFAULT_POLL`] and compares (modified time, size); it starts when the first
+//!   subscriber appears and stops when the storage is dropped. Polling, not OS notifications,
+//!   because it behaves the same on every platform and on the network shares and sync folders
+//!   church data roots live on. A change is announced when two successive scans agree on it
+//!   (the debounce), so a file being written in pieces is announced once, when finished. A
+//!   rename shows as a removal plus a creation. Edits that keep both size and modified time
+//!   (filesystems with coarse timestamps) are missed.
 
 use std::any::Any;
+use std::collections::BTreeMap;
 use std::io::ErrorKind;
 use std::path::{Path, PathBuf};
-use std::sync::Mutex;
+use std::sync::{Arc, Mutex, Weak};
+use std::time::{Duration, SystemTime};
 
 use futures::StreamExt as _;
 use futures::channel::mpsc;
@@ -30,10 +40,30 @@ use serviceflow_storage::{
     key_path,
 };
 
+/// How often the data root is scanned for changes made by other programs.
+pub const DEFAULT_POLL: Duration = Duration::from_secs(1);
+
+/// What a scan knows about a file: enough to notice that someone changed it.
+type Stat = (Option<SystemTime>, u64);
+
+/// State shared with the watcher thread.
+#[derive(Default)]
+struct Shared {
+    subscribers: Mutex<Vec<mpsc::UnboundedSender<ChangeEvent>>>,
+    /// What has been announced, per file, once the watcher runs. Own writes are recorded here
+    /// too so the watcher does not announce them a second time.
+    announced: Mutex<Option<BTreeMap<Key, Stat>>>,
+}
+
+fn lock<T>(mutex: &Mutex<T>) -> std::sync::MutexGuard<'_, T> {
+    mutex.lock().unwrap_or_else(std::sync::PoisonError::into_inner)
+}
+
 /// Storage over an OpenSong data root on disk.
 pub struct FsStorage {
     root: PathBuf,
-    subscribers: Mutex<Vec<mpsc::UnboundedSender<ChangeEvent>>>,
+    shared: Arc<Shared>,
+    poll: Duration,
     /// Something to drop together with the storage (a temporary folder in tests).
     _guard: Option<Box<dyn Any>>,
 }
@@ -45,7 +75,15 @@ impl FsStorage {
         if !root.is_dir() {
             return Err(std::io::Error::new(ErrorKind::NotFound, format!("{} is not a folder", root.display())));
         }
-        Ok(Self { root: root.to_path_buf(), subscribers: Mutex::new(Vec::new()), _guard: None })
+        Ok(Self { root: root.to_path_buf(), shared: Arc::default(), poll: DEFAULT_POLL, _guard: None })
+    }
+
+    /// Scan for changes made by other programs this often (default [`DEFAULT_POLL`]). Set it
+    /// before the first call to [`changes`](ChangeEvents::changes). A change is announced after
+    /// two scans, so it takes up to twice this long to arrive.
+    pub fn with_poll_interval(mut self, poll: Duration) -> Self {
+        self.poll = poll;
+        self
     }
 
     /// Drop `guard` when this storage is dropped. For tests that own a temporary folder.
@@ -112,6 +150,12 @@ impl FsStorage {
                 craft_atomic::atomic_write(&path, &bytes).map_err(|e| io_error(&e))?;
             }
         }
+        // The watcher must not announce this write again.
+        if let Some(announced) = lock(&self.shared.announced).as_mut()
+            && let Some(stat) = std::fs::metadata(&path).ok().map(|m| (m.modified().ok(), m.len()))
+        {
+            announced.insert(key.clone(), stat);
+        }
         self.announce(ChangeEvent { key, kind: ChangeKind::Written });
         Ok(hash)
     }
@@ -119,14 +163,88 @@ impl FsStorage {
     /// Every visible file under `folder`, as `/`-separated paths relative to it, sorted.
     fn list(&self, folder: &str) -> Result<Vec<String>> {
         let mut found = Vec::new();
-        collect(&self.root.join(folder), "", &mut found).map_err(|e| io_error(&e))?;
+        collect(&self.root.join(folder), "", &mut |path, _| found.push(path)).map_err(|e| io_error(&e))?;
         found.sort();
         Ok(found)
     }
 
     fn announce(&self, event: ChangeEvent) {
-        let mut subscribers = self.subscribers.lock().unwrap_or_else(std::sync::PoisonError::into_inner);
-        subscribers.retain(|s| s.unbounded_send(event.clone()).is_ok());
+        announce(&self.shared, event);
+    }
+
+    /// Start the watcher thread if it is not running, with the folder as it is now as the
+    /// baseline: only later changes are announced.
+    fn ensure_watcher(&self) {
+        let mut announced = lock(&self.shared.announced);
+        if announced.is_some() {
+            return;
+        }
+        let baseline = scan(&self.root).unwrap_or_default();
+        *announced = Some(baseline.clone());
+        let (root, shared, poll) = (self.root.clone(), Arc::downgrade(&self.shared), self.poll);
+        // A failure to start a thread leaves the storage working without watching.
+        let _ = std::thread::Builder::new().name("serviceflow-watch".into()).spawn(move || watch(root, shared, poll, baseline));
+    }
+}
+
+fn announce(shared: &Shared, event: ChangeEvent) {
+    lock(&shared.subscribers).retain(|s| s.unbounded_send(event.clone()).is_ok());
+}
+
+/// Every watched file under the data root with its [`Stat`]. `None` when the root or a watched
+/// folder cannot be read right now (unmounted share, folder being replaced): that is not a mass
+/// deletion of songs.
+fn scan(root: &Path) -> Option<BTreeMap<Key, Stat>> {
+    if !root.is_dir() {
+        return None;
+    }
+    type MakeKey = fn(String) -> Key;
+    let folders: [(&str, MakeKey); 4] = [
+        ("Songs", |p| Key::Song(SongId(p))),
+        ("Sets", |p| Key::Set(SetId(p))),
+        ("Settings", |p| Key::Settings(SettingsId(p))),
+        ("Backgrounds", |p| Key::Asset(AssetId(p))),
+    ];
+    let mut found = BTreeMap::new();
+    for (folder, key) in folders {
+        collect(&root.join(folder), "", &mut |path, meta| {
+            found.insert(key(path), (meta.modified().ok(), meta.len()));
+        })
+        .ok()?;
+    }
+    Some(found)
+}
+
+/// The watcher thread: scan every `poll`; announce a difference from what was announced once the
+/// next scan shows the same thing (the file has stopped changing). Ends when the storage is dropped.
+fn watch(root: PathBuf, shared: Weak<Shared>, poll: Duration, mut previous: BTreeMap<Key, Stat>) {
+    loop {
+        std::thread::sleep(poll);
+        let Some(shared) = shared.upgrade() else { return };
+        let Some(current) = scan(&root) else { continue };
+        let mut events = Vec::new();
+        {
+            let mut guard = lock(&shared.announced);
+            let announced = guard.get_or_insert_with(BTreeMap::new);
+            let keys: std::collections::BTreeSet<Key> = current.keys().chain(announced.keys()).cloned().collect();
+            for key in keys {
+                let (now, then, before) = (current.get(&key), previous.get(&key), announced.get(&key));
+                if now == before || now != then {
+                    continue;
+                }
+                events.push(ChangeEvent { key, kind: if now.is_some() { ChangeKind::Written } else { ChangeKind::Removed } });
+            }
+            for event in &events {
+                match current.get(&event.key) {
+                    Some(stat) => announced.insert(event.key.clone(), *stat),
+                    None => announced.remove(&event.key),
+                };
+            }
+        }
+        for event in events {
+            announce(&shared, event);
+        }
+        previous = current;
     }
 }
 
@@ -136,7 +254,7 @@ fn io_error(e: &std::io::Error) -> StorageError {
 
 /// Visible files below `dir`. A missing folder holds nothing. Names that are not UTF-8 cannot be
 /// ids and are skipped, like unreadable entries are not (those fail the listing).
-fn collect(dir: &Path, prefix: &str, out: &mut Vec<String>) -> std::io::Result<()> {
+fn collect(dir: &Path, prefix: &str, out: &mut dyn FnMut(String, std::fs::Metadata)) -> std::io::Result<()> {
     let entries = match std::fs::read_dir(dir) {
         Ok(entries) => entries,
         Err(e) if e.kind() == ErrorKind::NotFound => return Ok(()),
@@ -152,7 +270,7 @@ fn collect(dir: &Path, prefix: &str, out: &mut Vec<String>) -> std::io::Result<(
         // `metadata` follows symlinks, as OpenSong does.
         match std::fs::metadata(entry.path()) {
             Ok(m) if m.is_dir() => collect(&entry.path(), &format!("{path}/"), out)?,
-            Ok(m) if m.is_file() => out.push(path),
+            Ok(m) if m.is_file() => out(path, m),
             _ => {}
         }
     }
@@ -224,7 +342,8 @@ impl SettingsRepository for FsStorage {
 impl ChangeEvents for FsStorage {
     fn changes(&self) -> ChangeStream {
         let (sender, receiver) = mpsc::unbounded();
-        self.subscribers.lock().unwrap_or_else(std::sync::PoisonError::into_inner).push(sender);
+        lock(&self.shared.subscribers).push(sender);
+        self.ensure_watcher();
         receiver.boxed_local()
     }
 }

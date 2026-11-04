@@ -4,7 +4,12 @@ use serviceflow_storage::{SettingsId, SettingsRepository as _, SongId, SongRepos
 use serviceflow_storage_memory::MemoryStorage;
 use serviceflow_testkit::{block_on, fixture_song, opensong_data_root};
 
-serviceflow_testkit::storage_contract!(MemoryStorage::new());
+// Memory storage has no outside: "outside" writes go through its own API, which announces them.
+serviceflow_testkit::storage_contract!(
+    MemoryStorage::new(),
+    outside: |s: &MemoryStorage, key: &serviceflow_storage::Key, bytes: &[u8]| s.write_key(key, bytes),
+    |s: &MemoryStorage, key: &serviceflow_storage::Key| s.remove(key)
+);
 
 #[test]
 fn seeding_from_the_fixtures_folder_lists_every_fixture_song() {

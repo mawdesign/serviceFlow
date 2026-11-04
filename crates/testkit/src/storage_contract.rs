@@ -11,8 +11,10 @@
 //! one in a `#[test]`. To add a check: write the `async fn`, then add its name to the list in
 //! [`storage_contract!`](crate::storage_contract).
 
-use futures::StreamExt as _;
-use serviceflow_storage::{AssetId, ChangeEvent, ChangeKind, ContentHash, DocumentId, Expect, Key, SetId, SettingsId, SongId, Storage, StorageError};
+use std::time::{Duration, Instant};
+
+use futures::{FutureExt as _, StreamExt as _};
+use serviceflow_storage::{AssetId, ChangeEvent, ChangeStream, ChangeKind, ContentHash, DocumentId, Expect, Key, SetId, SettingsId, SongId, Storage, StorageError};
 
 const SONG: &[u8] = b"<song><title>Contract</title></song>";
 
@@ -152,6 +154,87 @@ pub async fn a_song_and_a_set_with_the_same_name_are_different_documents(storage
     assert_eq!(storage.read_set(&SetId::new("Same")).await.unwrap().bytes, b"set");
 }
 
+/// How a test changes storage "from outside": another program, another serviceFlow instance or a
+/// sync process, without going through the storage API. The filesystem storage edits files with
+/// `std::fs`; the memory storage has no outside, so it writes through its own API.
+pub struct Outside<S> {
+    pub write: fn(&S, &Key, &[u8]),
+    pub remove: fn(&S, &Key),
+}
+
+/// Wait for `n` change events (any order), giving up after a few seconds.
+fn next_changes(changes: &mut ChangeStream, n: usize) -> Vec<ChangeEvent> {
+    let deadline = Instant::now() + Duration::from_secs(10);
+    let mut found = Vec::new();
+    while found.len() < n {
+        match changes.next().now_or_never() {
+            Some(Some(event)) => found.push(event),
+            Some(None) => panic!("the change stream ended; got {found:?}"),
+            None => {
+                assert!(Instant::now() < deadline, "waited for {n} change events, got {found:?}");
+                std::thread::sleep(Duration::from_millis(5));
+            }
+        }
+    }
+    found.sort_by(|a, b| format!("{a:?}").cmp(&format!("{b:?}")));
+    found
+}
+
+/// Assert that nothing more is announced for a while (longer than any debounce in the tests).
+fn no_more_changes(changes: &mut ChangeStream) {
+    std::thread::sleep(Duration::from_millis(400));
+    let extra = changes.next().now_or_never();
+    assert!(extra.is_none(), "unexpected extra change event: {extra:?}");
+}
+
+fn written(key: Key) -> ChangeEvent {
+    ChangeEvent { key, kind: ChangeKind::Written }
+}
+
+fn removed(key: Key) -> ChangeEvent {
+    ChangeEvent { key, kind: ChangeKind::Removed }
+}
+
+pub async fn a_song_created_modified_and_deleted_from_outside_is_announced_each_time<S: Storage>(storage: S, outside: Outside<S>) {
+    let mut changes = storage.changes();
+    let key = Key::Song(SongId::new("Hymns/Outside"));
+    (outside.write)(&storage, &key, b"<song>one</song>");
+    assert_eq!(next_changes(&mut changes, 1), [written(key.clone())]);
+    no_more_changes(&mut changes);
+    (outside.write)(&storage, &key, b"<song>one, edited</song>");
+    assert_eq!(next_changes(&mut changes, 1), [written(key.clone())]);
+    assert_eq!(storage.read_song(&SongId::new("Hymns/Outside")).await.unwrap().bytes, b"<song>one, edited</song>");
+    (outside.remove)(&storage, &key);
+    assert_eq!(next_changes(&mut changes, 1), [removed(key.clone())]);
+    no_more_changes(&mut changes);
+    assert_eq!(storage.list_songs().await.unwrap(), []);
+}
+
+pub async fn a_rename_from_outside_is_a_removal_and_a_creation<S: Storage>(storage: S, outside: Outside<S>) {
+    let old = Key::Song(SongId::new("Old Name"));
+    let new = Key::Song(SongId::new("New Name"));
+    (outside.write)(&storage, &old, b"<song/>");
+    let mut changes = storage.changes();
+    (outside.remove)(&storage, &old);
+    (outside.write)(&storage, &new, b"<song/>");
+    let mut expected = vec![removed(old), written(new)];
+    expected.sort_by(|a, b| format!("{a:?}").cmp(&format!("{b:?}")));
+    assert_eq!(next_changes(&mut changes, 2), expected);
+}
+
+pub async fn sets_and_settings_changed_from_outside_are_announced<S: Storage>(storage: S, outside: Outside<S>) {
+    let mut changes = storage.changes();
+    let set = Key::Set(SetId::new("Sunday"));
+    let settings = Key::Settings(SettingsId("PresentSettings".into()));
+    (outside.write)(&storage, &set, b"<set/>");
+    (outside.write)(&storage, &settings, b"<settings/>");
+    let mut expected = vec![written(set.clone()), written(settings)];
+    expected.sort_by(|a, b| format!("{a:?}").cmp(&format!("{b:?}")));
+    assert_eq!(next_changes(&mut changes, 2), expected);
+    (outside.remove)(&storage, &set);
+    assert_eq!(next_changes(&mut changes, 1), [removed(set)]);
+}
+
 /// Generate one `#[test]` per contract check, each given a fresh storage from `$make`.
 #[macro_export]
 macro_rules! storage_contract {
@@ -174,6 +257,29 @@ macro_rules! storage_contract {
             sidecars_are_optional_and_never_appear_as_songs_or_sets,
             a_song_and_a_set_with_the_same_name_are_different_documents,
         );
+    };
+    ($make:expr, outside: $write:expr, $remove:expr) => {
+        $crate::storage_contract!($make);
+        mod storage_contract_outside {
+            #[allow(unused_imports)]
+            use super::*;
+            $crate::storage_contract!(@outside $make, $write, $remove;
+                a_song_created_modified_and_deleted_from_outside_is_announced_each_time,
+                a_rename_from_outside_is_a_removal_and_a_creation,
+                sets_and_settings_changed_from_outside_are_announced,
+            );
+        }
+    };
+    (@outside $make:expr, $write:expr, $remove:expr; $($check:ident),* $(,)?) => {
+        $(
+            #[test]
+            fn $check() {
+                $crate::block_on($crate::storage_contract::$check(
+                    $make,
+                    $crate::storage_contract::Outside { write: $write, remove: $remove },
+                ));
+            }
+        )*
     };
     (@tests $make:expr; $($check:ident),* $(,)?) => {
         mod storage_contract {

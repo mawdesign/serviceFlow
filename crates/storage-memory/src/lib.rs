@@ -79,6 +79,19 @@ impl MemoryStorage {
         Ok(hash)
     }
 
+    /// Delete a document, announcing [`ChangeKind::Removed`] if it existed. The storage traits
+    /// have no delete yet (#20/#21 add one); tests and the engine harness use this.
+    pub fn remove(&self, key: &Key) {
+        if self.lock_documents().remove(key).is_some() {
+            self.announce(ChangeEvent { key: key.clone(), kind: ChangeKind::Removed });
+        }
+    }
+
+    /// Write a document without a precondition, as if another program had.
+    pub fn write_key(&self, key: &Key, bytes: &[u8]) {
+        self.write(key.clone(), bytes.to_vec(), Expect::Any).expect("writing a document");
+    }
+
     fn list<T>(&self, pick: impl Fn(&Key) -> Option<T>) -> Vec<T> {
         // BTreeMap order is id order, so the result is sorted.
         self.lock_documents().keys().filter(|k| !matches!(k, Key::Sidecar(_)) && !is_ignored_path(key_path(k))).filter_map(pick).collect()
