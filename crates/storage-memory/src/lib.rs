@@ -73,6 +73,19 @@ impl MemoryStorage {
         Ok(hash)
     }
 
+    /// Delete a document, announcing [`ChangeKind::Removed`] if it existed. Unlike the
+    /// trait's delete it has no precondition, for tests and the engine harness.
+    pub fn remove(&self, key: &Key) {
+        if self.lock_documents().remove(key).is_some() {
+            self.announce(ChangeEvent { key: key.clone(), kind: ChangeKind::Removed });
+        }
+    }
+
+    /// Write a document without a precondition, as if another program had.
+    pub fn write_key(&self, key: &Key, bytes: &[u8]) {
+        self.write(key.clone(), bytes.to_vec(), Expect::Any).expect("writing a document");
+    }
+
     fn delete(&self, key: Key, expect: Expect) -> Result<()> {
         check_path(key_path(&key))?;
         {

@@ -95,6 +95,7 @@ pub(super) fn apply(state: &mut State, command: Command) -> Vec<Effect> {
             *name = filename(&song).to_owned();
             song_item.path = category(&song).to_owned();
             set.relinking = None;
+            set.modified = true;
             select(state, item, None)
         }
         Command::FindImage { item, slide } => {
@@ -135,7 +136,7 @@ pub(super) fn apply(state: &mut State, command: Command) -> Vec<Effect> {
 
 /// Show item `index`. A song item loads its song; anything else has no slides. `pending` says
 /// what to send live once the song has loaded.
-fn select(state: &mut State, index: usize, pending: Option<Pending>) -> Vec<Effect> {
+pub(super) fn select(state: &mut State, index: usize, pending: Option<Pending>) -> Vec<Effect> {
     let Some(set) = &mut state.set else { return Vec::new() };
     let Some(item) = set.set.items.get(index) else { return Vec::new() };
     let id = item.song_id();
@@ -161,6 +162,15 @@ fn select(state: &mut State, index: usize, pending: Option<Pending>) -> Vec<Effe
             Vec::new()
         }
     }
+}
+
+/// Ask which songs the open set refers to are not in the library.
+pub(super) fn check_songs(state: &State) -> Vec<Effect> {
+    let Some(open) = &state.set else { return Vec::new() };
+    let mut ids: Vec<SongId> = open.set.items.iter().filter_map(|item| item.song_id()).collect();
+    ids.sort();
+    ids.dedup();
+    if ids.is_empty() { Vec::new() } else { vec![Effect::CheckSetSongs { set: open.id.clone(), ids }] }
 }
 
 /// Move on from the end (`forward`) or the start of the selected item to the nearest song

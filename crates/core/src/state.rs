@@ -82,6 +82,11 @@ pub struct OpenSet {
     /// The picture (item, slide) the operator is looking for a file for: choose one of
     /// [`State::backgrounds`].
     pub finding_image: Option<(usize, usize)>,
+    /// The set has changes that are not saved (a relinked item).
+    pub modified: bool,
+    /// The set's file changed on disk while it has unsaved changes, so it was not reloaded:
+    /// opening the set again takes the file's version.
+    pub changed_on_disk: bool,
     /// What to send live once the selected item's song has loaded (moving on from the end of
     /// the previous item).
     pub(crate) pending: Option<Pending>,
@@ -96,7 +101,18 @@ pub(crate) enum Pending {
 
 impl OpenSet {
     pub(crate) fn new(id: SetId, set: Arc<Set>, sidecar: Arc<SetSidecar>) -> Self {
-        Self { id, set, selected: None, missing: Vec::new(), relinking: None, finding_image: None, sidecar, pending: None }
+        Self {
+            id,
+            set,
+            selected: None,
+            missing: Vec::new(),
+            relinking: None,
+            finding_image: None,
+            modified: false,
+            changed_on_disk: false,
+            sidecar,
+            pending: None,
+        }
     }
 
     /// The sidecar key of song item `index` (`None` for any other kind of item).

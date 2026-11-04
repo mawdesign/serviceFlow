@@ -116,6 +116,24 @@ impl EngineHarness {
         crate::block_on(self.storage().write_song(id, bytes.to_vec(), Expect::Any)).expect("writing a song");
     }
 
+    /// Remove a song file behind the engine's back.
+    pub fn remove_song_file(&self, id: &SongId) {
+        self.storage().remove(&serviceflow_storage::Key::Song(id.clone()));
+    }
+
+    /// Remove a set file behind the engine's back.
+    pub fn remove_set_file(&self, id: &serviceflow_storage::SetId) {
+        self.storage().remove(&serviceflow_storage::Key::Set(id.clone()));
+    }
+
+    /// Let the engine see what storage announced since the last command (changes made behind its
+    /// back) and run everything that causes until idle.
+    pub fn settle(&mut self) -> &mut Self {
+        self.driver.pump();
+        assert!(self.driver.is_idle(), "in-memory storage finished without the engine becoming idle");
+        self
+    }
+
     /// The bytes of a set file in storage (`None`: there is none).
     pub fn set_bytes(&self, set: &str) -> Option<Vec<u8>> {
         crate::block_on(self.storage().read_set(&serviceflow_storage::SetId::new(set))).ok().map(|s| s.bytes)

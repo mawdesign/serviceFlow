@@ -11,13 +11,13 @@ use std::sync::Arc;
 use futures::channel::mpsc;
 use futures::executor::{LocalPool, LocalSpawner};
 use futures::task::LocalSpawnExt as _;
-use serviceflow_core::command::{Command, Effect, SettingsFault};
+use serviceflow_core::command::{Command, Effect, Reloaded, SettingsFault};
 use serviceflow_core::engine::Engine;
 use serviceflow_core::plan::{ChangePlan, GatheredSet, PlanFailure, PlanStep, WrittenSong};
 use serviceflow_core::sidecar::SetSidecar;
 use serviceflow_core::song::Song;
 use serviceflow_core::state::State;
-use serviceflow_storage::{ContentHash, Expect, SetId, SongId, Storage, StorageError, expect_holds};
+use serviceflow_storage::{ChangeEvent, ContentHash, Expect, Key, SetId, SongId, Storage, StorageError, expect_holds};
 
 /// Runs the engine against a storage.
 pub struct Driver<S> {
@@ -28,6 +28,8 @@ pub struct Driver<S> {
     results: mpsc::UnboundedReceiver<Command>,
     results_sender: mpsc::UnboundedSender<Command>,
     in_flight: usize,
+    /// Changes storage announced, forwarded from its change stream by a task on the pool.
+    changes: mpsc::UnboundedReceiver<ChangeEvent>,
 }
 
 impl<S: Storage + 'static> Driver<S> {
@@ -35,7 +37,17 @@ impl<S: Storage + 'static> Driver<S> {
         let pool = LocalPool::new();
         let spawner = pool.spawner();
         let (results_sender, results) = mpsc::unbounded();
-        Self { engine: Engine::new(), storage: Rc::new(storage), pool, spawner, results, results_sender, in_flight: 0 }
+        let storage = Rc::new(storage);
+        // Changes made by other programs reach the engine as commands (see `pump`).
+        let (changes_sender, changes) = mpsc::unbounded();
+        let mut stream = storage.changes();
+        let forward = async move {
+            while let Some(event) = futures::StreamExt::next(&mut stream).await {
+                let _ = changes_sender.unbounded_send(event);
+            }
+        };
+        let _ = spawner.spawn_local(forward);
+        Self { engine: Engine::new(), storage, pool, spawner, results, results_sender, in_flight: 0, changes }
     }
 
     /// The current state snapshot.
@@ -72,6 +84,18 @@ impl<S: Storage + 'static> Driver<S> {
                 self.in_flight -= 1;
                 progressed = true;
                 self.send(command);
+            }
+            let (mut songs, mut sets) = (Vec::new(), Vec::new());
+            while let Ok(event) = self.changes.try_recv() {
+                match event.key {
+                    Key::Song(id) => songs.push(id),
+                    Key::Set(id) => sets.push(id),
+                    _ => {}
+                }
+            }
+            if !songs.is_empty() || !sets.is_empty() {
+                progressed = true;
+                self.send(Command::DocumentsChanged { songs, sets });
             }
             if !progressed {
                 break;
@@ -353,6 +377,28 @@ pub async fn perform<S: Storage>(storage: &S, effect: Effect) -> Command {
             Command::ImageLoaded { name, bytes }
         }
         Effect::WriteSong { id, song, expect, as_copy } => save_song(storage, id, &song, expect, as_copy).await,
+        Effect::ReloadSong(id) => {
+            let file = match storage.read_song(&id).await {
+                Ok(stored) => match serviceflow_opensong::read_song(&stored.bytes) {
+                    Ok(song) => Reloaded::Read(Arc::new(song), stored.hash),
+                    Err(e) => Reloaded::Unreadable(e.to_string()),
+                },
+                Err(serviceflow_storage::StorageError::NotFound(_)) => Reloaded::Gone,
+                Err(e) => Reloaded::Unreadable(e.to_string()),
+            };
+            Command::SongReloaded { id, file }
+        }
+        Effect::ReloadSet(id) => {
+            let file = match storage.read_set(&id).await {
+                Ok(stored) => match serviceflow_opensong::read_set(&stored.bytes) {
+                    Ok(set) => Reloaded::Read(Arc::new(set), stored.hash),
+                    Err(e) => Reloaded::Unreadable(e.to_string()),
+                },
+                Err(serviceflow_storage::StorageError::NotFound(_)) => Reloaded::Gone,
+                Err(e) => Reloaded::Unreadable(e.to_string()),
+            };
+            Command::SetReloaded { id, file }
+        }
         Effect::GatherForPlan { subject } => gather_for_plan(storage, subject).await,
         Effect::ApplyPlan(plan) => apply_plan(storage, plan).await,
         Effect::LoadSong(id) => {

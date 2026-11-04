@@ -9,10 +9,32 @@ use serviceflow_testkit::{block_on, fixture_song, opensong_data_root, temp_dir};
 /// An empty data root in a temporary folder that disappears with the storage.
 fn fresh() -> FsStorage {
     let dir = temp_dir();
-    FsStorage::open(dir.path()).unwrap().keeping_alive(dir)
+    FsStorage::open(dir.path()).unwrap().with_poll_interval(FAST_POLL).keeping_alive(dir)
 }
 
-serviceflow_testkit::storage_contract!(fresh());
+/// Poll quickly in tests; real use polls about once a second.
+const FAST_POLL: std::time::Duration = std::time::Duration::from_millis(20);
+
+/// The file a key lives in, for editing it the way another program would.
+fn file_of(storage: &FsStorage, key: &Key) -> std::path::PathBuf {
+    let (folder, path) = match key {
+        Key::Song(SongId(p)) => ("Songs", p),
+        Key::Set(SetId(p)) => ("Sets", p),
+        Key::Settings(serviceflow_storage::SettingsId(p)) => ("Settings", p),
+        other => panic!("not a key the tests edit: {other:?}"),
+    };
+    storage.root().join(folder).join(path)
+}
+
+serviceflow_testkit::storage_contract!(
+    fresh(),
+    outside: |s: &FsStorage, key: &Key, bytes: &[u8]| {
+        let file = file_of(s, key);
+        std::fs::create_dir_all(file.parent().unwrap()).unwrap();
+        std::fs::write(file, bytes).unwrap();
+    },
+    |s: &FsStorage, key: &Key| std::fs::remove_file(file_of(s, key)).unwrap()
+);
 
 /// A copy of the OpenSong fixtures data root on disk.
 fn fixtures_copy() -> (FsStorage, std::path::PathBuf) {
@@ -127,6 +149,91 @@ fn a_missing_songs_folder_is_an_empty_library_and_a_file_is_not_a_data_root() {
 fn a_data_root_is_recognised_by_its_songs_folder() {
     assert!(FsStorage::looks_like_data_root(&opensong_data_root()));
     assert!(!FsStorage::looks_like_data_root(temp_dir().path()));
+}
+
+// Watching (what only a real folder shows).
+
+use futures::{FutureExt as _, StreamExt as _};
+use serviceflow_storage::{ChangeEvent, ChangeEvents as _, ChangeKind, ChangeStream};
+
+const MS: fn(u64) -> std::time::Duration = std::time::Duration::from_millis;
+
+/// Events that arrive within `wait`, in order.
+fn events_within(changes: &mut ChangeStream, wait: std::time::Duration) -> Vec<ChangeEvent> {
+    let deadline = std::time::Instant::now() + wait;
+    let mut found = Vec::new();
+    while std::time::Instant::now() < deadline {
+        while let Some(Some(event)) = changes.next().now_or_never() {
+            found.push(event);
+        }
+        std::thread::sleep(MS(5));
+    }
+    found
+}
+
+#[test]
+fn a_burst_of_writes_to_one_file_is_announced_once_when_it_settles() {
+    let (storage, root) = fixtures_copy();
+    let storage = storage.with_poll_interval(MS(250));
+    let mut changes = storage.changes();
+    for n in 0..20 {
+        std::fs::write(root.join("Songs/Slow Save"), "x".repeat(n + 1)).unwrap();
+        std::thread::sleep(MS(3));
+    }
+    let events = events_within(&mut changes, MS(2000));
+    assert_eq!(events, [ChangeEvent { key: Key::Song(SongId::new("Slow Save")), kind: ChangeKind::Written }]);
+}
+
+#[test]
+fn hidden_files_staging_files_and_other_folders_are_not_announced() {
+    let (storage, root) = fixtures_copy();
+    let storage = storage.with_poll_interval(FAST_POLL);
+    let mut changes = storage.changes();
+    std::fs::write(root.join("Songs/.It Is Well With My Soul.1-0.craft_tmp"), "half").unwrap();
+    std::fs::write(root.join("Songs/_scratch"), "x").unwrap();
+    std::fs::write(root.join("Songs/.DS_Store"), "x").unwrap();
+    std::fs::create_dir_all(root.join(".serviceflow/Songs")).unwrap();
+    std::fs::write(root.join(".serviceflow/Songs/x.sidecar"), "{}").unwrap();
+    std::fs::write(root.join("Notes.txt"), "x").unwrap();
+    assert_eq!(events_within(&mut changes, MS(400)), []);
+}
+
+#[test]
+fn this_storages_own_writes_are_announced_once() {
+    let (storage, _root) = fixtures_copy();
+    let storage = storage.with_poll_interval(FAST_POLL);
+    let mut changes = storage.changes();
+    let id = SongId::new("Mine");
+    block_on(storage.write_song(&id, b"one".to_vec(), Expect::Any)).unwrap();
+    block_on(storage.write_song(&id, b"two!".to_vec(), Expect::Any)).unwrap();
+    let events = events_within(&mut changes, MS(400));
+    assert_eq!(events, vec![ChangeEvent { key: Key::Song(id), kind: ChangeKind::Written }; 2]);
+}
+
+#[test]
+fn a_data_root_that_disappears_is_not_a_mass_deletion() {
+    let dir = temp_dir();
+    std::fs::create_dir_all(dir.path().join("Songs")).unwrap();
+    std::fs::write(dir.path().join("Songs/A"), "a").unwrap();
+    let storage = FsStorage::open(dir.path()).unwrap().with_poll_interval(FAST_POLL);
+    let mut changes = storage.changes();
+    let moved = dir.path().with_extension("moved");
+    std::fs::rename(dir.path(), &moved).unwrap();
+    assert_eq!(events_within(&mut changes, MS(300)), []);
+    std::fs::rename(&moved, dir.path()).unwrap();
+}
+
+#[test]
+fn dropping_the_storage_ends_the_stream() {
+    let dir = temp_dir();
+    let storage = FsStorage::open(dir.path()).unwrap().with_poll_interval(FAST_POLL);
+    let mut changes = storage.changes();
+    drop(storage);
+    let ended = (0..200).any(|_| {
+        std::thread::sleep(MS(10));
+        matches!(changes.next().now_or_never(), Some(None))
+    });
+    assert!(ended);
 }
 
 #[test]

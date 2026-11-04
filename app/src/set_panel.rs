@@ -32,6 +32,14 @@ pub fn ui(ui: &mut egui::Ui, state: &State, commands: &mut Vec<Command>) {
             commands.push(Command::NextItem);
         }
     });
+    if set.changed_on_disk {
+        ui.horizontal_wrapped(|ui| {
+            ui.colored_label(ui.visuals().warn_fg_color, tl!("This set was changed on disk."));
+            if ui.button(tl!("Reload (discard my changes)")).clicked() {
+                commands.push(Command::OpenSet(set.id.clone()));
+            }
+        });
+    }
     if let Some(item) = set.relinking.and_then(|i| set.set.items.get(i)) {
         ui.horizontal_wrapped(|ui| {
             ui.colored_label(ui.visuals().warn_fg_color, format!("{} “{}”", tl!("Pick a replacement in the library for"), item.name));
