@@ -76,6 +76,8 @@ pub enum Command {
     ToggleBlack,
     /// Toggle logo mode (the configured logo image).
     ToggleLogo,
+    /// Show or hide chords on one output (off by default). Does not change the live slide.
+    ToggleChords(crate::state::OutputId),
     /// Read the output behaviour (PresentSettings: logo, monitor, initial mode, transitions) and the
     /// thumbnail colours (MainSettings) from OpenSong, read-only. Sent on first run and by the
     /// "re-import from OpenSong" action.
@@ -416,6 +418,7 @@ impl Command {
                 | Command::ToggleBlank
                 | Command::ToggleBlack
                 | Command::ToggleLogo
+                | Command::ToggleChords(_)
                 | Command::SetLanguageMode(_)
         )
     }

@@ -50,6 +50,13 @@ Run the real OpenSong (or read its source, notes in `.sf-notes/opensong.md`) and
 - [ ] **Pushed style units (#22).** A new style item copies the default style and writes it back
   in OpenSong's units (sizes ÷ 3, margins ÷ 3 minus the border, rounded to 2 decimals). Check a
   pushed style looks the same in OpenSong as the default style it copied.
+- [ ] **Chord display on output (#24).** OpenSong never projects chords (its song display filters
+  `.` lines), so there is nothing to compare; the look is ours. Check with musicians: chord size
+  (60% of the body), colour (amber), and how a chord line that is wider than its lyric line
+  should behave (we let it run past the lyric line).
+- [ ] **Chord columns and `_` (#24).** We anchor each chord to the character in its column after
+  trimming and removing `_`, so a chord over `_` or leading spaces moves to the next character.
+  Compare with OpenSong's chord sheet (`CleanLyrics`, printing) on songs that use `_` spacers.
 
 ## To test
 
@@ -71,6 +78,9 @@ cannot cover them.
   against a stub. Try a style that names an installed font and one that does not.
 - [ ] **Italic (#11).** Italic is a slanted regular face. Check it looks acceptable, and that real
   italic faces are not needed yet.
+
+- [ ] **Chords on the projector (#24).** The chord toggles for the output window and the control
+  monitor, on a real second screen. Their state is not remembered between runs.
 
 ### Data and files
 - [ ] **Canonical save on a real library (#19).** Copy a real data root, save a few edited songs,

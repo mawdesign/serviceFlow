@@ -232,6 +232,10 @@ pub struct Style {
     /// serviceFlow extra: outline thickness in reference pixels. (OpenSong: global, in the
     /// style/@thickness setting.)
     pub outline_thickness: f32,
+    /// serviceFlow extra: chord size as a percentage of the body size (after auto-scale).
+    pub chord_size: u32,
+    /// serviceFlow extra: chord colour.
+    pub chord_color: Rgba,
 }
 
 impl Default for Style {
@@ -260,6 +264,8 @@ impl Default for Style {
             translation_italic: true,
             pair_gap: 0.2,
             outline_thickness: 2.0,
+            chord_size: 60,
+            chord_color: Rgba::rgb(255, 200, 0),
         }
     }
 }

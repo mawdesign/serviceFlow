@@ -285,6 +285,10 @@ fn step(state: &mut State, command: Command) -> Vec<Effect> {
             | Command::ConfirmPlan
             | Command::CancelPlan
             | Command::PlanApplied { .. }) => plan::apply(state, command),
+            Command::ToggleChords(output) => {
+                state.output.chords.toggle(output);
+                Vec::new()
+            }
             Command::ToggleLogo => {
                 toggle(state, OutputMode::Logo);
                 Vec::new()

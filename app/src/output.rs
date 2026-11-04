@@ -10,7 +10,7 @@ use std::sync::Arc;
 use serviceflow_core::output::Logo;
 use serviceflow_core::resolve::{Images, ResolvedStyle};
 use serviceflow_core::song::{Slide, Song};
-use serviceflow_core::state::{OutputMode, State};
+use serviceflow_core::state::{OutputId, OutputMode, State};
 use serviceflow_core::style::Captions;
 use serviceflow_render::{Image, Renderer, Size};
 
@@ -67,6 +67,7 @@ impl Fade {
 /// from the previous picture when the slide changes and transitions are on.
 pub struct OutputFrame {
     name: &'static str,
+    id: OutputId,
     renderer: Renderer,
     styles: Option<Arc<serviceflow_core::style::Styles>>,
     images: Option<Arc<Images>>,
@@ -77,8 +78,8 @@ pub struct OutputFrame {
 }
 
 impl OutputFrame {
-    pub fn new(name: &'static str) -> Self {
-        Self { name, renderer: Renderer::with_fonts(crate::fonts::shared()), styles: None, images: None, texture: None, changes: 0, fading: None }
+    pub fn new(name: &'static str, id: OutputId) -> Self {
+        Self { name, id, renderer: Renderer::with_fonts(crate::fonts::shared()), styles: None, images: None, texture: None, changes: 0, fading: None }
     }
 
     /// Paint what the outputs show in `state`, filling `rect` of `ui`.
@@ -89,7 +90,8 @@ impl OutputFrame {
             OutputMode::Logo => Content::Logo(state.output_settings.logo.clone().map(SameLogo)),
             OutputMode::Blank => Content::Slide(None, output.live.as_ref().map(|live| live.resolved.clone()).unwrap_or_default()),
             OutputMode::Normal => Content::Slide(
-                output.live.as_ref().map(|live| (live.slide.clone(), Arc::clone(&live.source))),
+                // Chords are shown only on outputs whose chord toggle is on.
+                output.live.as_ref().map(|live| (shown_slide(&live.slide, output.chords.get(self.id)), Arc::clone(&live.source))),
                 output.live.as_ref().map(|live| live.resolved.clone()).unwrap_or_default(),
             ),
         };
@@ -160,6 +162,11 @@ impl OutputFrame {
     }
 }
 
+/// The slide as an output shows it: chords only when that output's toggle is on.
+fn shown_slide(slide: &Slide, chords: bool) -> Slide {
+    if chords { slide.clone() } else { slide.without_chords() }
+}
+
 /// Show the output window. With a `monitor` index it is borderless full screen there; without
 /// one (browser, or no monitor list) it is an ordinary window. Returns true while it stays open.
 ///
@@ -196,6 +203,16 @@ pub fn show_window(
 #[cfg(test)]
 mod tests {
     use super::*;
+    use serviceflow_core::song::Chord;
+
+    #[test]
+    fn an_output_shows_chords_only_when_its_toggle_is_on() {
+        let slide = Slide { lines: vec!["Hi".into()], chords: vec![vec![Chord { offset: 0, text: "G".into() }]], ..Slide::default() };
+        assert!(shown_slide(&slide, true).has_chords());
+        let plain = shown_slide(&slide, false);
+        assert!(!plain.has_chords());
+        assert_eq!(plain.lines, slide.lines);
+    }
 
     #[test]
     fn a_fade_runs_from_nothing_to_everything_over_its_duration() {

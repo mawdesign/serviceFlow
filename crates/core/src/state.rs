@@ -297,9 +297,44 @@ pub struct Output {
     pub mode: OutputMode,
     /// Counts changes of what is shown, so the output can crossfade exactly when one happens.
     pub changes: u64,
+    /// Which outputs show chords (GLOSSARY "Chord line"). All off by default.
+    pub chords: OutputChords,
     /// Blank mode was entered by moving past the last slide (OpenSong's blank between items), so
     /// Previous returns to that last slide rather than going back one.
     pub(crate) blank_after_end: bool,
+}
+
+/// The outputs a slide is shown on, each with its own chord toggle.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub enum OutputId {
+    /// The full-screen output window.
+    Window,
+    /// The small output monitor in the control window.
+    Monitor,
+}
+
+/// Whether each output shows chords. Off by default: the congregation sees only lyrics unless the
+/// operator chooses. Control-window thumbnails and the editor preview always show chords.
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+pub struct OutputChords {
+    pub window: bool,
+    pub monitor: bool,
+}
+
+impl OutputChords {
+    pub fn get(&self, output: OutputId) -> bool {
+        match output {
+            OutputId::Window => self.window,
+            OutputId::Monitor => self.monitor,
+        }
+    }
+
+    pub fn toggle(&mut self, output: OutputId) {
+        match output {
+            OutputId::Window => self.window = !self.window,
+            OutputId::Monitor => self.monitor = !self.monitor,
+        }
+    }
 }
 
 /// A slide that is live. It keeps its own copy, so opening another song does not change it.
