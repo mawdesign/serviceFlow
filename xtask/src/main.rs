@@ -16,8 +16,18 @@ commands:
                   enforce the crate dependency layering (core, storage and opensong may not use
                   UI crates or concrete storage implementations)
   wasm            cargo check --target wasm32-unknown-unknown for the layered crates and the app
-  ci              fmt --check, clippy -D warnings, test, layers, wasm (stops at first failure)
+  browser-test    run the browser storage tests in a headless browser: needs
+                  `wasm-bindgen-test-runner` (same version as wasm-bindgen in Cargo.lock) on PATH
+                  and CHROMEDRIVER, GECKODRIVER or SAFARIDRIVER set to a WebDriver binary
+  ci              fmt --check, clippy -D warnings, test, layers, wasm, browser-test (stops at first
+                  failure; browser-test is skipped when its tools are missing, unless
+                  SERVICEFLOW_REQUIRE_BROWSER_TEST=1)
 ";
+
+/// Packages with tests that need a browser (`wasm-bindgen-test`).
+const BROWSER_TESTED: &[&str] = &["serviceflow-storage-web"];
+const TEST_RUNNER: &str = "wasm-bindgen-test-runner";
+const RUNNER_VAR: &str = "CARGO_TARGET_WASM32_UNKNOWN_UNKNOWN_RUNNER";
 
 fn main() -> ExitCode {
     let args: Vec<String> = std::env::args().skip(1).collect();
@@ -28,6 +38,7 @@ fn main() -> ExitCode {
             _ => Err(format!("bad arguments to `layers`\n\n{USAGE}")),
         },
         Some("wasm") => cmd_wasm(),
+        Some("browser-test") => browser_tools().and_then(|()| cmd_browser_test()),
         Some("ci") => cmd_ci(),
         Some("-h" | "--help" | "help") | None => {
             print!("{USAGE}");
@@ -132,6 +143,45 @@ fn cmd_wasm() -> Result<(), String> {
     run(c, &format!("cargo check --target wasm32-unknown-unknown --keep-going -p {}", set.join(" -p ")))
 }
 
+/// Whether the browser tests can run here: the test runner and a WebDriver.
+fn browser_tools() -> Result<(), String> {
+    let on_path = |name: &str| {
+        std::env::var_os("PATH")
+            .is_some_and(|path| std::env::split_paths(&path).any(|dir| dir.join(name).is_file() || dir.join(format!("{name}.exe")).is_file()))
+    };
+    if std::env::var_os(RUNNER_VAR).is_none() && !on_path(TEST_RUNNER) {
+        return Err(format!("`{TEST_RUNNER}` is not on PATH (install wasm-bindgen-cli at the wasm-bindgen version in Cargo.lock)"));
+    }
+    if !["CHROMEDRIVER", "GECKODRIVER", "SAFARIDRIVER"].iter().any(|v| std::env::var_os(v).is_some()) {
+        return Err("set CHROMEDRIVER, GECKODRIVER or SAFARIDRIVER to a WebDriver binary".into());
+    }
+    Ok(())
+}
+
+fn cmd_browser_test() -> Result<(), String> {
+    let mut c = cargo();
+    c.args(["test", "--target", "wasm32-unknown-unknown"]);
+    for pkg in BROWSER_TESTED {
+        c.args(["-p", pkg]);
+    }
+    if std::env::var_os(RUNNER_VAR).is_none() {
+        c.env(RUNNER_VAR, TEST_RUNNER);
+    }
+    run(c, &format!("cargo test --target wasm32-unknown-unknown -p {} (in a headless browser)", BROWSER_TESTED.join(" -p ")))
+}
+
+/// The browser tests in `ci`: skipped with a note when the tools are missing, unless required.
+fn ci_browser_test() -> Result<(), String> {
+    match browser_tools() {
+        Ok(()) => cmd_browser_test(),
+        Err(why) if std::env::var("SERVICEFLOW_REQUIRE_BROWSER_TEST").is_ok_and(|v| v == "1") => Err(why),
+        Err(why) => {
+            eprintln!("skipped: {why}");
+            Ok(())
+        }
+    }
+}
+
 fn cargo_step(args: &'static [&'static str]) -> impl Fn() -> Result<(), String> {
     move || {
         let mut c = cargo();
@@ -148,6 +198,7 @@ fn cmd_ci() -> Result<(), String> {
         ("test", Box::new(cargo_step(&["test", "--workspace"]))),
         ("layers", Box::new(|| cmd_layers(&root().join("Cargo.toml")))),
         ("wasm", Box::new(cmd_wasm)),
+        ("browser-test", Box::new(ci_browser_test)),
     ];
     for (i, (name, f)) in steps.iter().enumerate() {
         eprintln!("\n=== ci: {name} ===");

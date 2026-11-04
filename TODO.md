@@ -134,8 +134,33 @@ cannot cover them.
   deploy.
 - [ ] **macOS universal builds (#2).** DeckCraft has no unsigned universal binary recipe; build
   both Intel and Apple silicon.
-- [ ] **Browser build (#26).** The bundled fonts add about 11 MB (8 MB of it Noto Sans SC). Load
-  the CJK fonts lazily in the browser.
+- [ ] **Browser build size (#26).** The CJK faces (8.4 MB) are no longer compiled into the wasm;
+  the other bundled faces (about 2.5 MB) still are. Check the download size and first-load time of
+  the Pages build on a slow connection.
+- [ ] **Browser tests on CI (#26).** The `wasm` job now runs the storage contract in headless Chrome
+  and Firefox (`cargo xtask browser-test`). Only Chrome was run locally; check the Firefox leg and
+  that the runner download matches the wasm-bindgen version in `Cargo.lock`.
+
+### Browser (#26)
+- [ ] **A real OpenSong folder in Chrome or Edge.** Open a data root with "Open OpenSong folder…",
+  edit and save songs and sets, and check OpenSong reads them. Edit files in OpenSong while the
+  page is open: changes should appear within about 4 seconds (polling every 2 s, two scans must
+  agree). Check the permission prompts, and a folder on a network share or sync folder.
+- [ ] **Firefox and Safari.** Browser storage opens at once, with the banner. Import a zip of a real
+  OpenSong folder (made by Finder, Windows Explorer and 7-Zip), present from it, export it and open
+  the export in OpenSong. Safari only recently gained `createWritable()` for OPFS on the main
+  thread: if writing fails there, the storage needs a worker with `createSyncAccessHandle`.
+- [ ] **Browser storage survives.** Close and reopen the browser; check the library is still there,
+  and whether the browser granted persistent storage (`navigator.storage.persist`).
+- [ ] **Full-screen output.** "Show output" on a projector or second screen dragged into place:
+  the page goes full screen, keys and a clicker work, Escape closes the output, the pointer hides
+  and "Close output" appears when it moves. Check browsers that refuse full screen (iPad Safari).
+- [ ] **Lazy CJK fonts.** Open a song with Chinese or Korean text on a slow connection (DevTools
+  throttling): blank placeholders and "Loading the fonts…" until the face arrives, then the slides
+  redraw. The control window's own text (library titles) has no CJK font in the browser and shows
+  boxes; feeding the fetched face to egui would fix that.
+- [ ] **Folder remembered between visits.** Chromium can keep the folder handle (IndexedDB) and ask
+  again for permission on the next visit; not done, so the folder is picked on every visit.
 
 ## Decisions waiting for the operator
 

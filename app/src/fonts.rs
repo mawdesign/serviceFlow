@@ -17,6 +17,26 @@ pub fn shared() -> Fonts {
     FONTS.get_or_init(create).clone()
 }
 
+/// A line in the control window while slides show placeholders for a face that is still being
+/// fetched (the browser loads the CJK faces only when text needs them), or that could not be.
+pub fn status(ui: &mut egui::Ui) {
+    let fonts = shared();
+    if fonts.waiting() {
+        ui.horizontal(|ui| {
+            ui.spinner();
+            ui.label(crate::tl!("Loading the fonts for Chinese, Japanese and Korean text…"));
+        });
+    }
+    if !fonts.failed().is_empty() {
+        ui.colored_label(
+            ui.visuals().error_fg_color,
+            crate::tl!(
+                "The fonts for Chinese, Japanese and Korean text could not be loaded, so that text is left blank. Reload the page to try again."
+            ),
+        );
+    }
+}
+
 /// Commands for the substitutions made since the last call.
 pub fn substitution_commands() -> Vec<Command> {
     shared().take_substitutions().into_iter().map(|s| Command::FontSubstituted { requested: s.requested, used: s.used }).collect()
