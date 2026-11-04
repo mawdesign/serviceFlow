@@ -26,8 +26,8 @@ fn custom_slides_show_as_thumbnails_with_their_text() {
     harness.run();
     harness.get_by_label("Good morning\nand welcome");
     harness.get_by_label("-= Notices =-\nMorning tea after the service");
-    harness.get_by_label("Read slowly.");
-    // A custom item is not a song file: there is nothing to edit here.
+    assert_eq!(harness.get(by().role(Role::MultilineTextInput).label("Notes")).value().as_deref(), Some("Read slowly."));
+    // A custom item is not a song file: there is nothing to edit here (it is edited in the Set panel).
     assert!(harness.query_by_label("Edit song").is_none());
 }
 

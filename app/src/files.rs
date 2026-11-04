@@ -80,6 +80,7 @@ fn file_name(file: &PlanFile) -> String {
     match file {
         PlanFile::Song(id) => format!("Songs/{id}"),
         PlanFile::Set(id) => format!("Sets/{id}"),
+        PlanFile::Sidecar(id) => format!("{} Sets/{id}", tl!("serviceFlow's own settings for")),
     }
 }
 
@@ -89,13 +90,17 @@ fn action_text(action: &PlanAction) -> String {
         PlanAction::RenameSong { from, to } => format!("{} “{from}” → “{to}”", tl!("Rename song file")),
         PlanAction::DeleteSong(id) => format!("{} “{id}”", tl!("Delete song")),
         PlanAction::NewSong(id) => format!("{} “{id}”", tl!("New song")),
+        PlanAction::SaveSetAs { from, to } => format!("{} “{from}” {} “{to}”", tl!("Save set"), tl!("as")),
+        PlanAction::DuplicateSet { from, to } => format!("{} “{from}” {} “{to}”", tl!("Duplicate set"), tl!("as")),
     }
 }
 
 fn step_text(step: &PlanStep) -> String {
     let file = file_name(&step.file());
     match step {
+        PlanStep::WriteSet { expect: serviceflow_core::ids::Expect::Absent, .. } => format!("{file}: {}", tl!("create")),
         PlanStep::WriteSet { .. } => format!("{file}: {}", tl!("update the song item")),
+        PlanStep::WriteSidecar { .. } => format!("{file}: {}", tl!("copy")),
         PlanStep::WriteSong { expect: serviceflow_core::ids::Expect::Absent, .. } => format!("{file}: {}", tl!("create")),
         PlanStep::WriteSong { .. } => format!("{file}: {}", tl!("save in canonical form")),
         PlanStep::RenameSong { to, .. } => format!("{file}: {} Songs/{to}", tl!("move to")),

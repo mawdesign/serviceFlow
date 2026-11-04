@@ -2962,6 +2962,7 @@ version = "0.1.0"
 dependencies = [
  "futures",
  "serviceflow-core",
+ "serviceflow-opensong",
  "serviceflow-runtime",
  "serviceflow-storage",
  "serviceflow-storage-memory",

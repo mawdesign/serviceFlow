@@ -43,6 +43,13 @@ Run the real OpenSong (or read its source, notes in `.sf-notes/opensong.md`) and
   encodings.
 - [ ] **Key bindings (#6, #17).** B (black), W (blank), L (logo) and the section keys are our
   choices. Compare them with OpenSong's keys and decide what to keep.
+- [ ] **Items written by serviceFlow (#22).** New and edited custom, image and style items are
+  written from the model (`<notes/>`, `keep_aspect="false"`, `resize="screen"`, a pushed style
+  with every attribute). Check OpenSong reads them as written, and what it does with an image
+  item that has `resize` but no `seconds`/`loop`.
+- [ ] **Pushed style units (#22).** A new style item copies the default style and writes it back
+  in OpenSong's units (sizes ÷ 3, margins ÷ 3 minus the border, rounded to 2 decimals). Check a
+  pushed style looks the same in OpenSong as the default style it copied.
 
 ## To test
 
@@ -81,6 +88,10 @@ cannot cover them.
   when it opens. Watch memory with a set of big photos.
 - [ ] **Sidecars (#23).** Language mode is restored after reopening a set. Rename a set and check
   what happens to its sidecar (it is not moved yet).
+- [ ] **Set editing on a real library (#22).** Build a set by dragging songs in, reorder by
+  dragging, add custom/image/style items, save, and open it in OpenSong. Also save a set while
+  OpenSong has just changed it, and check the conflict choices. Dragging was only tested with
+  synthetic pointer events.
 
 ### Build and release
 - [ ] **CI on Windows and Linux (#2).** Those legs are written but have not run.
@@ -96,3 +107,8 @@ cannot cover them.
 - [ ] **Change-plan confirmation (#20).** A save that renames tags only asks for confirmation when
   at least one set changes. If no set refers to the song it saves directly, as #19 does. Keep
   that, or always ask?
+- [ ] **Unsaved set edits (#22).** Opening another set drops the open set's unsaved edits without
+  asking (as before #22). Should it ask first, or keep the edits as a draft like songs?
+- [ ] **Duplicate vs save as (#22).** "Duplicate set…" copies the set as saved and leaves the open
+  set (and its edits) open; "Save set as…" writes the edits under the new name and switches to
+  it. A plan is shown only when the set has a sidecar to copy. Is that the split operators expect?
