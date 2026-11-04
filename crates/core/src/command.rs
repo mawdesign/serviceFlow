@@ -196,6 +196,36 @@ pub enum Command {
         id: SongId,
         choice: ConflictChoice,
     },
+    /// Storage reports that these documents were created, changed or removed by something other
+    /// than this engine (OpenSong, another instance, a sync process). Sent by the runtime from
+    /// storage's change stream, already debounced. The library and search index follow, an open
+    /// clean document reloads, an open document with unsaved edits is marked as changed on disk
+    /// (ADR-0001).
+    DocumentsChanged {
+        songs: Vec<SongId>,
+        sets: Vec<SetId>,
+    },
+    /// Storage result of [`Effect::ReloadSong`]: the song as the file is now.
+    SongReloaded {
+        id: SongId,
+        file: Reloaded<Song>,
+    },
+    /// Storage result of [`Effect::ReloadSet`]: the set as the file is now.
+    SetReloaded {
+        id: SetId,
+        file: Reloaded<Set>,
+    },
+}
+
+/// A document read again after storage announced a change.
+#[derive(Debug, Clone, PartialEq)]
+pub enum Reloaded<T> {
+    /// The file no longer exists.
+    Gone,
+    /// The file exists but could not be read or parsed (technical detail).
+    Unreadable(String),
+    /// The document, with the hash of the bytes it was parsed from.
+    Read(Arc<T>, ContentHash),
 }
 
 /// What to do when a song's file changed on disk since it was read and the song has edits.
@@ -254,6 +284,10 @@ impl Command {
 /// IO the engine asks for. Each effect ends with exactly one result command.
 #[derive(Debug, Clone, PartialEq)]
 pub enum Effect {
+    /// Read a song again after it changed on disk; answer with [`Command::SongReloaded`].
+    ReloadSong(SongId),
+    /// Read a set again after it changed on disk; answer with [`Command::SetReloaded`].
+    ReloadSet(SetId),
     /// Write `song` in canonical form to song `id` if the file meets `expect`; with `as_copy`,
     /// to the first free copy name of `id` ([`SongId::copy`]) instead. Answer with
     /// [`Command::SongSaved`], [`Command::SongSaveConflict`] (the file changed or vanished) or

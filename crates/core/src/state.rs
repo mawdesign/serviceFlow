@@ -65,6 +65,11 @@ pub struct OpenSet {
     pub missing: Vec<SongId>,
     /// The song item being relinked: the library search is for its replacement.
     pub relinking: Option<usize>,
+    /// The set has changes that are not saved (a relinked item).
+    pub modified: bool,
+    /// The set's file changed on disk while it has unsaved changes, so it was not reloaded:
+    /// opening the set again takes the file's version.
+    pub changed_on_disk: bool,
     /// What to send live once the selected item's song has loaded (moving on from the end of
     /// the previous item).
     pub(crate) pending: Option<Pending>,
@@ -79,7 +84,7 @@ pub(crate) enum Pending {
 
 impl OpenSet {
     pub(crate) fn new(id: SetId, set: Arc<Set>) -> Self {
-        Self { id, set, selected: None, missing: Vec::new(), relinking: None, pending: None }
+        Self { id, set, selected: None, missing: Vec::new(), relinking: None, modified: false, changed_on_disk: false, pending: None }
     }
 
     /// Whether item `index` is a song item whose song is not in the library.

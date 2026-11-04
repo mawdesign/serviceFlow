@@ -5,6 +5,7 @@ use std::sync::Arc;
 use crate::command::{Command, Effect, ImportTrigger};
 
 mod edit;
+mod external;
 mod save;
 mod sets;
 
@@ -60,7 +61,15 @@ fn step(state: &mut State, command: Command) -> Vec<Effect> {
                     // An edited song stays as edited. A draft without edits whose file has
                     // changed since is stale: the file wins (ADR-0001).
                     let file = match state.drafts.get(&id) {
-                        Some(draft) if draft.is_modified() || draft.hash == hash => Arc::clone(&draft.song),
+                        Some(draft) if draft.is_modified() || draft.hash == hash => {
+                            // Edits over a file that has since changed wait for the operator.
+                            let stale = draft.hash != hash;
+                            let song = Arc::clone(&draft.song);
+                            if stale {
+                                external::mark_changed_on_disk(state, &id);
+                            }
+                            song
+                        }
                         _ => {
                             state.drafts.remove(&id);
                             song
@@ -236,6 +245,9 @@ fn step(state: &mut State, command: Command) -> Vec<Effect> {
             | Command::StartRelink(_)
             | Command::CancelRelink
             | Command::RelinkItem { .. }) => sets::apply(state, command),
+            command @ (Command::DocumentsChanged { .. } | Command::SongReloaded { .. } | Command::SetReloaded { .. }) => {
+                external::apply(state, command)
+            }
             command @ (Command::SaveSong(_)
             | Command::SongSaved { .. }
             | Command::SongSaveConflict { .. }

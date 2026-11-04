@@ -148,6 +148,11 @@ impl SearchIndex {
         self.entries.insert(id.clone(), Entry::from_song(id, song));
     }
 
+    /// Forget a song that no longer exists.
+    pub fn remove(&mut self, id: &SongId) {
+        self.entries.remove(id);
+    }
+
     /// The title to show for a song: its title once read, else its filename.
     pub fn title<'a>(&'a self, id: &'a SongId) -> &'a str {
         self.entries.get(id).map(|e| e.title.as_str()).unwrap_or_else(|| filename(id))

@@ -171,6 +171,9 @@ impl<S: Storage + 'static> ControlWindow<S> {
         if !self.driver.is_idle() {
             // Storage results arrive outside frames; keep pumping until they are in.
             ui.ctx().request_repaint();
+        } else {
+            // Changes made on disk by other programs arrive on their own: look again soon.
+            ui.ctx().request_repaint_after(std::time::Duration::from_millis(250));
         }
         // While the shortcuts dialog is open it records the presses, so they run nothing.
         let mut commands = if self.shortcuts_dialog.is_some() { Vec::new() } else { self.shortcuts.commands(ui.ctx()) };
