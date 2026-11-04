@@ -20,6 +20,21 @@ impl SongId {
     }
 }
 
+impl SongId {
+    /// The id of copy `n` (from 1) of this song, beside it: `Hymns/Abide (copy)`, then
+    /// `Hymns/Abide (copy 2)`. A `.xml` extension stays at the end.
+    pub fn copy(&self, n: usize) -> SongId {
+        let suffix = if n <= 1 { " (copy)".to_owned() } else { format!(" (copy {n})") };
+        let (dir, name) = self.0.rsplit_once('/').map_or(("", self.0.as_str()), |(d, n)| (d, n));
+        let (stem, ext) = match name.len().checked_sub(4).filter(|&i| name.is_char_boundary(i)) {
+            Some(i) if name[i..].eq_ignore_ascii_case(".xml") && i > 0 => (&name[..i], &name[i..]),
+            _ => (name, ""),
+        };
+        let file = format!("{stem}{suffix}{ext}");
+        SongId(if dir.is_empty() { file } else { format!("{dir}/{file}") })
+    }
+}
+
 impl SetId {
     pub fn new(name: impl Into<String>) -> Self {
         Self(name.into())

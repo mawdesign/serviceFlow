@@ -46,6 +46,12 @@ pub struct State {
     pub set: Option<OpenSet>,
     /// A set that has been asked for and is still loading.
     pub loading_set: Option<SetId>,
+    /// Songs whose save found the file changed on disk since it was read. The operator chooses
+    /// what happens ([`Command::ResolveSaveConflict`](crate::command::Command)); nothing is
+    /// written until then.
+    pub save_conflicts: Vec<SongId>,
+    /// Songs being saved.
+    pub saving: Vec<SongId>,
 }
 
 /// The open set and where the operator is in it.
@@ -98,12 +104,21 @@ pub enum Problem {
     SetUnreadable { id: SetId, error: String },
     /// A settings file under `Settings/` could not be imported.
     SettingsUnreadable { file: String, error: String },
+    /// A song could not be saved. Its edits are kept.
+    SongUnsaved { id: SongId, error: String },
+    /// A song was saved, but its section tags were left as written: renaming them to the
+    /// canonical form would have made two sections one (ADR-0002).
+    TagsNotRenamed { id: SongId },
 }
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct OpenSong {
     pub id: SongId,
+    /// The song shown: the file's song (or its draft), with a set item's presentation order.
     pub song: Arc<Song>,
+    /// The song as in its file (or its draft), before any set item's presentation order. Edits
+    /// and saves start from this, so an item's order never ends up in the song file.
+    pub file: Arc<Song>,
     /// Hash of the file bytes this song was parsed from, recorded on read (conflict detection).
     pub hash: ContentHash,
     /// The slides of the control window's grid: the first [`in_flow`](Self::in_flow) follow the
@@ -118,6 +133,12 @@ impl State {
     /// The open song's edits and undo history, once it has been edited.
     pub fn draft(&self) -> Option<&Draft> {
         self.drafts.get(&self.song.as_ref()?.id)
+    }
+
+    /// Whether the open song's last save found its file changed on disk (waiting for the
+    /// operator to choose).
+    pub fn has_save_conflict(&self) -> bool {
+        self.song.as_ref().is_some_and(|open| self.save_conflicts.contains(&open.id))
     }
 
     /// How slide `slide` of song `id` (opened as `song`) is drawn: the style by the precedence of
@@ -147,7 +168,12 @@ impl OpenSong {
     /// Build the grid for `song` with these options.
     pub fn new(id: SongId, song: Arc<Song>, hash: ContentHash, options: &SlideOptions) -> Self {
         let (slides, in_flow) = Self::grid(&song, options);
-        Self { id, song, hash, slides, in_flow }
+        Self { id, file: Arc::clone(&song), song, hash, slides, in_flow }
+    }
+
+    /// Rebuild the grid with these options, keeping everything else.
+    pub fn regrid(&mut self, options: &SlideOptions) {
+        (self.slides, self.in_flow) = Self::grid(&self.song, options);
     }
 
     /// A song's grid: its flow slides, then the greyed ones, and how many are in the flow.

@@ -5,6 +5,7 @@
 
 use std::sync::Arc;
 
+use crate::ids::ContentHash;
 use crate::lyrics;
 use crate::song::Song;
 
@@ -131,6 +132,11 @@ impl SongEdit {
 pub struct Draft {
     /// The song with its edits applied.
     pub song: Arc<Song>,
+    /// The song as its file holds it (as read, or as last saved).
+    pub base: Arc<Song>,
+    /// The hash of the file's bytes [`base`](Self::base) was read from or saved as. A save
+    /// writes only if the file still has it.
+    pub hash: ContentHash,
     undo: Vec<Arc<Song>>,
     redo: Vec<Arc<Song>>,
     /// The thing the last edit changed, while edits to it are still joined into one step.
@@ -138,13 +144,23 @@ pub struct Draft {
 }
 
 impl Draft {
-    pub(crate) fn new(song: Arc<Song>) -> Self {
-        Self { song, undo: Vec::new(), redo: Vec::new(), group: None }
+    pub(crate) fn new(song: Arc<Song>, hash: ContentHash) -> Self {
+        Self { base: Arc::clone(&song), song, hash, undo: Vec::new(), redo: Vec::new(), group: None }
     }
 
-    /// Whether the song differs from the one the edits started from.
+    /// Whether the song differs from its file (so a save would write it). Undoing every edit
+    /// since the last save makes it unmodified again.
     pub fn is_modified(&self) -> bool {
-        !self.undo.is_empty()
+        !Arc::ptr_eq(&self.song, &self.base) && *self.song != *self.base
+    }
+
+    /// The song was saved: the file now holds `song` (as read back) with this hash. The undo
+    /// history stays.
+    pub(crate) fn saved(&mut self, song: Arc<Song>, hash: ContentHash) {
+        self.base = Arc::clone(&song);
+        self.song = song;
+        self.hash = hash;
+        self.group = None;
     }
 
     pub fn can_undo(&self) -> bool {

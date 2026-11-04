@@ -8,7 +8,7 @@
 use std::sync::Arc;
 
 use crate::edit::SongEdit;
-use crate::ids::{ContentHash, SetId, SongId};
+use crate::ids::{ContentHash, Expect, SetId, SongId};
 use crate::output::{OutputSettings, SlideColors};
 use crate::set::Set;
 use crate::song::{LanguageMode, SlideOptions, Song};
@@ -168,6 +168,45 @@ pub enum Command {
         item: usize,
         song: SongId,
     },
+    /// Save the song's edits in canonical form (ADR-0002). Nothing is written when the song has
+    /// no edits, or while an earlier save waits for a conflict to be resolved. The file is only
+    /// written if it is unchanged since it was read.
+    SaveSong(SongId),
+    /// Storage result: the edits of song `id` were written to `saved_as` (`id` itself, or a new
+    /// copy), which now holds `song` (as read back) with `hash`. `tags_kept`: the tags were not
+    /// renamed because they would have collided.
+    SongSaved {
+        id: SongId,
+        saved_as: SongId,
+        song: Arc<Song>,
+        hash: ContentHash,
+        tags_kept: bool,
+    },
+    /// Storage result: the song's file changed on disk since it was read, so nothing was written.
+    SongSaveConflict {
+        id: SongId,
+    },
+    /// Storage result: the song could not be written.
+    SongSaveFailed {
+        id: SongId,
+        error: String,
+    },
+    /// The operator's answer to a save conflict of song `id`.
+    ResolveSaveConflict {
+        id: SongId,
+        choice: ConflictChoice,
+    },
+}
+
+/// What to do when a song's file changed on disk since it was read and the song has edits.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum ConflictChoice {
+    /// Write the edits over the file anyway.
+    Overwrite,
+    /// Drop the edits and read the file again.
+    Reload,
+    /// Write the edits to a new file beside it (`<name> (copy)`), leaving the file alone.
+    SaveAsCopy,
 }
 
 /// A settings file that could not be imported.
@@ -213,8 +252,18 @@ impl Command {
 }
 
 /// IO the engine asks for. Each effect ends with exactly one result command.
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq)]
 pub enum Effect {
+    /// Write `song` in canonical form to song `id` if the file meets `expect`; with `as_copy`,
+    /// to the first free copy name of `id` ([`SongId::copy`]) instead. Answer with
+    /// [`Command::SongSaved`], [`Command::SongSaveConflict`] (the file changed or vanished) or
+    /// [`Command::SongSaveFailed`].
+    WriteSong {
+        id: SongId,
+        song: Arc<Song>,
+        expect: Expect,
+        as_copy: bool,
+    },
     /// Read a file of `Backgrounds/`; answer with [`Command::ImageLoaded`].
     LoadImage(String),
     /// Read and parse `Settings/PresentSettings`; answer with [`Command::StylesImported`] or

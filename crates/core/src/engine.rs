@@ -5,11 +5,14 @@ use std::sync::Arc;
 use crate::command::{Command, Effect, ImportTrigger};
 
 mod edit;
+mod save;
 mod sets;
 
 use crate::output::InitialMode;
 use crate::resolve::{self, ImageFile, ResolvedStyle};
 use crate::search::SearchIndex;
+use crate::ids::{ContentHash, SongId};
+use crate::song::Song;
 use crate::state::{Library, LiveSlide, OpenSong, OutputMode, Problem, State};
 use crate::style::ImageSource;
 
@@ -54,12 +57,16 @@ fn step(state: &mut State, command: Command) -> Vec<Effect> {
                 // A result for a song that is no longer wanted (another was opened since) is dropped.
                 if state.loading.as_ref() == Some(&id) {
                     state.loading = None;
-                    // An edited song stays as edited (nothing is saved yet).
-                    let song = match state.drafts.get(&id) {
-                        Some(draft) => Arc::clone(&draft.song),
-                        None => sets::with_item_order(state, &id, song),
+                    // An edited song stays as edited. A draft without edits whose file has
+                    // changed since is stale: the file wins (ADR-0001).
+                    let file = match state.drafts.get(&id) {
+                        Some(draft) if draft.is_modified() || draft.hash == hash => Arc::clone(&draft.song),
+                        _ => {
+                            state.drafts.remove(&id);
+                            song
+                        }
                     };
-                    state.song = Some(OpenSong::new(id, song, hash, &state.slide_options));
+                    show_song(state, id, file, hash);
                     sets::go_pending(state);
                 }
                 Vec::new()
@@ -186,7 +193,7 @@ fn step(state: &mut State, command: Command) -> Vec<Effect> {
             Command::SetSlideOptions(options) => {
                 state.slide_options = options;
                 if let Some(open) = &mut state.song {
-                    *open = OpenSong::new(open.id.clone(), Arc::clone(&open.song), open.hash, &options);
+                    open.regrid(&options);
                 }
                 Vec::new()
             }
@@ -194,7 +201,7 @@ fn step(state: &mut State, command: Command) -> Vec<Effect> {
                 state.slide_options.language = language;
                 let options = state.slide_options;
                 if let Some(open) = &mut state.song {
-                    *open = OpenSong::new(open.id.clone(), Arc::clone(&open.song), open.hash, &options);
+                    open.regrid(&options);
                 }
                 // The live slide is redrawn in the new mode, wherever it came from.
                 if let Some(live) = &mut state.output.live
@@ -229,6 +236,11 @@ fn step(state: &mut State, command: Command) -> Vec<Effect> {
             | Command::StartRelink(_)
             | Command::CancelRelink
             | Command::RelinkItem { .. }) => sets::apply(state, command),
+            command @ (Command::SaveSong(_)
+            | Command::SongSaved { .. }
+            | Command::SongSaveConflict { .. }
+            | Command::SongSaveFailed { .. }
+            | Command::ResolveSaveConflict { .. }) => save::apply(state, command),
             Command::ToggleLogo => {
                 toggle(state, OutputMode::Logo);
                 Vec::new()
@@ -276,6 +288,15 @@ fn step(state: &mut State, command: Command) -> Vec<Effect> {
             }
         }
     }
+}
+
+/// Make `file` (a song as in its file, or its draft) the open song, shown with the selected set
+/// item's presentation order when it is that item's song.
+fn show_song(state: &mut State, id: SongId, file: Arc<Song>, hash: ContentHash) {
+    let shown = sets::with_item_order(state, &id, Arc::clone(&file));
+    let mut open = OpenSong::new(id, shown, hash, &state.slide_options);
+    open.file = file;
+    state.song = Some(open);
 }
 
 /// Ask for the background image files the resolved in use need and that nobody has asked for yet.
