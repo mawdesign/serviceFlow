@@ -13,8 +13,8 @@ use crate::ids::{ContentHash, SongId};
 use crate::output::InitialMode;
 use crate::resolve::{self, ImageFile, ResolvedStyle};
 use crate::search::SearchIndex;
-use crate::song::Song;
 use crate::set::ItemKind;
+use crate::song::Song;
 use crate::state::{Library, LiveSlide, OpenSong, OutputMode, Problem, State};
 use crate::style::ImageSource;
 

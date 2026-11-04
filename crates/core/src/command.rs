@@ -139,11 +139,18 @@ pub enum Command {
     },
     /// Start looking for a file for picture `slide` of image item `item` (selects the item and
     /// lists `Backgrounds/`): the operator then chooses one with [`Command::RelinkImage`].
-    FindImage { item: usize, slide: usize },
+    FindImage {
+        item: usize,
+        slide: usize,
+    },
     CancelFindImage,
     /// Point picture `slide` of image item `item` at `file` under `Backgrounds/`. Changes the open
     /// set in memory only (saving sets is a later ticket).
-    RelinkImage { item: usize, slide: usize, file: String },
+    RelinkImage {
+        item: usize,
+        slide: usize,
+        file: String,
+    },
     /// Storage result: the picture files in `Backgrounds/`.
     BackgroundsListed(Vec<String>),
     /// Open a set. The current one stays open if this one cannot be read.

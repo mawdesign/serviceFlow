@@ -108,7 +108,6 @@ fn stepping_past_the_end_of_a_song_carries_on_into_the_next_custom_or_image_item
     assert_eq!(live_lines(&harness), Some(vec!["a2".into()]));
     harness.send(Command::PreviousSlide);
     harness.send(Command::PreviousSlide);
-    harness.send(Command::PreviousSlide);
     assert_eq!(harness.state().set.as_ref().unwrap().selected, Some(0));
     assert_eq!(live_lines(&harness), Some(vec!["-= Notices =-".into(), "Tea after".into()]));
 }

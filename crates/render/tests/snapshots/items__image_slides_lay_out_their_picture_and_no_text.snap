@@ -1,0 +1,12 @@
+---
+source: crates/render/tests/items.rs
+expression: "layout(&item(\"Notices and Pictures\", 1), Size { width: 1920, height: 1080 })"
+---
+# slide 1 (1)
+frame 1920x1080 background Rgba { r: 0, g: 0, b: 0, a: 255 }
+image 16x9 Contain in (0.0, 0.0) size 1920.0x1080.0
+box Body at (54.0, 54.0) size 1812.0x972.0
+
+# slide 2 (2)
+frame 1920x1080 background Rgba { r: 0, g: 0, b: 0, a: 255 }
+box Body at (54.0, 54.0) size 1812.0x972.0

@@ -5,12 +5,12 @@ use std::sync::Arc;
 use super::{go_live, refresh_results};
 use crate::command::{Command, Effect};
 use crate::ids::SongId;
-use crate::search::{category, filename};
 use crate::output::SlideKind;
+use crate::search::{category, filename};
 use crate::set::{ItemKind, SetItem};
 use crate::song::{Slide, Song, SongBackgrounds, VerseBackground};
-use crate::style::Captions;
 use crate::state::{OpenSet, OpenSong, Pending, Problem, State};
+use crate::style::Captions;
 
 pub(super) fn apply(state: &mut State, command: Command) -> Vec<Effect> {
     match command {

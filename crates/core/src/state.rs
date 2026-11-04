@@ -6,12 +6,12 @@ use std::sync::Arc;
 
 use crate::edit::Draft;
 use crate::ids::{ContentHash, SetId, SongId};
+use crate::output::SlideKind;
 use crate::output::{OutputSettings, SlideColors};
 use crate::plan::{ChangePlan, PlanAction, PlanFailure, PlanRefusal, PlanRequest};
 use crate::resolve::{self, ImageFile, Images, ResolvedStyle};
 use crate::search::SearchIndex;
 use crate::set::{ItemKind, Set};
-use crate::output::SlideKind;
 use crate::song::{Slide, SlideOptions, Song};
 use crate::style::{ImageSource, Styles};
 
