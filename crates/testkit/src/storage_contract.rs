@@ -8,7 +8,8 @@
 //! ```
 //!
 //! Each check is a public `async fn` here taking the storage under test; the macro wraps every
-//! one in a `#[test]`. To add a check: write the `async fn`, then add its name to the list in
+//! one in a `#[test]` (or, with `storage_contract!(browser: <future>)`, a `#[wasm_bindgen_test]`
+//! run in a headless browser by `cargo xtask browser-test`). To add a check: write the `async fn`, then add its name to the list in
 //! [`storage_contract!`](crate::storage_contract).
 
 use std::time::{Duration, Instant};
@@ -353,8 +354,17 @@ pub async fn sets_can_be_renamed_and_deleted(storage: impl Storage) {
 /// Generate one `#[test]` per contract check, each given a fresh storage from `$make`.
 #[macro_export]
 macro_rules! storage_contract {
+    // In a browser (`wasm-bindgen-test`): `$make` is a future giving a fresh, empty storage. The
+    // calling crate needs `wasm-bindgen-test` as a dev-dependency. The outside checks are left
+    // out: they block the thread while waiting, which a browser cannot.
+    (browser: $make:expr) => {
+        $crate::storage_contract!(@checks browser $make);
+    };
     ($make:expr) => {
-        $crate::storage_contract!(@tests $make;
+        $crate::storage_contract!(@checks sync $make);
+    };
+    (@checks $mode:ident $make:expr) => {
+        $crate::storage_contract!(@tests $mode $make;
             a_written_song_reads_back_with_the_same_bytes_and_hash,
             a_write_based_on_the_current_hash_replaces_the_song,
             a_write_based_on_a_hash_of_a_removed_song_is_a_conflict,
@@ -407,7 +417,7 @@ macro_rules! storage_contract {
             }
         )*
     };
-    (@tests $make:expr; $($check:ident),* $(,)?) => {
+    (@tests sync $make:expr; $($check:ident),* $(,)?) => {
         mod storage_contract {
             #[allow(unused_imports)]
             use super::*;
@@ -415,6 +425,18 @@ macro_rules! storage_contract {
                 #[test]
                 fn $check() {
                     $crate::block_on($crate::storage_contract::$check($make));
+                }
+            )*
+        }
+    };
+    (@tests browser $make:expr; $($check:ident),* $(,)?) => {
+        mod storage_contract {
+            #[allow(unused_imports)]
+            use super::*;
+            $(
+                #[wasm_bindgen_test::wasm_bindgen_test]
+                async fn $check() {
+                    $crate::storage_contract::$check($make.await).await;
                 }
             )*
         }

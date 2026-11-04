@@ -17,8 +17,8 @@ pub fn color_image(image: &Image) -> egui::ColorImage {
 }
 
 /// What the thumbnails were drawn from: the slides, how each is styled, the styles and background
-/// images, and the size.
-type Key = (Vec<(Slide, ResolvedStyle)>, Arc<Styles>, Arc<Images>, Size);
+/// images, the size, and the fonts' generation (a lazy face arriving redraws them).
+type Key = (Vec<(Slide, ResolvedStyle)>, Arc<Styles>, Arc<Images>, Size, u64);
 
 /// The thumbnails of the open song.
 pub struct Thumbnails {
@@ -40,7 +40,8 @@ impl Thumbnails {
         let Some(open) = &state.song else { return &[] };
         let resolved: Vec<(Slide, ResolvedStyle)> =
             open.slides.iter().map(|slide| (slide.clone(), state.resolved_of(&open.id, &open.song, slide))).collect();
-        let fresh = matches!(&self.key, Some((slides, st, im, s)) if *slides == resolved && Arc::ptr_eq(st, &state.styles) && Arc::ptr_eq(im, &state.images) && *s == size);
+        let fonts = self.renderer.fonts().generation();
+        let fresh = matches!(&self.key, Some((slides, st, im, s, f)) if *slides == resolved && Arc::ptr_eq(st, &state.styles) && Arc::ptr_eq(im, &state.images) && *s == size && *f == fonts);
         if !fresh {
             self.textures = resolved
                 .iter()
@@ -52,7 +53,7 @@ impl Thumbnails {
                     ctx.load_texture(format!("slide thumbnail {}", i + 1), color_image(&image), egui::TextureOptions::LINEAR)
                 })
                 .collect();
-            self.key = Some((resolved, Arc::clone(&state.styles), Arc::clone(&state.images), size));
+            self.key = Some((resolved, Arc::clone(&state.styles), Arc::clone(&state.images), size, fonts));
         }
         &self.textures
     }

@@ -102,6 +102,19 @@ jobs:
           save-if: ${{ github.ref == 'refs/heads/main' }}
       - name: cargo check for wasm32
         run: cargo xtask wasm
+      - name: Install wasm-bindgen-test-runner (the wasm-bindgen version in Cargo.lock)
+        run: |
+          version=$(awk '/^name = "wasm-bindgen"$/ { getline; gsub(/version = |"/, ""); print; exit }' Cargo.lock)
+          mkdir -p "$HOME/.local/bin"
+          curl -sSfL "https://github.com/wasm-bindgen/wasm-bindgen/releases/download/${version}/wasm-bindgen-${version}-x86_64-unknown-linux-musl.tar.gz" \
+            | tar -xz -C "$HOME/.local/bin" --strip-components=1 "wasm-bindgen-${version}-x86_64-unknown-linux-musl/wasm-bindgen-test-runner"
+          echo "$HOME/.local/bin" >> "$GITHUB_PATH"
+      # The storage contract against browser storage (OPFS and the folder backend's code) in both
+      # engines the runner image has. The drivers come with the image.
+      - name: Browser storage tests (headless Chrome)
+        run: CHROMEDRIVER="$CHROMEWEBDRIVER/chromedriver" cargo xtask browser-test
+      - name: Browser storage tests (headless Firefox)
+        run: GECKODRIVER="$GECKOWEBDRIVER/geckodriver" cargo xtask browser-test
       - uses: ./.github/actions/install-trunk
       - name: trunk build
         working-directory: app

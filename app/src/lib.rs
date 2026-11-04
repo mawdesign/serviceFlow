@@ -56,6 +56,8 @@ pub struct ControlWindow<S> {
     editing: bool,
     files: files::FileActions,
     set_view: set_panel::SetView,
+    /// One screen only (the browser): the output takes over the whole window while it is shown.
+    single_output: bool,
 }
 
 /// The control window's dockable panels.
@@ -152,7 +154,25 @@ impl<S: Storage + 'static> ControlWindow<S> {
             editing: false,
             files: files::FileActions::default(),
             set_view: set_panel::SetView::default(),
+            single_output: false,
         }
+    }
+
+    /// One screen only, as in the browser (spec: no dual-screen there): "Show output" fills the
+    /// whole window with the output instead of opening a second one.
+    pub fn with_single_output(mut self) -> Self {
+        self.single_output = true;
+        self
+    }
+
+    /// Whether the output is shown.
+    pub fn output_open(&self) -> bool {
+        self.output_open
+    }
+
+    /// Stop showing the output (the browser left full screen).
+    pub fn close_output(&mut self) {
+        self.output_open = false;
     }
 
     /// Share the monitor list that the native event loop keeps up to date.
@@ -187,6 +207,10 @@ impl<S: Storage + 'static> ControlWindow<S> {
         } else {
             // Changes made on disk by other programs arrive on their own: look again soon.
             ui.ctx().request_repaint_after(std::time::Duration::from_millis(250));
+        }
+        if self.single_output && self.output_open {
+            self.output_open = output::show_in_place(ui, &mut self.screen, &mut self.shortcuts, &mut self.driver);
+            return;
         }
         // While the shortcuts dialog is open it records the presses, so they run nothing.
         let mut commands = if self.shortcuts_dialog.is_some() { Vec::new() } else { self.shortcuts.commands(ui.ctx()) };
@@ -232,6 +256,7 @@ impl<S: Storage + 'static> ControlWindow<S> {
         egui::CentralPanel::default().show(ui, |ui| {
             files::plan_panel(ui, &state, &mut commands);
             problems(ui, &state);
+            fonts::status(ui);
             let style = DockStyle::from_ui(ui);
             let mut panels = Panels {
                 state: &state,

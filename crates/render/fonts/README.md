@@ -16,5 +16,9 @@ Every font here is under the SIL Open Font License 1.1; the licence text next to
 
 | `NotoSansKR-Hangul-Subset.otf` | Noto Sans KR | Hangul (2,350 KS X 1001 syllables + jamo) | `Sans/SubsetOTF/KR`, cut with pyftsubset |
 
+The two CJK faces are *lazy* (`lazy_bundled!`): the browser build does not compile them in but
+serves them as `fonts/<file>` (copied by trunk, see `app/index.html`) and fetches one the first
+time slide text needs it. A new large script face should be lazy too, with its coverage ranges.
+
 Licence files: `LiberationSans-LICENSE.txt` (both Liberation faces), `Carlito-LICENSE.txt`,
 `Noto-LICENSE.txt` (the OFL text; the CJK face's copyright holder is Adobe, same licence).

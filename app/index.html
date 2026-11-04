@@ -5,6 +5,11 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no" />
     <title>serviceFlow</title>
     <link data-trunk rel="rust" data-bin="serviceflow" data-wasm-opt="z" data-weak-refs />
+    <!-- The CJK faces are not compiled into the browser build: the app fetches them from fonts/
+         the first time slide text needs them (Fonts::take_wanted in serviceflow-render). -->
+    <link data-trunk rel="copy-file" href="../crates/render/fonts/NotoSansSC-Regular.otf" data-target-path="fonts" />
+    <link data-trunk rel="copy-file" href="../crates/render/fonts/NotoSansKR-Hangul-Subset.otf" data-target-path="fonts" />
+    <link data-trunk rel="copy-file" href="../crates/render/fonts/Noto-LICENSE.txt" data-target-path="fonts" />
     <style>
         html, body { margin: 0; padding: 0; width: 100%; height: 100%; overflow: hidden; background: #1b1b1b; }
         #serviceflow_canvas { position: absolute; top: 0; left: 0; width: 100%; height: 100%; }

@@ -47,6 +47,8 @@ enum Content {
 struct Shown {
     content: Content,
     size: Size,
+    /// The fonts' generation: a lazy face arriving redraws the picture.
+    fonts: u64,
 }
 
 /// A crossfade in progress: `start` and `duration` are in seconds of egui time.
@@ -97,7 +99,7 @@ impl OutputFrame {
         };
         let pixels = rect.size() * ui.ctx().pixels_per_point();
         let size = Size { width: (pixels.x.round() as u32).max(1), height: (pixels.y.round() as u32).max(1) };
-        let shown = Shown { content, size };
+        let shown = Shown { content, size, fonts: self.renderer.fonts().generation() };
         let same_styles =
             self.styles.as_ref().is_some_and(|s| Arc::ptr_eq(s, styles)) && self.images.as_ref().is_some_and(|i| Arc::ptr_eq(i, &state.images));
         let changed = output.changes != self.changes;
@@ -197,6 +199,43 @@ pub fn show_window(
             frame.paint(ui, rect, state);
         });
     });
+    open
+}
+
+/// How long, in seconds, the "Close output" button stays after the pointer last moved.
+const POINTER_SHOWS: f32 = 2.0;
+
+/// The output filling the whole window, for a single screen (the browser, which has no second
+/// window). The live shortcuts still work. While the pointer moves a "Close output" button shows,
+/// and the pointer is hidden otherwise. Returns false once that button is clicked.
+pub fn show_in_place<S: serviceflow_storage::Storage + 'static>(
+    ui: &mut egui::Ui,
+    frame: &mut OutputFrame,
+    shortcuts: &mut crate::shortcuts::Shortcuts,
+    driver: &mut serviceflow_runtime::Driver<S>,
+) -> bool {
+    for command in shortcuts.commands(ui.ctx()) {
+        driver.send(command);
+    }
+    let state = driver.snapshot();
+    let mut open = true;
+    egui::CentralPanel::default().frame(egui::Frame::NONE.fill(egui::Color32::BLACK)).show(ui, |ui| {
+        let rect = ui.max_rect();
+        frame.paint(ui, rect, &state);
+        if ui.input(|i| i.pointer.time_since_last_movement()) < POINTER_SHOWS {
+            egui::Area::new(ui.scope_id().with("close output")).anchor(egui::Align2::RIGHT_TOP, egui::vec2(-12.0, 12.0)).show(ui.ctx(), |ui| {
+                if ui.button(crate::tl!("Close output")).clicked() {
+                    open = false;
+                }
+            });
+            ui.ctx().request_repaint_after(std::time::Duration::from_secs_f32(POINTER_SHOWS));
+        } else {
+            ui.ctx().set_cursor_icon(egui::CursorIcon::None);
+        }
+    });
+    for command in crate::fonts::substitution_commands() {
+        driver.send(command);
+    }
     open
 }
 

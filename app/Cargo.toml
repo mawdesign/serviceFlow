@@ -36,9 +36,24 @@ winit = { workspace = true }
 [target.'cfg(target_arch = "wasm32")'.dependencies]
 eframe = { workspace = true }
 log = "0.4"
+serviceflow-storage-web = { workspace = true }
 wasm-bindgen = { workspace = true }
 wasm-bindgen-futures = { workspace = true }
-web-sys = { workspace = true, features = ["Window", "Document", "Element", "HtmlCanvasElement"] }
+js-sys = { workspace = true }
+web-sys = { workspace = true, features = [
+    "Window",
+    "Document",
+    "Element",
+    "HtmlCanvasElement",
+    "HtmlInputElement",
+    "HtmlAnchorElement",
+    "FileList",
+    "File",
+    "Blob",
+    "BlobPropertyBag",
+    "Url",
+    "Response",
+] }
 
 [dev-dependencies]
 egui_kittest = { workspace = true }

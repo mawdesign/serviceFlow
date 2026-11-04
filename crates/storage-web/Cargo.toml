@@ -10,3 +10,39 @@ publish = false
 
 [lints]
 workspace = true
+
+[dependencies]
+serviceflow-storage = { workspace = true }
+futures = { workspace = true }
+zip = { workspace = true }
+
+[target.'cfg(target_arch = "wasm32")'.dependencies]
+wasm-bindgen = { workspace = true }
+wasm-bindgen-futures = { workspace = true }
+js-sys = { workspace = true }
+web-sys = { workspace = true, features = [
+    "Window",
+    "Navigator",
+    "StorageManager",
+    "DomException",
+    "Blob",
+    "File",
+    "FileSystemHandle",
+    "FileSystemHandleKind",
+    "FileSystemDirectoryHandle",
+    "FileSystemFileHandle",
+    "FileSystemGetDirectoryOptions",
+    "FileSystemGetFileOptions",
+    "FileSystemRemoveOptions",
+    "FileSystemWritableFileStream",
+    "WritableStream",
+    "WorkerGlobalScope",
+    "WorkerNavigator",
+] }
+
+[dev-dependencies]
+serviceflow-testkit = { workspace = true }
+
+[target.'cfg(target_arch = "wasm32")'.dev-dependencies]
+wasm-bindgen-test = { workspace = true }
+web-sys = { workspace = true, features = ["Window"] }
