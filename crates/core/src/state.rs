@@ -7,6 +7,7 @@ use std::sync::Arc;
 use crate::edit::Draft;
 use crate::ids::{ContentHash, SetId, SongId};
 use crate::output::{OutputSettings, SlideColors};
+use crate::plan::{ChangePlan, PlanAction, PlanFailure, PlanRefusal, PlanRequest};
 use crate::resolve::{self, ImageFile, Images, ResolvedStyle};
 use crate::search::SearchIndex;
 use crate::set::{ItemKind, Set};
@@ -53,6 +54,13 @@ pub struct State {
     pub save_conflicts: Vec<SongId>,
     /// Songs being saved.
     pub saving: Vec<SongId>,
+    /// An action whose change plan is being made (storage is being read).
+    pub planning: Option<PlanRequest>,
+    /// A change plan shown to the operator, waiting for [`Command::ConfirmPlan`](crate::command::Command)
+    /// or `CancelPlan`.
+    pub plan: Option<Arc<ChangePlan>>,
+    /// The confirmed plan is being written.
+    pub applying_plan: bool,
     /// The picture files in `Backgrounds/`, listed when the operator looks for a missing image.
     pub backgrounds: Vec<String>,
 }
@@ -115,6 +123,11 @@ pub enum Problem {
     /// A song was saved, but its section tags were left as written: renaming them to the
     /// canonical form would have made two sections one (ADR-0002).
     TagsNotRenamed { id: SongId },
+    /// No change plan could be made for an action.
+    PlanRefused(PlanRefusal),
+    /// A confirmed change plan stopped part-way (or, when `failure.written` is empty, before
+    /// writing anything). Doing the action again finishes it.
+    PlanIncomplete { action: PlanAction, failure: PlanFailure },
 }
 
 #[derive(Debug, Clone, PartialEq)]

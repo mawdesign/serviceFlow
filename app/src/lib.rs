@@ -6,6 +6,7 @@
 #[cfg(not(target_arch = "wasm32"))]
 pub mod data_root;
 pub mod editor;
+pub mod files;
 pub mod fonts;
 pub mod i18n;
 pub mod library;
@@ -53,6 +54,7 @@ pub struct ControlWindow<S> {
     shortcuts_dialog: Option<craft_keymap::ui::DialogState>,
     /// The slides panel shows the song editor instead of the slide grid. UI-only state.
     editing: bool,
+    files: files::FileActions,
 }
 
 /// The control window's dockable panels.
@@ -86,16 +88,20 @@ struct Panels<'a> {
     thumbnails: &'a mut thumbnails::Thumbnails,
     library: &'a mut library::LibraryView,
     editing: &'a mut bool,
+    files: &'a mut files::FileActions,
     commands: &'a mut Vec<Command>,
 }
 
 impl DockContent<Panel> for Panels<'_> {
     fn body(&mut self, ui: &mut egui::Ui, panel: &Panel) {
         match panel {
-            Panel::Library => self.library.ui(ui, self.state, self.commands),
+            Panel::Library => {
+                self.files.new_song(ui, self.state, self.commands);
+                self.library.ui(ui, self.state, self.commands);
+            }
             Panel::Set => set_panel::ui(ui, self.state, self.commands),
             Panel::Slides if *self.editing => *self.editing = !editor::ui(ui, self.state, self.thumbnails, self.commands),
-            Panel::Slides => slides(ui, self.state, self.thumbnails, self.editing, self.commands),
+            Panel::Slides => slides(ui, self.state, self.thumbnails, self.editing, self.files, self.commands),
         }
     }
 
@@ -139,6 +145,7 @@ impl<S: Storage + 'static> ControlWindow<S> {
             shortcuts: shortcuts::Shortcuts::new(Default::default()),
             shortcuts_dialog: None,
             editing: false,
+            files: files::FileActions::default(),
         }
     }
 
@@ -214,6 +221,7 @@ impl<S: Storage + 'static> ControlWindow<S> {
             });
         });
         egui::CentralPanel::default().show(ui, |ui| {
+            files::plan_panel(ui, &state, &mut commands);
             problems(ui, &state);
             let style = DockStyle::from_ui(ui);
             let mut panels = Panels {
@@ -221,6 +229,7 @@ impl<S: Storage + 'static> ControlWindow<S> {
                 thumbnails: &mut self.thumbnails,
                 library: &mut self.library,
                 editing: &mut self.editing,
+                files: &mut self.files,
                 commands: &mut commands,
             };
             let out = DockArea::new(ui.scope_id().with("dock")).show_content(ui, &self.dock, &style, &mut panels);
@@ -367,6 +376,12 @@ fn problems(ui: &mut egui::Ui, state: &State) {
                     format!("“{id}” {}", tl!("was saved with its section tags as written: renaming them would have merged two sections.")),
                 );
             }
+            Problem::PlanRefused(refusal) => {
+                ui.colored_label(ui.visuals().error_fg_color, files::refusal_text(refusal));
+            }
+            Problem::PlanIncomplete { action, failure } => {
+                ui.colored_label(ui.visuals().error_fg_color, files::failure_text(action, failure));
+            }
             Problem::FontSubstituted { requested, used } => {
                 ui.colored_label(
                     ui.visuals().warn_fg_color,
@@ -377,7 +392,14 @@ fn problems(ui: &mut egui::Ui, state: &State) {
     }
 }
 
-fn slides(ui: &mut egui::Ui, state: &State, thumbnails: &mut thumbnails::Thumbnails, editing: &mut bool, commands: &mut Vec<Command>) {
+fn slides(
+    ui: &mut egui::Ui,
+    state: &State,
+    thumbnails: &mut thumbnails::Thumbnails,
+    editing: &mut bool,
+    files: &mut files::FileActions,
+    commands: &mut Vec<Command>,
+) {
     // Operator notes of the selected set item sit under the grid and are never projected.
     let notes = state.set.as_ref().and_then(|set| set.set.items.get(set.selected?)).map(|item| item.notes.as_str()).filter(|n| !n.trim().is_empty());
     ui.with_layout(egui::Layout::bottom_up(egui::Align::Min), |ui| {
@@ -388,11 +410,18 @@ fn slides(ui: &mut egui::Ui, state: &State, thumbnails: &mut thumbnails::Thumbna
                 ui.label(notes);
             });
         }
-        ui.with_layout(egui::Layout::top_down(egui::Align::Min), |ui| slide_grid(ui, state, thumbnails, editing, commands));
+        ui.with_layout(egui::Layout::top_down(egui::Align::Min), |ui| slide_grid(ui, state, thumbnails, editing, files, commands));
     });
 }
 
-fn slide_grid(ui: &mut egui::Ui, state: &State, thumbnails: &mut thumbnails::Thumbnails, editing: &mut bool, commands: &mut Vec<Command>) {
+fn slide_grid(
+    ui: &mut egui::Ui,
+    state: &State,
+    thumbnails: &mut thumbnails::Thumbnails,
+    editing: &mut bool,
+    files: &mut files::FileActions,
+    commands: &mut Vec<Command>,
+) {
     let Some(open) = &state.song else {
         if state.set.as_ref().is_some_and(|set| set.selected.is_some()) && state.loading.is_none() {
             set_panel::placeholder(ui, state, commands);
@@ -408,6 +437,7 @@ fn slide_grid(ui: &mut egui::Ui, state: &State, thumbnails: &mut thumbnails::Thu
             *editing = true;
         }
     });
+    ui.horizontal_wrapped(|ui| files.song_buttons(ui, state, commands));
     if open.id.is_set_item() {
         set_panel::image_notice(ui, state, commands);
     }
