@@ -112,3 +112,7 @@ cannot cover them.
 - [ ] **Duplicate vs save as (#22).** "Duplicate set…" copies the set as saved and leaves the open
   set (and its edits) open; "Save set as…" writes the edits under the new name and switches to
   it. A plan is shown only when the set has a sidecar to copy. Is that the split operators expect?
+- [ ] **Tidy library on a real library (#21).** Run "Tidy library…" on a copy of a large shared
+  library (hundreds of songs, OpenSong running on it): check how long the dry run takes (every
+  file is read), that OpenSong still opens the rewritten songs and sets, and that CRLF-only diffs
+  are what a version-control diff shows.
