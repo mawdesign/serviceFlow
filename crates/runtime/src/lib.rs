@@ -13,9 +13,9 @@ use futures::executor::{LocalPool, LocalSpawner};
 use futures::task::LocalSpawnExt as _;
 use serviceflow_core::command::{Command, Effect, SettingsFault};
 use serviceflow_core::engine::Engine;
+use serviceflow_core::plan::{ChangePlan, GatheredSet, PlanFailure, PlanStep, WrittenSong};
 use serviceflow_core::song::Song;
 use serviceflow_core::state::State;
-use serviceflow_core::plan::{ChangePlan, GatheredSet, PlanFailure, PlanStep, WrittenSong};
 use serviceflow_storage::{ContentHash, Expect, SongId, Storage, StorageError, expect_holds};
 
 /// Runs the engine against a storage.
@@ -152,7 +152,11 @@ async fn gather_for_plan<S: Storage>(storage: &S, subject: Option<SongId>) -> Co
         Ok(ids) => {
             for id in ids {
                 let read = storage.read_set(&id).await.ok().and_then(|stored| {
-                    serviceflow_opensong::read_set(&stored.bytes).ok().map(|set| GatheredSet { id: id.clone(), set: Arc::new(set), hash: stored.hash })
+                    serviceflow_opensong::read_set(&stored.bytes).ok().map(|set| GatheredSet {
+                        id: id.clone(),
+                        set: Arc::new(set),
+                        hash: stored.hash,
+                    })
                 });
                 match read {
                     Some(set) => sets.push(set),

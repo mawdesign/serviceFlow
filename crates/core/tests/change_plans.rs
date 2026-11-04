@@ -146,10 +146,7 @@ fn renaming_a_song_file_moves_it_and_rewrites_every_referring_set_item() {
     let to = SongId::new("Hymns/Hymn.xml");
     harness.send(Command::RenameSong { from: SongId::new("Hymn"), to: to.clone() });
     assert_eq!(snapshot(&harness), before);
-    assert_eq!(
-        files(&harness),
-        [PlanFile::Set(SetId::new("Plain")), PlanFile::Set(SetId::new("Sunday")), PlanFile::Song(SongId::new("Hymn"))]
-    );
+    assert_eq!(files(&harness), [PlanFile::Set(SetId::new("Plain")), PlanFile::Set(SetId::new("Sunday")), PlanFile::Song(SongId::new("Hymn"))]);
     assert!(matches!(&harness.state().plan.as_ref().unwrap().steps[2], PlanStep::RenameSong { to: t, .. } if *t == to));
 
     harness.send(Command::ConfirmPlan);
@@ -203,7 +200,8 @@ fn deleting_a_song_sets_still_use_warns_with_those_sets_first() {
 
 #[test]
 fn a_new_song_is_named_from_its_sanitised_title_with_a_suffix_when_taken() {
-    let mut harness = EngineHarness::with_songs(&[("Amazing Grace.xml", OTHER), ("Hymns/Amazing Grace.xml", OTHER), ("Hymns/amazing grace (2).xml", OTHER)]);
+    let mut harness =
+        EngineHarness::with_songs(&[("Amazing Grace.xml", OTHER), ("Hymns/Amazing Grace.xml", OTHER), ("Hymns/amazing grace (2).xml", OTHER)]);
     harness.send(Command::NewSong { category: String::new(), title: "Be Still".into() });
     assert_eq!(files(&harness), [PlanFile::Song(SongId::new("Be Still.xml"))]);
     harness.send(Command::CancelPlan);

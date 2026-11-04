@@ -8,8 +8,8 @@ use std::sync::Arc;
 use super::{refresh_results, show_song};
 use crate::canonical;
 use crate::command::{Command, ConflictChoice, Effect};
-use crate::plan::PlanRequest;
 use crate::ids::{Expect, SongId};
+use crate::plan::PlanRequest;
 use crate::song::Song;
 use crate::state::{Problem, State};
 

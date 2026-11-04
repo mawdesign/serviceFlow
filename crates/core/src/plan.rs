@@ -20,7 +20,10 @@ pub enum PlanAction {
     /// Save the edits of a song whose tags get renamed to the canonical form.
     SaveSong(SongId),
     /// Rename or move a song file (another filename, another category, or both).
-    RenameSong { from: SongId, to: SongId },
+    RenameSong {
+        from: SongId,
+        to: SongId,
+    },
     DeleteSong(SongId),
     /// Create a new song file.
     NewSong(SongId),
@@ -30,12 +33,27 @@ pub enum PlanAction {
 #[derive(Debug, Clone, PartialEq)]
 pub enum PlanStep {
     /// Rewrite a set (song items renamed, moved, or with renamed tags in their order).
-    WriteSet { id: SetId, set: Arc<Set>, expect: Expect },
+    WriteSet {
+        id: SetId,
+        set: Arc<Set>,
+        expect: Expect,
+    },
     /// Write a song in canonical form.
-    WriteSong { id: SongId, song: Arc<Song>, expect: Expect },
+    WriteSong {
+        id: SongId,
+        song: Arc<Song>,
+        expect: Expect,
+    },
     /// Move a song file, bytes unchanged.
-    RenameSong { from: SongId, to: SongId, expect: Expect },
-    DeleteSong { id: SongId, expect: Expect },
+    RenameSong {
+        from: SongId,
+        to: SongId,
+        expect: Expect,
+    },
+    DeleteSong {
+        id: SongId,
+        expect: Expect,
+    },
 }
 
 /// A file a plan touches, for showing and reporting.
@@ -72,10 +90,19 @@ pub struct ChangePlan {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum PlanRequest {
     /// Save the draft of a song whose tags get renamed, with this condition on its file.
-    Save { id: SongId, expect: Expect },
-    Rename { from: SongId, to: SongId },
+    Save {
+        id: SongId,
+        expect: Expect,
+    },
+    Rename {
+        from: SongId,
+        to: SongId,
+    },
     Delete(SongId),
-    New { category: String, title: String },
+    New {
+        category: String,
+        title: String,
+    },
 }
 
 /// A set read while building a plan, with the hash its file had.
