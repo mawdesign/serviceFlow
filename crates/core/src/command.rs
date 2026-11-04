@@ -138,6 +138,22 @@ pub enum Command {
     SetsListFailed {
         error: String,
     },
+    /// Start looking for a file for picture `slide` of image item `item` (selects the item and
+    /// lists `Backgrounds/`): the operator then chooses one with [`Command::RelinkImage`].
+    FindImage {
+        item: usize,
+        slide: usize,
+    },
+    CancelFindImage,
+    /// Point picture `slide` of image item `item` at `file` under `Backgrounds/`. Changes the open
+    /// set in memory only (saving sets is a later ticket).
+    RelinkImage {
+        item: usize,
+        slide: usize,
+        file: String,
+    },
+    /// Storage result: the picture files in `Backgrounds/`.
+    BackgroundsListed(Vec<String>),
     /// Open a set. The current one stays open if this one cannot be read.
     OpenSet(SetId),
     /// Storage result: a set was read and parsed.
@@ -332,6 +348,8 @@ pub enum Effect {
     IndexSongs { generation: u64, ids: Vec<SongId> },
     /// List the sets; answer with [`Command::SetsListed`] or [`Command::SetsListFailed`].
     ListSets,
+    /// List the picture files in `Backgrounds/`; answer with [`Command::BackgroundsListed`].
+    ListBackgrounds,
     /// Read and parse a set and its sidecar (a missing or unreadable sidecar gives the defaults); answer with [`Command::SetLoaded`] or [`Command::SetLoadFailed`].
     LoadSet(SetId),
     /// Write the set's sidecar (TOML, ADR-0003); answer with [`Command::SidecarSaved`] or

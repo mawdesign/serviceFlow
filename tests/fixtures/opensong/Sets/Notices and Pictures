@@ -1,0 +1,36 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<set name="Notices and Pictures">
+  <slide_groups>
+    <slide_group name="Welcome" type="custom" seconds="10" loop="true">
+      <title>Welcome</title>
+      <subtitle>Sunday 4 November</subtitle>
+      <notes>Read slowly.</notes>
+      <slides>
+        <slide>
+          <body>Good morning
+and welcome</body>
+        </slide>
+        <slide>
+          <body>-= Notices =-
+Morning tea after the service</body>
+        </slide>
+      </slides>
+    </slide_group>
+    <slide_group name="Pictures" type="image" resize="screen" keep_aspect="true">
+      <title>Pictures</title>
+      <subtitle></subtitle>
+      <notes/>
+      <slides>
+        <slide>
+          <filename>red.png</filename>
+          <description>A red picture</description>
+        </slide>
+        <slide>
+          <filename>gone.jpg</filename>
+          <description></description>
+        </slide>
+      </slides>
+    </slide_group>
+    <slide_group name="Amazing Grace HOF#50" type="song" path=""/>
+  </slide_groups>
+</set>

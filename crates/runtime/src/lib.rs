@@ -336,6 +336,15 @@ pub async fn perform<S: Storage>(storage: &S, effect: Effect) -> Command {
             }
             Command::SettingsImported { trigger, output, colors, faults }
         }
+        Effect::ListBackgrounds => {
+            const PICTURES: [&str; 5] = ["png", "jpg", "jpeg", "gif", "bmp"];
+            let mut files: Vec<String> = match storage.list_assets().await {
+                Ok(ids) => ids.into_iter().map(|id| id.0).collect(),
+                Err(_) => Vec::new(),
+            };
+            files.retain(|f| f.rsplit_once('.').is_some_and(|(_, ext)| PICTURES.iter().any(|p| ext.eq_ignore_ascii_case(p))));
+            Command::BackgroundsListed(files)
+        }
         Effect::LoadImage(name) => {
             let bytes = match storage.read_asset(&serviceflow_storage::AssetId(name.clone())).await {
                 Ok(stored) => Some(Arc::<[u8]>::from(stored.bytes)),

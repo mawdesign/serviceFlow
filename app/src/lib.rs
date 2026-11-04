@@ -444,11 +444,15 @@ fn slide_grid(
     };
     ui.horizontal(|ui| {
         ui.label(egui::RichText::new(&open.song.title).strong());
-        if ui.button(tl!("Edit song")).clicked() {
+        // A custom or image item is shown read-only here (editing sets comes later).
+        if !open.id.is_set_item() && ui.button(tl!("Edit song")).clicked() {
             *editing = true;
         }
     });
     ui.horizontal_wrapped(|ui| files.song_buttons(ui, state, commands));
+    if open.id.is_set_item() {
+        set_panel::image_notice(ui, state, commands);
+    }
     let points = egui::vec2(THUMBNAIL_WIDTH, THUMBNAIL_WIDTH * 9.0 / 16.0);
     let pixels = points * ui.ctx().pixels_per_point();
     let size = Size { width: pixels.x.round() as u32, height: pixels.y.round() as u32 };
@@ -481,7 +485,11 @@ fn slide_grid(
                         commands.push(Command::GoLive { index });
                     }
                     // The label sits on the colour OpenSong gives this kind of section.
-                    match state.slide_colors.for_tag(&slide.section) {
+                    let color = match open.item_kind {
+                        Some(kind) => state.slide_colors.color(kind),
+                        None => state.slide_colors.for_tag(&slide.section),
+                    };
+                    match color {
                         Some(c) => {
                             egui::Frame::new().fill(egui::Color32::from_rgb(c.r, c.g, c.b)).inner_margin(2.0).show(ui, |ui| {
                                 ui.set_width(THUMBNAIL_WIDTH - 4.0);

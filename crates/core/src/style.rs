@@ -283,6 +283,9 @@ impl Captions {
     /// The song's title, and its subtitle as `style` selects it (the non-empty fields, joined
     /// with " - ", or with a caption each when the style is descriptive).
     pub fn for_song(song: &Song, style: &Style) -> Captions {
+        if let Some(own) = &song.captions {
+            return own.clone();
+        }
         let parts: Vec<String> = style
             .subtitle
             .source

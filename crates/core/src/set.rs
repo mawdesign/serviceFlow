@@ -4,7 +4,7 @@ use std::sync::Arc;
 
 use crate::ids::SongId;
 use crate::song::RawElement;
-use crate::style::Style;
+use crate::style::{ImageSource, Resize, Style};
 
 /// A set as read from `Sets/`.
 #[derive(Debug, Clone, Default, PartialEq)]
@@ -41,13 +41,52 @@ pub enum ItemKind {
         action: StyleAction,
         xml: String,
     },
-    /// Anything serviceFlow keeps but cannot present yet (scripture, external, and the custom,
-    /// image and style items that later tickets add). `xml` is the whole `slide_group`, so a
+    /// A custom slide item: a title, a subtitle and slides of text (GLOSSARY "Custom slide item").
+    Custom(CustomItem),
+    /// An image item: pictures shown one per slide (GLOSSARY "Image item").
+    Image(ImageItem),
+    /// Anything serviceFlow keeps but cannot present yet (scripture and external items). `xml` is the whole `slide_group`, so a
     /// later save writes it back unchanged.
     Placeholder {
         item_type: String,
         xml: String,
     },
+}
+
+/// A custom slide item. Presented read-only (editing sets is a later ticket).
+#[derive(Debug, Clone, Default, PartialEq)]
+pub struct CustomItem {
+    pub title: String,
+    pub subtitle: String,
+    /// The text of each slide (`slides/slide/body`), lines separated by `\n`.
+    pub slides: Vec<String>,
+    /// The whole `slide_group` as read. It keeps the attributes serviceFlow does not model
+    /// (`seconds`, `loop`, `print`, `transition`); a writer starts from it.
+    pub xml: String,
+}
+
+/// An image item.
+#[derive(Debug, Clone, Default, PartialEq)]
+pub struct ImageItem {
+    pub title: String,
+    pub subtitle: String,
+    /// What area the pictures are fitted to (`resize`: absent or `screen` = screen, `body` =
+    /// the text area, empty = natural size).
+    pub resize: Resize,
+    /// Keep the pictures' proportions (`keep_aspect`).
+    pub keep_aspect: bool,
+    pub slides: Vec<ImageSlide>,
+    /// The whole `slide_group` as read, as for [`CustomItem::xml`].
+    pub xml: String,
+}
+
+/// One picture of an image item.
+#[derive(Debug, Clone, PartialEq)]
+pub struct ImageSlide {
+    /// A file under `Backgrounds/`, or the picture embedded as base64. `None` when the slide
+    /// names neither.
+    pub image: Option<ImageSource>,
+    pub description: String,
 }
 
 /// What a style item does (`slide_group/@action`).
@@ -79,6 +118,16 @@ impl SetItem {
     pub fn song_id(&self) -> Option<SongId> {
         match &self.kind {
             ItemKind::Song(song) => Some(song.id(&self.name)),
+            ItemKind::Style { .. } | ItemKind::Placeholder { .. } | ItemKind::Custom(_) | ItemKind::Image(_) => None,
+        }
+    }
+
+    /// The id the open item's slides are shown under: the song's id, or [`SongId::set_item`]
+    /// for a custom or image item at `index` of its set. `None` for items without slides.
+    pub fn open_id(&self, index: usize) -> Option<SongId> {
+        match &self.kind {
+            ItemKind::Song(song) => Some(song.id(&self.name)),
+            ItemKind::Custom(_) | ItemKind::Image(_) => Some(SongId::set_item(index)),
             ItemKind::Style { .. } | ItemKind::Placeholder { .. } => None,
         }
     }

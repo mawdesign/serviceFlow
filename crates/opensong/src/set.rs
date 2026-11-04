@@ -2,8 +2,9 @@
 
 use std::sync::Arc;
 
-use serviceflow_core::set::{ItemKind, Set, SetItem, SongItem, StyleAction};
+use serviceflow_core::set::{CustomItem, ImageItem, ImageSlide, ItemKind, Set, SetItem, SongItem, StyleAction};
 use serviceflow_core::song::RawElement;
+use serviceflow_core::style::{ImageSource, Resize};
 
 use crate::CodecError;
 use crate::xml::{self, Element, Node};
@@ -70,6 +71,27 @@ fn read_item(group: &Element) -> SetItem {
             other_elements,
             attributes: group.attributes.iter().filter(|(k, _)| !SONG_ITEM_ATTRIBUTES.contains(&k.as_str())).cloned().collect(),
         })
+    } else if item_type.eq_ignore_ascii_case("custom") {
+        ItemKind::Custom(CustomItem {
+            title: group.child_text("title").trim().to_owned(),
+            subtitle: group.child_text("subtitle").trim().to_owned(),
+            slides: slides(group).map(|slide| body_text(&slide.child_text("body"))).collect(),
+            xml: group.to_xml(),
+        })
+    } else if item_type.eq_ignore_ascii_case("image") {
+        let resize = match group.attr("resize").map(|r| r.trim().to_ascii_lowercase()).as_deref() {
+            None | Some("screen") => Resize::Screen,
+            Some("body") => Resize::Body,
+            Some(_) => Resize::None,
+        };
+        ItemKind::Image(ImageItem {
+            title: group.child_text("title").trim().to_owned(),
+            subtitle: group.child_text("subtitle").trim().to_owned(),
+            resize,
+            keep_aspect: crate::settings::flag(group, "keep_aspect", false),
+            slides: slides(group).map(image_slide).collect(),
+            xml: group.to_xml(),
+        })
     } else {
         ItemKind::Placeholder { item_type: item_type.to_ascii_lowercase(), xml: group.to_xml() }
     };
@@ -79,6 +101,34 @@ fn read_item(group: &Element) -> SetItem {
 /// OpenSong's `CleanPath`: `\` and `/` separators, no leading, trailing or doubled ones.
 fn clean_path(path: &str) -> String {
     path.split(['/', '\\']).filter(|part| !part.is_empty()).collect::<Vec<_>>().join("/")
+}
+
+/// The `slides/slide` elements of an item.
+fn slides(group: &Element) -> impl Iterator<Item = &Element> {
+    group.child("slides").into_iter().flat_map(|s| s.children.iter()).filter_map(|n| match n {
+        Node::Element(e) if e.name == "slide" => Some(e),
+        _ => None,
+    })
+}
+
+/// A slide's body: lines right-trimmed, no empty lines at the start or end.
+fn body_text(body: &str) -> String {
+    let lines: Vec<&str> = body.lines().map(str::trim_end).collect();
+    let start = lines.iter().position(|l| !l.is_empty()).unwrap_or(lines.len());
+    let end = lines.iter().rposition(|l| !l.is_empty()).map_or(start, |i| i + 1);
+    lines[start..end].join("\n")
+}
+
+fn image_slide(slide: &Element) -> ImageSlide {
+    let file = slide.child_text("filename");
+    let data: String = slide.child_text("image").split_whitespace().collect();
+    let image = match (file.trim(), data.is_empty()) {
+        // OpenSong writes `\` on Windows; ids use `/`.
+        (name, _) if !name.is_empty() => Some(ImageSource::File(name.replace('\\', "/"))),
+        (_, false) => Some(ImageSource::Embedded(data)),
+        _ => None,
+    };
+    ImageSlide { image, description: slide.child_text("description").trim().to_owned() }
 }
 
 /// Write a set as OpenSong reads it: `<set name>` with its `slide_groups`, two-space indents,
@@ -119,6 +169,10 @@ pub fn write_set(set: &Set) -> Vec<u8> {
 fn write_item(out: &mut String, item: &SetItem) {
     let song = match &item.kind {
         ItemKind::Song(song) => song,
+        ItemKind::Custom(CustomItem { xml, .. }) | ItemKind::Image(ImageItem { xml, .. }) => {
+            out.push_str(xml);
+            return;
+        }
         ItemKind::Style { xml, .. } | ItemKind::Placeholder { xml, .. } => {
             out.push_str(xml);
             return;

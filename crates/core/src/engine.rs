@@ -13,6 +13,7 @@ use crate::ids::{ContentHash, SongId};
 use crate::output::InitialMode;
 use crate::resolve::{self, ImageFile, ResolvedStyle};
 use crate::search::SearchIndex;
+use crate::set::ItemKind;
 use crate::song::Song;
 use crate::state::{Library, LiveSlide, OpenSong, OutputMode, Problem, State};
 use crate::style::ImageSource;
@@ -239,7 +240,11 @@ fn step(state: &mut State, command: Command) -> Vec<Effect> {
             | Command::PreviousItem
             | Command::StartRelink(_)
             | Command::CancelRelink
-            | Command::RelinkItem { .. }) => sets::apply(state, command),
+            | Command::RelinkItem { .. }
+            | Command::FindImage { .. }
+            | Command::CancelFindImage
+            | Command::RelinkImage { .. }
+            | Command::BackgroundsListed(_)) => sets::apply(state, command),
             command @ (Command::SaveSong(_)
             | Command::SongSaved { .. }
             | Command::SongSaveConflict { .. }
@@ -320,6 +325,19 @@ fn request_images(state: &mut State) -> Vec<Effect> {
     };
     for style in [&state.styles.default, &state.styles.scripture] {
         resolve::file_of(style).into_iter().for_each(&mut want);
+    }
+    // Every picture of the open set's image items, so a missing one is known (and flagged) before
+    // the operator gets to it.
+    if let Some(open) = &state.set {
+        for item in &open.set.items {
+            if let ItemKind::Image(image) = &item.kind {
+                for slide in &image.slides {
+                    if let Some(ImageSource::File(name)) = &slide.image {
+                        want(name);
+                    }
+                }
+            }
+        }
     }
     if let Some(open) = &state.song {
         // The style every slide of the song has, then each of its background files.

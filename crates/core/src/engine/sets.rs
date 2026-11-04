@@ -5,10 +5,12 @@ use std::sync::Arc;
 use super::{go_live, refresh_results};
 use crate::command::{Command, Effect};
 use crate::ids::SongId;
+use crate::output::SlideKind;
 use crate::search::{category, filename};
-use crate::set::ItemKind;
-use crate::song::{LanguageMode, Song};
-use crate::state::{OpenSet, Pending, Problem, State};
+use crate::set::{ItemKind, SetItem};
+use crate::song::{LanguageMode, Slide, Song, SongBackgrounds, VerseBackground};
+use crate::state::{OpenSet, OpenSong, Pending, Problem, State};
+use crate::style::Captions;
 
 pub(super) fn apply(state: &mut State, command: Command) -> Vec<Effect> {
     match command {
@@ -87,12 +89,43 @@ pub(super) fn apply(state: &mut State, command: Command) -> Vec<Effect> {
             let Some(set) = &mut state.set else { return Vec::new() };
             let slot = Arc::make_mut(&mut set.set).items.get_mut(item).and_then(|i| match &mut i.kind {
                 ItemKind::Song(s) => Some((&mut i.name, s)),
-                ItemKind::Style { .. } | ItemKind::Placeholder { .. } => None,
+                _ => None,
             });
             let Some((name, song_item)) = slot else { return Vec::new() };
             *name = filename(&song).to_owned();
             song_item.path = category(&song).to_owned();
             set.relinking = None;
+            select(state, item, None)
+        }
+        Command::FindImage { item, slide } => {
+            let mut effects = select(state, item, None);
+            if let Some(set) = &mut state.set
+                && matches!(set.set.items.get(item).map(|i| &i.kind), Some(ItemKind::Image(image)) if slide < image.slides.len())
+            {
+                set.finding_image = Some((item, slide));
+                effects.push(Effect::ListBackgrounds);
+            }
+            effects
+        }
+        Command::CancelFindImage => {
+            if let Some(set) = &mut state.set {
+                set.finding_image = None;
+            }
+            Vec::new()
+        }
+        Command::BackgroundsListed(files) => {
+            state.backgrounds = files;
+            Vec::new()
+        }
+        Command::RelinkImage { item, slide, file } => {
+            let Some(set) = &mut state.set else { return Vec::new() };
+            let target = Arc::make_mut(&mut set.set).items.get_mut(item).and_then(|i| match &mut i.kind {
+                ItemKind::Image(image) => image.slides.get_mut(slide),
+                _ => None,
+            });
+            let Some(target) = target else { return Vec::new() };
+            target.image = Some(crate::style::ImageSource::File(file));
+            set.finding_image = None;
             select(state, item, None)
         }
         // Handled by the engine itself.
@@ -111,6 +144,12 @@ fn select(state: &mut State, index: usize, pending: Option<Pending>) -> Vec<Effe
     state.slide_options.language = set.item_settings(index).language;
     state.song = None;
     state.loading = None;
+    if let Some(open) = open_item(index, item) {
+        set.pending = pending;
+        state.song = Some(open);
+        go_pending(state);
+        return Vec::new();
+    }
     match id {
         Some(id) if !set.is_missing(index) => {
             set.pending = pending;
@@ -130,7 +169,10 @@ fn select(state: &mut State, index: usize, pending: Option<Pending>) -> Vec<Effe
 pub(super) fn advance(state: &mut State, forward: bool) -> Vec<Effect> {
     let Some(set) = &state.set else { return Vec::new() };
     let Some(current) = set.selected else { return Vec::new() };
-    let presentable = |i: &usize| set.set.items[*i].song_id().is_some() && !set.is_missing(*i);
+    let presentable = |i: &usize| {
+        let item = &set.set.items[*i];
+        matches!(item.kind, ItemKind::Custom(_) | ItemKind::Image(_)) || (item.song_id().is_some() && !set.is_missing(*i))
+    };
     let target = if forward { (current + 1..set.set.items.len()).find(presentable) } else { (0..current).rev().find(presentable) };
     match target {
         Some(i) => select(state, i, Some(if forward { Pending::First } else { Pending::Last })),
@@ -176,4 +218,44 @@ pub(super) fn remember_language(state: &mut State, language: LanguageMode) -> Ve
     settings.language = language;
     Arc::make_mut(&mut set.sidecar).set(key, settings);
     vec![Effect::WriteSidecar { set: set.id.clone(), sidecar: Arc::clone(&set.sidecar) }]
+}
+
+/// A custom or image item as the stand-in song its slides are shown from. Its title and subtitle
+/// (custom items only: a picture is shown on its own) go to the title and subtitle boxes; its
+/// pictures become the slides' backgrounds. `None` for other items.
+fn open_item(index: usize, item: &SetItem) -> Option<OpenSong> {
+    let id = SongId::set_item(index);
+    match &item.kind {
+        ItemKind::Custom(custom) => {
+            let song = Song {
+                title: item.name.clone(),
+                captions: Some(Captions { title: custom.title.clone(), subtitle: custom.subtitle.clone() }),
+                ..Song::default()
+            };
+            let slides = custom
+                .slides
+                .iter()
+                .enumerate()
+                .map(|(n, body)| Slide { section: (n + 1).to_string(), lines: body.lines().map(str::to_owned).collect(), ..Slide::default() })
+                .collect();
+            Some(OpenSong::of_item(id, song, slides, SlideKind::Custom))
+        }
+        ItemKind::Image(image) => {
+            let items = image
+                .slides
+                .iter()
+                .enumerate()
+                .filter_map(|(n, slide)| Some(VerseBackground { verse: (n + 1).to_string(), image: slide.image.clone()? }))
+                .collect();
+            let song = Song {
+                title: item.name.clone(),
+                captions: Some(Captions::default()),
+                backgrounds: Some(SongBackgrounds { resize: image.resize, keep_aspect: image.keep_aspect, items, ..SongBackgrounds::default() }),
+                ..Song::default()
+            };
+            let slides = (0..image.slides.len()).map(|n| Slide { section: (n + 1).to_string(), ..Slide::default() }).collect();
+            Some(OpenSong::of_item(id, song, slides, SlideKind::Image))
+        }
+        _ => None,
+    }
 }

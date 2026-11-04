@@ -21,6 +21,17 @@ impl SongId {
 }
 
 impl SongId {
+    /// The id the slides of a custom or image item are shown under. It starts with `:`, which no
+    /// storage path can, so it never names a song file.
+    pub fn set_item(index: usize) -> Self {
+        Self(format!(":item/{index}"))
+    }
+
+    /// Whether this is the id of a set item's slides rather than a song file.
+    pub fn is_set_item(&self) -> bool {
+        self.0.starts_with(":item/")
+    }
+
     /// The id of copy `n` (from 1) of this song, beside it: `Hymns/Abide (copy)`, then
     /// `Hymns/Abide (copy 2)`. A `.xml` extension stays at the end.
     pub fn copy(&self, n: usize) -> SongId {
