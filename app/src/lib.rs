@@ -55,6 +55,7 @@ pub struct ControlWindow<S> {
     /// The slides panel shows the song editor instead of the slide grid. UI-only state.
     editing: bool,
     files: files::FileActions,
+    set_view: set_panel::SetView,
 }
 
 /// The control window's dockable panels.
@@ -89,6 +90,7 @@ struct Panels<'a> {
     library: &'a mut library::LibraryView,
     editing: &'a mut bool,
     files: &'a mut files::FileActions,
+    set_view: &'a mut set_panel::SetView,
     commands: &'a mut Vec<Command>,
 }
 
@@ -99,9 +101,9 @@ impl DockContent<Panel> for Panels<'_> {
                 self.files.new_song(ui, self.state, self.commands);
                 self.library.ui(ui, self.state, self.commands);
             }
-            Panel::Set => set_panel::ui(ui, self.state, self.commands),
+            Panel::Set => self.set_view.ui(ui, self.state, self.commands),
             Panel::Slides if *self.editing => *self.editing = !editor::ui(ui, self.state, self.thumbnails, self.commands),
-            Panel::Slides => slides(ui, self.state, self.thumbnails, self.editing, self.files, self.commands),
+            Panel::Slides => slides(ui, self.state, self.thumbnails, self.editing, self.files, self.set_view, self.commands),
         }
     }
 
@@ -146,6 +148,7 @@ impl<S: Storage + 'static> ControlWindow<S> {
             shortcuts_dialog: None,
             editing: false,
             files: files::FileActions::default(),
+            set_view: set_panel::SetView::default(),
         }
     }
 
@@ -233,6 +236,7 @@ impl<S: Storage + 'static> ControlWindow<S> {
                 library: &mut self.library,
                 editing: &mut self.editing,
                 files: &mut self.files,
+                set_view: &mut self.set_view,
                 commands: &mut commands,
             };
             let out = DockArea::new(ui.scope_id().with("dock")).show_content(ui, &self.dock, &style, &mut panels);
@@ -391,6 +395,15 @@ fn problems(ui: &mut egui::Ui, state: &State) {
                     format!("“{id}” {}", tl!("was saved with its section tags as written: renaming them would have merged two sections.")),
                 );
             }
+            Problem::SetUnsaved { id, error } => {
+                ui.colored_label(ui.visuals().error_fg_color, format!("{} “{id}”: {error}", tl!("Could not save the set")));
+            }
+            Problem::SetNameRefused { name, taken: true } => {
+                ui.colored_label(ui.visuals().error_fg_color, format!("{} “{name}” {}", tl!("A set called"), tl!("already exists.")));
+            }
+            Problem::SetNameRefused { name, taken: false } => {
+                ui.colored_label(ui.visuals().error_fg_color, format!("“{name}” {}", tl!("cannot be used as a set name.")));
+            }
             Problem::PlanRefused(refusal) => {
                 ui.colored_label(ui.visuals().error_fg_color, files::refusal_text(refusal));
             }
@@ -413,16 +426,18 @@ fn slides(
     thumbnails: &mut thumbnails::Thumbnails,
     editing: &mut bool,
     files: &mut files::FileActions,
+    set_view: &mut set_panel::SetView,
     commands: &mut Vec<Command>,
 ) {
-    // Operator notes of the selected set item sit under the grid and are never projected.
-    let notes = state.set.as_ref().and_then(|set| set.set.items.get(set.selected?)).map(|item| item.notes.as_str()).filter(|n| !n.trim().is_empty());
+    // Operator notes of the selected set item sit under the grid, editable, and are never projected.
+    let selected = state.set.as_ref().and_then(|set| Some((set.selected?, set.set.items.get(set.selected?)?)));
     ui.with_layout(egui::Layout::bottom_up(egui::Align::Min), |ui| {
-        if let Some(notes) = notes {
+        if let Some((index, item)) = selected {
             ui.group(|ui| {
                 ui.set_width(ui.available_width());
-                ui.label(egui::RichText::new(tl!("Notes")).weak());
-                ui.label(notes);
+                ui.with_layout(egui::Layout::top_down(egui::Align::Min), |ui| {
+                    set_view.field(ui, item, index, serviceflow_core::set_edit::ItemField::Notes, tl!("Notes"), true, commands);
+                });
             });
         }
         ui.with_layout(egui::Layout::top_down(egui::Align::Min), |ui| slide_grid(ui, state, thumbnails, editing, files, commands));
@@ -447,7 +462,7 @@ fn slide_grid(
     };
     ui.horizontal(|ui| {
         ui.label(egui::RichText::new(&open.song.title).strong());
-        // A custom or image item is shown read-only here (editing sets comes later).
+        // A custom or image item is edited in the Set panel, not in the song editor.
         if !open.id.is_set_item() && ui.button(tl!("Edit song")).clicked() {
             *editing = true;
         }

@@ -46,6 +46,34 @@ impl Element {
         self.attributes.iter().find(|(k, _)| k == name).map(|(_, v)| v.as_str())
     }
 
+    /// `<name>text</name>` (`<name/>` when the text is empty).
+    pub fn with_text(name: &str, text: &str) -> Element {
+        let children = if text.is_empty() { Vec::new() } else { vec![Node::Text(text.to_owned())] };
+        Element { name: name.to_owned(), attributes: Vec::new(), children }
+    }
+
+    /// Set an attribute, in place when it exists, otherwise at the end.
+    pub fn set_attr(&mut self, name: &str, value: &str) {
+        match self.attributes.iter_mut().find(|(k, _)| k == name) {
+            Some((_, v)) => *v = value.to_owned(),
+            None => self.attributes.push((name.to_owned(), value.to_owned())),
+        }
+    }
+
+    /// Replace the first child element named like `element`, in place, or add it at the end.
+    pub fn set_child(&mut self, element: Element) {
+        let slot = self.children.iter_mut().find(|n| matches!(n, Node::Element(e) if e.name == element.name));
+        match slot {
+            Some(slot) => *slot = Node::Element(element),
+            None => self.children.push(Node::Element(element)),
+        }
+    }
+
+    /// Remove every child element with this name.
+    pub fn remove_child(&mut self, name: &str) {
+        self.children.retain(|n| !matches!(n, Node::Element(e) if e.name == name));
+    }
+
     /// The text of the first child element with this name, or `""` if there is none.
     pub fn child_text(&self, name: &str) -> String {
         self.child(name).map(Element::text).unwrap_or_default()

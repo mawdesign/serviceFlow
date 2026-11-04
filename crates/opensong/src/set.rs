@@ -169,12 +169,17 @@ pub fn write_set(set: &Set) -> Vec<u8> {
 fn write_item(out: &mut String, item: &SetItem) {
     let song = match &item.kind {
         ItemKind::Song(song) => song,
-        ItemKind::Custom(CustomItem { xml, .. }) | ItemKind::Image(ImageItem { xml, .. }) => {
-            out.push_str(xml);
-            return;
-        }
-        ItemKind::Style { xml, .. } | ItemKind::Placeholder { xml, .. } => {
-            out.push_str(xml);
+        ItemKind::Custom(CustomItem { xml, .. })
+        | ItemKind::Image(ImageItem { xml, .. })
+        | ItemKind::Style { xml, .. }
+        | ItemKind::Placeholder { xml, .. } => {
+            // Unchanged since it was read: exactly as read. Edited or new: rebuilt from the model,
+            // over what was read, so attributes and children the model does not describe stay.
+            let base = (!xml.is_empty()).then(|| xml::parse(xml.as_bytes()).ok()).flatten().filter(|e| e.name == "slide_group");
+            match base {
+                Some(base) if read_item(&base) == *item => out.push_str(xml),
+                base => out.push_str(&rebuilt(item, base.unwrap_or_else(|| Element::with_text("slide_group", ""))).to_xml()),
+            }
             return;
         }
     };
@@ -204,4 +209,74 @@ fn write_item(out: &mut String, item: &SetItem) {
         out.push('\n');
     }
     out.push_str("    </slide_group>");
+}
+
+/// An edited or new custom, image, style or kept item written from the model over `group` (the
+/// item as read, or an empty `slide_group`): the modelled attributes and children are set in
+/// place or added, everything else in `group` stays as it was.
+fn rebuilt(item: &SetItem, mut group: Element) -> Element {
+    group.set_attr("name", &item.name);
+    let text = Element::with_text;
+    match &item.kind {
+        ItemKind::Custom(custom) => {
+            group.set_attr("type", "custom");
+            group.set_child(text("title", &custom.title));
+            group.set_child(text("subtitle", &custom.subtitle));
+            group.set_child(text("notes", &item.notes));
+            let slides = custom.slides.iter().map(|body| Element { children: vec![Node::Element(text("body", body))], ..text("slide", "") });
+            group.set_child(Element { children: slides.map(Node::Element).collect(), ..text("slides", "") });
+        }
+        ItemKind::Image(image) => {
+            group.set_attr("type", "image");
+            group.set_attr(
+                "resize",
+                match image.resize {
+                    Resize::Screen => "screen",
+                    Resize::Body => "body",
+                    Resize::None => "",
+                },
+            );
+            group.set_attr("keep_aspect", if image.keep_aspect { "true" } else { "false" });
+            group.set_child(text("title", &image.title));
+            group.set_child(text("subtitle", &image.subtitle));
+            group.set_child(text("notes", &item.notes));
+            let slides = image.slides.iter().map(|slide| {
+                let picture = match &slide.image {
+                    Some(ImageSource::File(name)) => Some(text("filename", name)),
+                    Some(ImageSource::Embedded(data)) => Some(text("image", data)),
+                    None => None,
+                };
+                let children = picture.into_iter().chain([text("description", &slide.description)]).map(Node::Element).collect();
+                Element { children, ..text("slide", "") }
+            });
+            group.set_child(Element { children: slides.map(Node::Element).collect(), ..text("slides", "") });
+        }
+        ItemKind::Style { action, .. } => {
+            group.set_attr("type", "style");
+            match action {
+                StyleAction::New => group.set_attr("action", "new"),
+                StyleAction::Revert => group.set_attr("action", "revert"),
+                // Whatever other action it had stays.
+                StyleAction::Other => {}
+            }
+            if !item.notes.is_empty() || group.child("notes").is_some() {
+                group.set_child(text("notes", &item.notes));
+            }
+        }
+        ItemKind::Placeholder { .. } => {
+            if !item.notes.is_empty() || group.child("notes").is_some() {
+                group.set_child(text("notes", &item.notes));
+            }
+        }
+        ItemKind::Song(_) => {}
+    }
+    // The item's own style: as read when unchanged, otherwise written from the model.
+    match &item.style {
+        Some(style) if group.child("style").map(crate::settings::style).as_ref() != Some(&**style) => {
+            group.set_child(crate::settings::style_element(style));
+        }
+        Some(_) => {}
+        None => group.remove_child("style"),
+    }
+    group
 }

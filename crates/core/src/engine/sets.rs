@@ -2,12 +2,13 @@
 
 use std::sync::Arc;
 
-use super::{go_live, refresh_results};
+use super::{go_live, refresh_results, set_edit};
 use crate::command::{Command, Effect};
 use crate::ids::SongId;
 use crate::output::SlideKind;
 use crate::search::{category, filename};
 use crate::set::{ItemKind, SetItem};
+use crate::set_edit::Change;
 use crate::song::{LanguageMode, Slide, Song, SongBackgrounds, VerseBackground};
 use crate::state::{OpenSet, OpenSong, Pending, Problem, State};
 use crate::style::Captions;
@@ -29,7 +30,7 @@ pub(super) fn apply(state: &mut State, command: Command) -> Vec<Effect> {
             state.loading_set = Some(id.clone());
             vec![Effect::LoadSet(id)]
         }
-        Command::SetLoaded { id, set, sidecar, sidecar_error } => {
+        Command::SetLoaded { id, set, hash, sidecar, sidecar_error } => {
             if state.loading_set.as_ref() != Some(&id) {
                 return Vec::new();
             }
@@ -40,7 +41,7 @@ pub(super) fn apply(state: &mut State, command: Command) -> Vec<Effect> {
             if let Some(error) = sidecar_error {
                 state.problems.push(Problem::SidecarUnreadable { id: id.clone(), error });
             }
-            state.set = Some(OpenSet::new(id.clone(), set, sidecar));
+            state.set = Some(OpenSet::new(id.clone(), set, hash, sidecar));
             if ids.is_empty() { Vec::new() } else { vec![Effect::CheckSetSongs { set: id, ids }] }
         }
         Command::SidecarSaved { .. } => Vec::new(),
@@ -86,17 +87,23 @@ pub(super) fn apply(state: &mut State, command: Command) -> Vec<Effect> {
             Vec::new()
         }
         Command::RelinkItem { item, song } => {
-            let Some(set) = &mut state.set else { return Vec::new() };
-            let slot = Arc::make_mut(&mut set.set).items.get_mut(item).and_then(|i| match &mut i.kind {
-                ItemKind::Song(s) => Some((&mut i.name, s)),
-                _ => None,
+            // An edit of the set like any other: undoable, saved with the set.
+            let mut effects = set_edit::change(state, None, |set| {
+                let mut set = set.clone();
+                let target = set.items.get_mut(item)?;
+                let ItemKind::Song(song_item) = &mut target.kind else { return None };
+                target.name = filename(&song).to_owned();
+                song_item.path = category(&song).to_owned();
+                Some((set, Change::InPlace))
             });
-            let Some((name, song_item)) = slot else { return Vec::new() };
-            *name = filename(&song).to_owned();
-            song_item.path = category(&song).to_owned();
-            set.relinking = None;
-            set.modified = true;
-            select(state, item, None)
+            if let Some(set) = &mut state.set {
+                set.relinking = None;
+            }
+            // Show it, unless the edit already did.
+            if state.set.as_ref().and_then(|s| s.selected) != Some(item) {
+                effects.extend(select(state, item, None));
+            }
+            effects
         }
         Command::FindImage { item, slide } => {
             let mut effects = select(state, item, None);
@@ -119,15 +126,20 @@ pub(super) fn apply(state: &mut State, command: Command) -> Vec<Effect> {
             Vec::new()
         }
         Command::RelinkImage { item, slide, file } => {
-            let Some(set) = &mut state.set else { return Vec::new() };
-            let target = Arc::make_mut(&mut set.set).items.get_mut(item).and_then(|i| match &mut i.kind {
-                ItemKind::Image(image) => image.slides.get_mut(slide),
-                _ => None,
+            let effects = set_edit::change(state, None, |set| {
+                let mut set = set.clone();
+                let ItemKind::Image(image) = &mut set.items.get_mut(item)?.kind else { return None };
+                image.slides.get_mut(slide)?.image = Some(crate::style::ImageSource::File(file));
+                Some((set, Change::InPlace))
             });
-            let Some(target) = target else { return Vec::new() };
-            target.image = Some(crate::style::ImageSource::File(file));
-            set.finding_image = None;
-            select(state, item, None)
+            if let Some(set) = &mut state.set {
+                set.finding_image = None;
+            }
+            let mut effects = effects;
+            if state.set.as_ref().and_then(|s| s.selected) != Some(item) {
+                effects.extend(select(state, item, None));
+            }
+            effects
         }
         // Handled by the engine itself.
         _ => Vec::new(),
@@ -233,7 +245,7 @@ pub(super) fn remember_language(state: &mut State, language: LanguageMode) -> Ve
 /// A custom or image item as the stand-in song its slides are shown from. Its title and subtitle
 /// (custom items only: a picture is shown on its own) go to the title and subtitle boxes; its
 /// pictures become the slides' backgrounds. `None` for other items.
-fn open_item(index: usize, item: &SetItem) -> Option<OpenSong> {
+pub(super) fn open_item(index: usize, item: &SetItem) -> Option<OpenSong> {
     let id = SongId::set_item(index);
     match &item.kind {
         ItemKind::Custom(custom) => {

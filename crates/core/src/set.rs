@@ -53,7 +53,7 @@ pub enum ItemKind {
     },
 }
 
-/// A custom slide item. Presented read-only (editing sets is a later ticket).
+/// A custom slide item.
 #[derive(Debug, Clone, Default, PartialEq)]
 pub struct CustomItem {
     pub title: String,
@@ -111,6 +111,31 @@ pub struct SongItem {
     pub other_elements: Vec<RawElement>,
     /// Item attributes not modelled here (such as `transition`), kept for saving.
     pub attributes: Vec<(String, String)>,
+}
+
+/// The line that separates slides in the custom slide editor, as in OpenSong's.
+pub const SLIDE_SEPARATOR: &str = "---";
+
+impl CustomItem {
+    /// The slides as one text, separated by [`SLIDE_SEPARATOR`] lines.
+    pub fn slides_text(&self) -> String {
+        self.slides.join(&format!("\n{SLIDE_SEPARATOR}\n"))
+    }
+
+    /// The slides of a text written as [`slides_text`](Self::slides_text) gives it: split at
+    /// every line holding only `---` (spaces around it are allowed). Nothing else changes.
+    pub fn slides_from_text(text: &str) -> Vec<String> {
+        let text = text.replace("\r\n", "\n");
+        let mut slides = vec![Vec::new()];
+        for line in text.split('\n') {
+            if line.trim() == SLIDE_SEPARATOR {
+                slides.push(Vec::new());
+            } else if let Some(slide) = slides.last_mut() {
+                slide.push(line);
+            }
+        }
+        slides.into_iter().map(|lines| lines.join("\n")).collect()
+    }
 }
 
 impl SetItem {
