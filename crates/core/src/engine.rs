@@ -5,6 +5,7 @@ use std::sync::Arc;
 use crate::command::{Command, Effect, ImportTrigger};
 
 mod edit;
+mod plan;
 mod save;
 mod sets;
 
@@ -241,6 +242,13 @@ fn step(state: &mut State, command: Command) -> Vec<Effect> {
             | Command::SongSaveConflict { .. }
             | Command::SongSaveFailed { .. }
             | Command::ResolveSaveConflict { .. }) => save::apply(state, command),
+            command @ (Command::RenameSong { .. }
+            | Command::DeleteSong(_)
+            | Command::NewSong { .. }
+            | Command::PlanGathered { .. }
+            | Command::ConfirmPlan
+            | Command::CancelPlan
+            | Command::PlanApplied { .. }) => plan::apply(state, command),
             Command::ToggleLogo => {
                 toggle(state, OutputMode::Logo);
                 Vec::new()

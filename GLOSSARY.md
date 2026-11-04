@@ -174,6 +174,9 @@ The single preferred way serviceFlow writes a song or set. For example, sections
 **Canonical save**:
 Saving an edited file in canonical form, together with any sets that need updating to stay consistent with it.
 
+**Change plan**:
+The full list of files one action will write (a song plus the sets that refer to it), shown to the operator, who applies or cancels it before anything is written. Renaming tags on save, renaming or moving a song file, deleting a song and creating a song each make one.
+
 **Tidy library**:
 An operator-initiated action that rewrites every file not yet in canonical form, after showing a dry-run list of the changes.
 

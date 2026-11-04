@@ -113,6 +113,16 @@ impl EngineHarness {
         crate::block_on(self.storage().write_song(id, bytes.to_vec(), Expect::Any)).expect("writing a song");
     }
 
+    /// The bytes of a set file in storage (`None`: there is none).
+    pub fn set_bytes(&self, id: &str) -> Option<Vec<u8>> {
+        crate::block_on(self.storage().read_set(&serviceflow_storage::SetId::new(id))).ok().map(|s| s.bytes)
+    }
+
+    /// Write a set file behind the engine's back.
+    pub fn write_set_file(&self, id: &str, bytes: &[u8]) {
+        crate::block_on(self.storage().write_set(&serviceflow_storage::SetId::new(id), bytes.to_vec(), Expect::Any)).expect("writing a set");
+    }
+
     pub fn with_storage(storage: MemoryStorage) -> Self {
         Self { driver: Driver::new(storage) }
     }

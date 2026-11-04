@@ -12,6 +12,10 @@
 //!   file as it is now and reports [`StorageError::Conflict`] if someone else changed it.
 //!   (The check and the rename are not one atomic step: a change landing between them is lost.
 //!   OpenSong has no locking either, so this narrows the window rather than closing it.)
+//! * Renames (moves between categories too) are one `rename` of the file, so a crash leaves it
+//!   under one name or the other. The target must not exist; as with hashes, that is checked
+//!   just before the rename, not in the same step. A rename that changes only letter case is
+//!   allowed on case-insensitive disks, where the "target" is the file itself.
 //! * File IO is blocking `std::fs` inside `async fn`s: the futures complete on first poll. That
 //!   suits one operator on a local disk; move it to a thread if a slow share ever matters.
 //! * This storage announces its own writes on [`ChangeEvents::changes`]. Watching the folder for
@@ -26,8 +30,8 @@ use futures::StreamExt as _;
 use futures::channel::mpsc;
 use serviceflow_storage::{
     AssetId, AssetRepository, ChangeEvent, ChangeEvents, ChangeKind, ChangeStream, ContentHash, DocumentId, Expect, Key, Result, SetId,
-    SetRepository, SettingsId, SettingsRepository, SidecarRepository, SongId, SongRepository, StorageError, Stored, check_path, is_ignored_path,
-    key_path,
+    SetRepository, SettingsId, SettingsRepository, SidecarRepository, SongId, SongRepository, StorageError, Stored, check_path, expect_holds,
+    is_ignored_path, key_path,
 };
 
 /// Storage over an OpenSong data root on disk.
@@ -116,6 +120,41 @@ impl FsStorage {
         Ok(hash)
     }
 
+    fn delete(&self, key: Key, expect: Expect) -> Result<()> {
+        let path = self.file(&key)?;
+        let Some(current) = self.read_if_exists(&key)? else { return Err(StorageError::NotFound(key)) };
+        if !expect_holds(expect, Some(current.hash)) {
+            return Err(StorageError::Conflict(key));
+        }
+        match std::fs::remove_file(&path) {
+            Ok(()) => {}
+            Err(e) if e.kind() == ErrorKind::NotFound => return Err(StorageError::NotFound(key)),
+            Err(e) => return Err(io_error(&e)),
+        }
+        self.announce(ChangeEvent { key, kind: ChangeKind::Removed });
+        Ok(())
+    }
+
+    fn rename(&self, from: Key, to: Key, expect: Expect) -> Result<ContentHash> {
+        let source = self.file(&from)?;
+        let target = self.file(&to)?;
+        let Some(current) = self.read_if_exists(&from)? else { return Err(StorageError::NotFound(from)) };
+        if !expect_holds(expect, Some(current.hash)) {
+            return Err(StorageError::Conflict(from));
+        }
+        let same_file = key_path(&from).to_lowercase() == key_path(&to).to_lowercase();
+        if !same_file && std::fs::symlink_metadata(&target).is_ok() {
+            return Err(StorageError::Conflict(to));
+        }
+        if let Some(parent) = target.parent() {
+            std::fs::create_dir_all(parent).map_err(|e| io_error(&e))?;
+        }
+        std::fs::rename(&source, &target).map_err(|e| io_error(&e))?;
+        self.announce(ChangeEvent { key: from, kind: ChangeKind::Removed });
+        self.announce(ChangeEvent { key: to, kind: ChangeKind::Written });
+        Ok(current.hash)
+    }
+
     /// Every visible file under `folder`, as `/`-separated paths relative to it, sorted.
     fn list(&self, folder: &str) -> Result<Vec<String>> {
         let mut found = Vec::new();
@@ -171,6 +210,14 @@ impl SongRepository for FsStorage {
     async fn write_song(&self, id: &SongId, bytes: Vec<u8>, expect: Expect) -> Result<ContentHash> {
         self.write(Key::Song(id.clone()), bytes, expect)
     }
+
+    async fn delete_song(&self, id: &SongId, expect: Expect) -> Result<()> {
+        self.delete(Key::Song(id.clone()), expect)
+    }
+
+    async fn rename_song(&self, from: &SongId, to: &SongId, expect: Expect) -> Result<ContentHash> {
+        self.rename(Key::Song(from.clone()), Key::Song(to.clone()), expect)
+    }
 }
 
 impl SetRepository for FsStorage {
@@ -184,6 +231,14 @@ impl SetRepository for FsStorage {
 
     async fn write_set(&self, id: &SetId, bytes: Vec<u8>, expect: Expect) -> Result<ContentHash> {
         self.write(Key::Set(id.clone()), bytes, expect)
+    }
+
+    async fn delete_set(&self, id: &SetId, expect: Expect) -> Result<()> {
+        self.delete(Key::Set(id.clone()), expect)
+    }
+
+    async fn rename_set(&self, from: &SetId, to: &SetId, expect: Expect) -> Result<ContentHash> {
+        self.rename(Key::Set(from.clone()), Key::Set(to.clone()), expect)
     }
 }
 

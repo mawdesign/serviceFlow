@@ -12,6 +12,10 @@ pub struct Set {
     /// The `name` attribute of the file's root, `""` when absent (OpenSong's sample set has none).
     pub name: String,
     pub items: Vec<SetItem>,
+    /// Attributes of the root other than `name`, kept for saving.
+    pub attributes: Vec<(String, String)>,
+    /// Children of the root other than `slide_groups`, kept for saving.
+    pub other_elements: Vec<RawElement>,
 }
 
 /// One entry of a set (GLOSSARY "Set item").
@@ -66,6 +70,8 @@ pub struct SongItem {
     pub presentation: Vec<String>,
     /// Item children not modelled here (such as a set-item `<style>`), kept for saving.
     pub other_elements: Vec<RawElement>,
+    /// Item attributes not modelled here (such as `transition`), kept for saving.
+    pub attributes: Vec<(String, String)>,
 }
 
 impl SetItem {

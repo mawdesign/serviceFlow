@@ -50,25 +50,46 @@ pub fn canonicalize(song: &Song) -> Canonical {
         let (new_sections, new_warnings) = lyrics::parse(&renamed);
         // Renaming must keep every section apart; anything else keeps the tags as they are.
         if new_sections.len() == sections.len() {
-            let presentation = song
-                .presentation
-                .iter()
-                .map(|token| {
-                    let Some(section) = original.section(token) else { return token.clone() };
-                    let index = sections.iter().position(|s| std::ptr::eq(s, section));
-                    match index.and_then(|i| new_sections.get(i)) {
-                        // Tokens are space-separated: a space in a tag is written as a no-break space.
-                        Some(new) => new.tag.replace(' ', "\u{a0}"),
-                        None => token.clone(),
-                    }
-                })
-                .collect();
+            let presentation = rename_in(&original, &new_sections, &song.presentation);
             let song = Song { lyrics: renamed, sections: new_sections, warnings: new_warnings, presentation, ..song.clone() };
             return Canonical { song: ordered(song), tags_kept: false };
         }
     }
     let (sections, warnings) = lyrics::parse(&trimmed);
     Canonical { song: ordered(Song { lyrics: trimmed, sections, warnings, ..song.clone() }), tags_kept: true }
+}
+
+/// Presentation-order `tokens` naming sections of `before` (such as a set item's order), rewritten
+/// to the tags those sections have in `after`, the canonical form of `before`. Tokens that name
+/// no section are kept. When the tags were kept ([`Canonical::tags_kept`]) nothing changes.
+pub fn rename_tokens(before: &Song, after: &Song, tokens: &[String]) -> Vec<String> {
+    let original = Song { sections: lyrics::parse(&before.lyrics).0, ..Song::default() };
+    if original.sections.len() != after.sections.len() {
+        return tokens.to_vec();
+    }
+    rename_in(&original, &after.sections, tokens)
+}
+
+/// Whether saving `song` renames any of its section tags.
+pub fn renames_tags(song: &Song) -> bool {
+    let canonical = canonicalize(song);
+    let before = lyrics::parse(&song.lyrics).0;
+    !canonical.tags_kept && before.iter().map(|s| &s.tag).ne(canonical.song.sections.iter().map(|s| &s.tag))
+}
+
+fn rename_in(original: &Song, new_sections: &[crate::song::Section], tokens: &[String]) -> Vec<String> {
+    tokens
+        .iter()
+        .map(|token| {
+            let Some(section) = original.section(token) else { return token.clone() };
+            let index = original.sections.iter().position(|s| std::ptr::eq(s, section));
+            match index.and_then(|i| new_sections.get(i)) {
+                // Tokens are space-separated: a space in a tag is written as a no-break space.
+                Some(new) => new.tag.replace(' ', "\u{a0}"),
+                None => token.clone(),
+            }
+        })
+        .collect()
 }
 
 /// Unmodelled elements OpenSong knows, in the order the canonical file has them (opensong.md §2):
