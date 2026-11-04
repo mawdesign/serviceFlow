@@ -78,11 +78,7 @@ fn the_dry_run_lists_every_file_not_in_canonical_form_with_what_changes_and_writ
     let changes = |file: PlanFile| report.changes.iter().find(|(f, _)| *f == file).unwrap().1.clone();
     assert_eq!(
         changes(song("Legacy")),
-        [
-            TidyChange::TagsRenamed(vec![("1".into(), "V1".into()), ("2".into(), "V2".into())]),
-            TidyChange::OrderRewritten,
-            TidyChange::TrailingSpaces
-        ]
+        [TidyChange::TagsRenamed(vec![("1".into(), "V1".into()), ("2".into(), "V2".into())]), TidyChange::OrderRewritten, TidyChange::TrailingSpaces]
     );
     assert_eq!(changes(set("Ordered")), [TidyChange::ItemOrders(vec!["Legacy".into()])]);
     assert_eq!(changes(set("Loose")), [TidyChange::Layout]);
@@ -188,7 +184,8 @@ fn a_file_changed_after_the_list_was_shown_stops_the_tidy_before_anything_is_wri
 fn content_serviceflow_does_not_model_survives_a_tidy() {
     let song = "<song><title>Odd</title><alttheme>Warm</alttheme><custom_thing a=\"1\"><x>y</x></custom_thing>\
 <lyrics>[1]\n Verse</lyrics></song>";
-    let set = "<set name=\"S\" extra=\"kept\"><slide_groups><slide_group name=\"Odd\" type=\"song\" path=\"\" transition=\"1\"/></slide_groups></set>";
+    let set =
+        "<set name=\"S\" extra=\"kept\"><slide_groups><slide_group name=\"Odd\" type=\"song\" path=\"\" transition=\"1\"/></slide_groups></set>";
     let mut harness = EngineHarness::with_songs_and_sets(&[("Odd", song)], &[("S", set)]);
     harness.send(Command::TidyLibrary).send(Command::ConfirmPlan);
     let song = String::from_utf8(harness.song_bytes(&SongId::new("Odd")).unwrap()).unwrap();
