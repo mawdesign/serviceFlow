@@ -27,7 +27,7 @@ pub(super) fn request(state: &mut State, request: PlanRequest) -> Vec<Effect> {
     let subject = match &request {
         PlanRequest::Rename { from, .. } => Some(from.clone()),
         PlanRequest::Delete(id) => Some(id.clone()),
-        PlanRequest::Save { .. } | PlanRequest::New { .. } => None,
+        PlanRequest::Save { .. } | PlanRequest::New { .. } | PlanRequest::Tidy => None,
     };
     state.planning = Some(request);
     vec![Effect::GatherForPlan { subject }]
@@ -38,6 +38,7 @@ pub(super) fn apply(state: &mut State, command: Command) -> Vec<Effect> {
         Command::RenameSong { from, to } => request(state, PlanRequest::Rename { from, to }),
         Command::DeleteSong(id) => request(state, PlanRequest::Delete(id)),
         Command::NewSong { category, title } => request(state, PlanRequest::New { category, title }),
+        Command::TidyLibrary | Command::TidyGathered { .. } => super::tidy::apply(state, command),
         Command::PlanGathered { songs, sets, unreadable_sets, subject, error } => {
             let Some(request) = state.planning.take() else { return Vec::new() };
             if let Some(error) = error {
@@ -56,6 +57,11 @@ pub(super) fn apply(state: &mut State, command: Command) -> Vec<Effect> {
             }
         }
         Command::ConfirmPlan => match &state.plan {
+            // A tidy that finds nothing to do is shown as an empty list: confirming just closes it.
+            Some(plan) if plan.steps.is_empty() && !state.applying_plan => {
+                state.plan = None;
+                Vec::new()
+            }
             Some(plan) if !state.applying_plan => {
                 state.applying_plan = true;
                 vec![Effect::ApplyPlan(Arc::clone(plan))]
@@ -113,7 +119,7 @@ enum Made {
 }
 
 fn plan(action: PlanAction, steps: Vec<PlanStep>) -> Made {
-    Made::Plan(ChangePlan { action, steps, users: Vec::new(), unreadable_sets: Vec::new() })
+    Made::Plan(ChangePlan { action, steps, users: Vec::new(), unreadable_sets: Vec::new(), tidy: None })
 }
 
 fn make(state: &State, request: &PlanRequest, gathered: &Gathered<'_>) -> Made {
@@ -153,8 +159,10 @@ fn make(state: &State, request: &PlanRequest, gathered: &Gathered<'_>) -> Made {
                 steps: vec![PlanStep::DeleteSong { id: id.clone(), expect: Expect::Hash(hash) }],
                 users,
                 unreadable_sets: Vec::new(),
+                tidy: None,
             })
         }
+        PlanRequest::Tidy => Made::Refused(PlanRefusal::Unreadable("not a plan of this kind".to_owned())),
         PlanRequest::New { category, title } => {
             let id = SongId::for_new_song(category, title, gathered.songs);
             if !usable_name(&id) {
@@ -269,6 +277,8 @@ fn applied(state: &mut State, plan: &ChangePlan, written: Vec<WrittenSong>) -> V
             effects.push(Effect::ListSets);
         }
         PlanAction::DuplicateSet { .. } => effects.push(Effect::ListSets),
+        // Files are rewritten in place; the watcher reloads the open song and set.
+        PlanAction::TidyLibrary => {}
     }
     let files: Vec<PlanFile> = plan.steps.iter().map(PlanStep::file).collect();
     effects.extend(after_writes(state, plan, &files));

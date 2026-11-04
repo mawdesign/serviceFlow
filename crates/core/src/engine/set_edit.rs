@@ -219,6 +219,6 @@ fn save_as(state: &mut State, name: &str, purpose: SetWrite) -> Vec<Effect> {
         PlanStep::WriteSidecar { set: to.clone(), sidecar: Arc::clone(&open.sidecar) },
     ];
     let action = if purpose == SetWrite::Duplicate { PlanAction::DuplicateSet { from, to } } else { PlanAction::SaveSetAs { from, to } };
-    state.plan = Some(Arc::new(ChangePlan { action, steps, users: Vec::new(), unreadable_sets: Vec::new() }));
+    state.plan = Some(Arc::new(ChangePlan { action, steps, users: Vec::new(), unreadable_sets: Vec::new(), tidy: None }));
     Vec::new()
 }

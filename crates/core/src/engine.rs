@@ -10,6 +10,7 @@ mod plan;
 mod save;
 mod set_edit;
 mod sets;
+mod tidy;
 
 use crate::ids::{ContentHash, SongId};
 use crate::output::InitialMode;
@@ -282,6 +283,8 @@ fn step(state: &mut State, command: Command) -> Vec<Effect> {
             | Command::DeleteSong(_)
             | Command::NewSong { .. }
             | Command::PlanGathered { .. }
+            | Command::TidyLibrary
+            | Command::TidyGathered { .. }
             | Command::ConfirmPlan
             | Command::CancelPlan
             | Command::PlanApplied { .. }) => plan::apply(state, command),
