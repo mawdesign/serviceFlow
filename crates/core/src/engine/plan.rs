@@ -260,6 +260,15 @@ fn applied(state: &mut State, plan: &ChangePlan, written: Vec<WrittenSong>) -> V
             effects.extend(super::step(state, Command::RefreshLibrary));
             effects.extend(super::step(state, Command::OpenSong(id.clone())));
         }
+        PlanAction::SaveSetAs { from, to } => {
+            // The new set holds the edits: open it (read back, with its hash); the old file is as
+            // it was.
+            if state.set.as_ref().is_some_and(|open| open.id == *from) {
+                effects.extend(super::step(state, Command::OpenSet(to.clone())));
+            }
+            effects.push(Effect::ListSets);
+        }
+        PlanAction::DuplicateSet { .. } => effects.push(Effect::ListSets),
     }
     let files: Vec<PlanFile> = plan.steps.iter().map(PlanStep::file).collect();
     effects.extend(after_writes(state, plan, &files));

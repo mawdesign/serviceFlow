@@ -13,6 +13,7 @@ serviceflow-core = { workspace = true }
 serviceflow-storage = { workspace = true }
 serviceflow-storage-memory = { workspace = true }
 serviceflow-runtime = { workspace = true }
+serviceflow-opensong = { workspace = true }
 futures = { workspace = true }
 tempfile = { workspace = true }
 

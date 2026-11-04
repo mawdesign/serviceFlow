@@ -12,6 +12,7 @@ use crate::plan::{ChangePlan, PlanAction, PlanFailure, PlanRefusal, PlanRequest}
 use crate::resolve::{self, ImageFile, Images, ResolvedStyle};
 use crate::search::SearchIndex;
 use crate::set::{ItemKind, Set};
+use crate::set_edit::SetHistory;
 use crate::sidecar::{ItemKey, ItemSettings, SetSidecar};
 use crate::song::{Slide, SlideOptions, Song};
 use crate::style::{ImageSource, Styles};
@@ -82,11 +83,21 @@ pub struct OpenSet {
     /// The picture (item, slide) the operator is looking for a file for: choose one of
     /// [`State::backgrounds`].
     pub finding_image: Option<(usize, usize)>,
-    /// The set has changes that are not saved (a relinked item).
+    /// The set as its file holds it (as read, or as last saved). Edits change [`set`](Self::set) only.
+    pub base: Arc<Set>,
+    /// The hash of the file's bytes [`base`](Self::base) was read from or saved as. A save writes
+    /// only if the file still has it.
+    pub hash: ContentHash,
+    /// The set differs from its file: a save would write it. Undoing every edit since the last
+    /// save makes it unmodified again.
     pub modified: bool,
-    /// The set's file changed on disk while it has unsaved changes, so it was not reloaded:
-    /// opening the set again takes the file's version.
+    /// The set's file changed on disk while it has unsaved changes (or a save found it changed),
+    /// so it was not reloaded: the operator overwrites it, reloads it, or saves a copy.
     pub changed_on_disk: bool,
+    /// The set is being saved.
+    pub saving: bool,
+    /// The set's edits, for undo and redo (ADR-0001).
+    pub history: SetHistory,
     /// What to send live once the selected item's song has loaded (moving on from the end of
     /// the previous item).
     pub(crate) pending: Option<Pending>,
@@ -100,16 +111,20 @@ pub(crate) enum Pending {
 }
 
 impl OpenSet {
-    pub(crate) fn new(id: SetId, set: Arc<Set>, sidecar: Arc<SetSidecar>) -> Self {
+    pub(crate) fn new(id: SetId, set: Arc<Set>, hash: ContentHash, sidecar: Arc<SetSidecar>) -> Self {
         Self {
             id,
+            base: Arc::clone(&set),
             set,
+            hash,
             selected: None,
             missing: Vec::new(),
             relinking: None,
             finding_image: None,
             modified: false,
             changed_on_disk: false,
+            saving: false,
+            history: SetHistory::default(),
             sidecar,
             pending: None,
         }
@@ -164,6 +179,11 @@ pub enum Problem {
     /// A confirmed change plan stopped part-way (or, when `failure.written` is empty, before
     /// writing anything). Doing the action again finishes it.
     PlanIncomplete { action: PlanAction, failure: PlanFailure },
+    /// A set could not be saved (to `id`). Its edits are kept.
+    SetUnsaved { id: SetId, error: String },
+    /// A set could not be saved or duplicated under the name `name`: a set with that name exists
+    /// (`taken`), or the name is not usable as a file name.
+    SetNameRefused { name: String, taken: bool },
 }
 
 #[derive(Debug, Clone, PartialEq)]

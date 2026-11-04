@@ -12,6 +12,7 @@ use std::sync::Arc;
 
 use crate::ids::{ContentHash, Expect, SetId, SongId};
 use crate::set::Set;
+use crate::sidecar::SetSidecar;
 use crate::song::Song;
 
 /// What the operator asked for.
@@ -27,6 +28,16 @@ pub enum PlanAction {
     DeleteSong(SongId),
     /// Create a new song file.
     NewSong(SongId),
+    /// Save a set, with its edits, under a new name (its sidecar goes with it).
+    SaveSetAs {
+        from: SetId,
+        to: SetId,
+    },
+    /// Copy a set, as saved, to a new name (its sidecar goes with it).
+    DuplicateSet {
+        from: SetId,
+        to: SetId,
+    },
 }
 
 /// One file written by a plan.
@@ -54,6 +65,12 @@ pub enum PlanStep {
         id: SongId,
         expect: Expect,
     },
+    /// Write a set's sidecar (ADR-0003). Sidecars hold serviceFlow extras only, so this is written
+    /// whatever the file holds.
+    WriteSidecar {
+        set: SetId,
+        sidecar: Arc<SetSidecar>,
+    },
 }
 
 /// A file a plan touches, for showing and reporting.
@@ -61,6 +78,8 @@ pub enum PlanStep {
 pub enum PlanFile {
     Song(SongId),
     Set(SetId),
+    /// The sidecar of a set.
+    Sidecar(SetId),
 }
 
 impl PlanStep {
@@ -70,6 +89,7 @@ impl PlanStep {
             PlanStep::WriteSet { id, .. } => PlanFile::Set(id.clone()),
             PlanStep::WriteSong { id, .. } | PlanStep::DeleteSong { id, .. } => PlanFile::Song(id.clone()),
             PlanStep::RenameSong { from, .. } => PlanFile::Song(from.clone()),
+            PlanStep::WriteSidecar { set, .. } => PlanFile::Sidecar(set.clone()),
         }
     }
 }

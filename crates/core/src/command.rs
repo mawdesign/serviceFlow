@@ -12,6 +12,7 @@ use crate::ids::{ContentHash, Expect, SetId, SongId};
 use crate::output::{OutputSettings, SlideColors};
 use crate::plan::{ChangePlan, GatheredSet, PlanFailure, WrittenSong};
 use crate::set::Set;
+use crate::set_edit::SetEdit;
 use crate::sidecar::SetSidecar;
 use crate::song::{LanguageMode, SlideOptions, Song};
 use crate::style::Styles;
@@ -156,10 +157,11 @@ pub enum Command {
     BackgroundsListed(Vec<String>),
     /// Open a set. The current one stays open if this one cannot be read.
     OpenSet(SetId),
-    /// Storage result: a set was read and parsed.
+    /// Storage result: a set was read and parsed. `hash` is the hash of the bytes read.
     SetLoaded {
         id: SetId,
         set: Arc<Set>,
+        hash: ContentHash,
         /// The set's item settings; the defaults when it has no sidecar or its sidecar is unreadable.
         sidecar: Arc<SetSidecar>,
         /// Why the sidecar was not used, when it exists but could not be read.
@@ -282,6 +284,63 @@ pub enum Command {
         plan: Arc<ChangePlan>,
         result: Result<Vec<WrittenSong>, PlanFailure>,
     },
+    /// Change the open set in memory (adding, moving and removing items, editing an item's
+    /// texts). Nothing is saved (ADR-0002). Consecutive edits of the same text of the same item
+    /// are one undo step.
+    EditSet(SetEdit),
+    /// Undo the last edit of the open set. The set has its own history; live actions are never in
+    /// it (ADR-0001).
+    UndoSet,
+    RedoSet,
+    /// Save the open set's edits in canonical form (ADR-0002). Nothing is written when the set has
+    /// no edits, or while the file is known to have changed on disk (the operator resolves that
+    /// first). The file is only written if it is unchanged since it was read.
+    SaveSet,
+    /// Save the open set, with its edits, as a new set `name` (a file name under `Sets/`); the
+    /// open set becomes the new one and the old file stays as it was.
+    SaveSetAs { name: String },
+    /// Make a new set `name` holding the open set as it is saved (without its edits); the open set
+    /// stays open.
+    DuplicateSet { name: String },
+    /// The operator's answer to the open set having changed on disk while it has edits.
+    ResolveSetConflict(ConflictChoice),
+    /// Storage result of [`Effect::WriteSet`]: set `id` was written to `saved_as`, which now holds
+    /// `set` (as read back) with `hash`.
+    SetSaved {
+        id: SetId,
+        saved_as: SetId,
+        set: Arc<Set>,
+        hash: ContentHash,
+        purpose: SetWrite,
+    },
+    /// Storage result of [`Effect::WriteSet`]: the file had changed on disk (or, for a new name,
+    /// already existed), so nothing was written.
+    SetSaveConflict {
+        id: SetId,
+        saved_as: SetId,
+        purpose: SetWrite,
+    },
+    /// Storage result of [`Effect::WriteSet`]: the set could not be written.
+    SetSaveFailed {
+        id: SetId,
+        saved_as: SetId,
+        purpose: SetWrite,
+        error: String,
+    },
+    /// List the picture files of `Backgrounds/` (to make an image item); see
+    /// [`State::backgrounds`](crate::state::State).
+    ListBackgrounds,
+}
+
+/// Why a set is written.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum SetWrite {
+    /// Its edits are saved to its own file.
+    Save,
+    /// It is saved, with its edits, under a new name, and the open set becomes that one.
+    SaveAs,
+    /// A copy is made under a new name; the open set stays open.
+    Duplicate,
 }
 
 /// A document read again after storage announced a change.
@@ -328,7 +387,17 @@ pub enum ImportTrigger {
 impl Command {
     /// Document edits are what undo covers: the opposite of live actions.
     pub fn is_document_edit(&self) -> bool {
-        matches!(self, Command::EditSong(_) | Command::Undo | Command::Redo)
+        matches!(
+            self,
+            Command::EditSong(_)
+                | Command::Undo
+                | Command::Redo
+                | Command::EditSet(_)
+                | Command::UndoSet
+                | Command::RedoSet
+                | Command::RelinkItem { .. }
+                | Command::RelinkImage { .. }
+        )
     }
 
     /// Live actions are transient: they never enter undo history (ADR-0001). Only document edits
@@ -360,6 +429,10 @@ pub enum Effect {
     /// [`Command::SongSaved`], [`Command::SongSaveConflict`] (the file changed or vanished) or
     /// [`Command::SongSaveFailed`].
     WriteSong { id: SongId, song: Arc<Song>, expect: Expect, as_copy: bool },
+    /// Write `set` in canonical form to set `to` if the file meets `expect` (`id`: the open set
+    /// it comes from). Answer with [`Command::SetSaved`] (read back from the written bytes),
+    /// [`Command::SetSaveConflict`] or [`Command::SetSaveFailed`].
+    WriteSet { id: SetId, to: SetId, set: Arc<Set>, expect: Expect, purpose: SetWrite },
     /// List the songs, read and parse every set and read the hash of song `subject`, to make a
     /// change plan; answer with [`Command::PlanGathered`].
     GatherForPlan { subject: Option<SongId> },

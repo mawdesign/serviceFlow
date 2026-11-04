@@ -235,6 +235,8 @@ async fn step_holds<S: Storage>(storage: &S, step: &PlanStep) -> bool {
             let same_file = from.as_str().to_lowercase() == to.as_str().to_lowercase();
             current.is_some() && expect_holds(*expect, current) && (same_file || song_hash(storage, to).await.is_none())
         }
+        // Sidecars hold serviceFlow extras only and are written whatever they hold.
+        PlanStep::WriteSidecar { .. } => true,
     }
 }
 
@@ -251,6 +253,10 @@ async fn write_step<S: Storage>(storage: &S, step: &PlanStep) -> Result<Option<W
         }
         PlanStep::RenameSong { from, to, expect } => storage.rename_song(from, to, *expect).await.map(|_| None),
         PlanStep::DeleteSong { id, expect } => storage.delete_song(id, *expect).await.map(|_| None),
+        PlanStep::WriteSidecar { set, sidecar } => {
+            let owner = serviceflow_storage::DocumentId::Set(set.clone());
+            storage.write_sidecar(&owner, serviceflow_sidecar::write_set_sidecar(sidecar), Expect::Any).await.map(|_| None)
+        }
     }
 }
 
@@ -320,13 +326,13 @@ pub async fn perform<S: Storage>(storage: &S, effect: Effect) -> Command {
         },
         Effect::LoadSet(id) => {
             let parsed = match storage.read_set(&id).await {
-                Ok(stored) => serviceflow_opensong::read_set(&stored.bytes).map_err(|e| e.to_string()),
+                Ok(stored) => serviceflow_opensong::read_set(&stored.bytes).map(|set| (set, stored.hash)).map_err(|e| e.to_string()),
                 Err(e) => Err(e.to_string()),
             };
             match parsed {
-                Ok(set) => {
+                Ok((set, hash)) => {
                     let (sidecar, sidecar_error) = read_sidecar(storage, &id).await;
-                    Command::SetLoaded { id, set: Arc::new(set), sidecar: Arc::new(sidecar), sidecar_error }
+                    Command::SetLoaded { id, set: Arc::new(set), hash, sidecar: Arc::new(sidecar), sidecar_error }
                 }
                 Err(error) => Command::SetLoadFailed { id, error },
             }
@@ -377,6 +383,18 @@ pub async fn perform<S: Storage>(storage: &S, effect: Effect) -> Command {
             Command::ImageLoaded { name, bytes }
         }
         Effect::WriteSong { id, song, expect, as_copy } => save_song(storage, id, &song, expect, as_copy).await,
+        Effect::WriteSet { id, to, set, expect, purpose } => {
+            // Canonical form; the engine then holds exactly what the file says.
+            let bytes = serviceflow_opensong::write_set(&set);
+            match storage.write_set(&to, bytes.clone(), expect).await {
+                Ok(hash) => match serviceflow_opensong::read_set(&bytes) {
+                    Ok(read) => Command::SetSaved { id, saved_as: to, set: Arc::new(read), hash, purpose },
+                    Err(e) => Command::SetSaveFailed { id, saved_as: to, purpose, error: format!("written but unreadable: {e}") },
+                },
+                Err(StorageError::Conflict(_) | StorageError::NotFound(_)) => Command::SetSaveConflict { id, saved_as: to, purpose },
+                Err(e) => Command::SetSaveFailed { id, saved_as: to, purpose, error: e.to_string() },
+            }
+        }
         Effect::ReloadSong(id) => {
             let file = match storage.read_song(&id).await {
                 Ok(stored) => match serviceflow_opensong::read_song(&stored.bytes) {

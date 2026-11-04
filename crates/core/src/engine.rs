@@ -8,6 +8,7 @@ mod edit;
 mod external;
 mod plan;
 mod save;
+mod set_edit;
 mod sets;
 
 use crate::ids::{ContentHash, SongId};
@@ -234,7 +235,22 @@ fn step(state: &mut State, command: Command) -> Vec<Effect> {
                 toggle(state, OutputMode::Black);
                 Vec::new()
             }
-            command @ (Command::EditSong(_) | Command::EndEditGroup | Command::Undo | Command::Redo) => edit::apply(state, command),
+            Command::EndEditGroup => {
+                set_edit::end_group(state);
+                edit::apply(state, Command::EndEditGroup)
+            }
+            command @ (Command::EditSong(_) | Command::Undo | Command::Redo) => edit::apply(state, command),
+            command @ (Command::EditSet(_)
+            | Command::UndoSet
+            | Command::RedoSet
+            | Command::SaveSet
+            | Command::SaveSetAs { .. }
+            | Command::DuplicateSet { .. }
+            | Command::ResolveSetConflict(_)
+            | Command::SetSaved { .. }
+            | Command::SetSaveConflict { .. }
+            | Command::SetSaveFailed { .. }
+            | Command::ListBackgrounds) => set_edit::apply(state, command),
             command @ (Command::RefreshSets
             | Command::SetsListed(_)
             | Command::SetsListFailed { .. }

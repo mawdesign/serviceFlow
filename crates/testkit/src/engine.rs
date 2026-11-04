@@ -139,6 +139,16 @@ impl EngineHarness {
         crate::block_on(self.storage().read_set(&serviceflow_storage::SetId::new(set))).ok().map(|s| s.bytes)
     }
 
+    /// The set file in storage, parsed (`None`: there is none).
+    pub fn saved_set(&self, set: &str) -> Option<serviceflow_core::set::Set> {
+        self.set_bytes(set).map(|bytes| serviceflow_opensong::read_set(&bytes).expect("a readable set"))
+    }
+
+    /// A set as the codec writes it (canonical form), for comparing with what was saved.
+    pub fn canonical_set_bytes(set: &serviceflow_core::set::Set) -> Vec<u8> {
+        serviceflow_opensong::write_set(set)
+    }
+
     /// The bytes of a set's sidecar in storage (`None`: there is none).
     pub fn sidecar_bytes(&self, set: &str) -> Option<Vec<u8>> {
         let owner = DocumentId::Set(serviceflow_storage::SetId::new(set));

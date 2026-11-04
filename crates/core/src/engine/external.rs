@@ -98,7 +98,7 @@ fn set_reloaded(state: &mut State, id: crate::ids::SetId, file: Reloaded<Set>) -
             state.problems.push(Problem::SetUnreadable { id, error });
             Vec::new()
         }
-        Reloaded::Read(set, _) => {
+        Reloaded::Read(set, hash) => {
             let mut effects = Vec::new();
             if state.sets.binary_search(&id).is_err() {
                 effects.push(Effect::ListSets);
@@ -106,7 +106,15 @@ fn set_reloaded(state: &mut State, id: crate::ids::SetId, file: Reloaded<Set>) -
             let library_listed = !state.library.songs.is_empty();
             let songs = state.library.songs.clone();
             let Some(open) = state.set.as_mut().filter(|open| open.id == id) else { return effects };
+            // Our own save announcing itself, or no real change.
+            if open.saving || open.hash == hash {
+                return effects;
+            }
             if *open.set == *set {
+                // The file now says what the open set says: nothing left to save.
+                open.base = set;
+                open.hash = hash;
+                open.modified = false;
                 return effects;
             }
             if open.modified {
@@ -115,7 +123,7 @@ fn set_reloaded(state: &mut State, id: crate::ids::SetId, file: Reloaded<Set>) -
             }
             let selected = open.selected;
             // The sidecar is not watched (#23): keep the settings already read.
-            let mut fresh = OpenSet::new(id, set, std::sync::Arc::clone(&open.sidecar));
+            let mut fresh = OpenSet::new(id, set, hash, std::sync::Arc::clone(&open.sidecar));
             if library_listed {
                 fresh.missing = fresh.set.items.iter().filter_map(|item| item.song_id()).filter(|song| songs.binary_search(song).is_err()).collect();
             }
