@@ -139,6 +139,17 @@ pub enum Command {
     /// Show both lines of multilanguage sections, primary lines only or translation lines only
     /// (GLOSSARY "Language mode"). The open song's slides and the live slide change at once.
     SetLanguageMode(LanguageMode),
+    /// Transpose the selected song item by this many semitones (GLOSSARY "Transposition"): the
+    /// chords' text changes on its slides and the live slide, kept in the set's sidecar, never in
+    /// the song. Ignored without a selected song item.
+    SetTranspose(i32),
+    /// Set the selected song item's capo fret (GLOSSARY "Capo"): chords show as shapes relative
+    /// to it. `None` goes back to the song's own capo.
+    SetCapo(Option<u8>),
+    /// Rewrite the open song's chords and key in the selected item's transposition and save it
+    /// (a normal canonical save, ADR-0002). The item's transposition goes back to zero: the song
+    /// now has that key.
+    SaveInThisKey,
     /// Change the open song in memory (the song editor). Nothing is saved (ADR-0002). Consecutive
     /// edits of the same field, or of the lyrics, are one undo step.
     EditSong(SongEdit),
@@ -452,6 +463,8 @@ impl Command {
                 | Command::ToggleLogo
                 | Command::ToggleChords(_)
                 | Command::SetLanguageMode(_)
+                | Command::SetTranspose(_)
+                | Command::SetCapo(_)
         )
     }
 }

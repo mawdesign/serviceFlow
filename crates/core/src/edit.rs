@@ -185,6 +185,14 @@ impl Draft {
         true
     }
 
+    /// Replace the song with `edited` as one undo step of its own (no grouping with other edits).
+    pub(crate) fn replace(&mut self, edited: Song) {
+        self.undo.push(Arc::clone(&self.song));
+        self.group = None;
+        self.redo.clear();
+        self.song = Arc::new(edited);
+    }
+
     pub(crate) fn end_group(&mut self) {
         self.group = None;
     }

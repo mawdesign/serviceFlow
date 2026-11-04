@@ -5,6 +5,7 @@ use std::collections::{BTreeMap, VecDeque};
 use std::sync::Arc;
 use std::time::Duration;
 
+use crate::chord::{KeyInfo, Shift};
 use crate::edit::Draft;
 use crate::ids::{ContentHash, SetId, SongId};
 use crate::output::SlideKind;
@@ -216,6 +217,26 @@ pub struct OpenSong {
 }
 
 impl State {
+    /// Whether the open song is the selected song item of the open set, so that item's
+    /// transposition and capo apply to it (and can be changed).
+    pub fn is_selected_song_item(&self) -> bool {
+        let (Some(open), Some(set)) = (&self.song, &self.set) else { return false };
+        set.selected.and_then(|i| set.set.items.get(i)).and_then(|item| item.song_id()).is_some_and(|id| id == open.id)
+    }
+
+    /// The keys of the open song as shown for its set item: what it is written in, what sounds
+    /// after transposing and the key the shapes are played in with the capo. `None` when the open
+    /// song is not a song item of the set.
+    pub fn key_info(&self) -> Option<KeyInfo> {
+        let open = self.song.as_ref().filter(|_| self.is_selected_song_item())?;
+        Some(self.slide_options.shift.key_info(&open.file))
+    }
+
+    /// The transposition and capo of the open song (the defaults when it is not a set item).
+    pub fn shift(&self) -> Shift {
+        self.slide_options.shift
+    }
+
     /// The open song's edits and undo history, once it has been edited.
     pub fn draft(&self) -> Option<&Draft> {
         self.drafts.get(&self.song.as_ref()?.id)
@@ -413,6 +434,8 @@ pub struct LiveSlide {
     pub resolved: ResolvedStyle,
     /// How its item advances and fades, captured when it went live.
     pub advance: Advance,
+    /// The transposition and capo it was drawn with (the item's, when it went live).
+    pub shift: Shift,
 }
 
 /// How the outputs show the live slide (GLOSSARY "Blank", "Black").

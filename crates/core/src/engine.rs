@@ -9,6 +9,7 @@ mod auto;
 mod blanks;
 mod edit;
 mod external;
+mod key;
 mod plan;
 mod save;
 mod set_edit;
@@ -20,7 +21,7 @@ use crate::output::InitialMode;
 use crate::resolve::{self, ImageFile, ResolvedStyle};
 use crate::search::SearchIndex;
 use crate::set::ItemKind;
-use crate::song::Song;
+use crate::song::{SlideOptions, Song};
 use crate::state::{Library, LiveSlide, OpenSong, OutputMode, Problem, State};
 use crate::style::ImageSource;
 
@@ -242,7 +243,9 @@ fn step(state: &mut State, command: Command) -> Vec<Effect> {
                 }
             }
             Command::SetSlideOptions(options) => {
-                state.slide_options = options;
+                // The item's transposition is not the caller's to set (SetTranspose/SetCapo).
+                state.slide_options = SlideOptions { shift: state.slide_options.shift, ..options };
+                let options = state.slide_options;
                 if let Some(open) = &mut state.song {
                     open.regrid(&options);
                 }
@@ -251,21 +254,10 @@ fn step(state: &mut State, command: Command) -> Vec<Effect> {
             Command::SetLanguageMode(language) => {
                 state.slide_options.language = language;
                 let effects = sets::remember_language(state, language);
-                let options = state.slide_options;
-                if let Some(open) = &mut state.song {
-                    open.regrid(&options);
-                }
-                // The live slide is redrawn in the new mode, wherever it came from.
-                if let Some(live) = &mut state.output.live
-                    && let Some(slide) = OpenSong::grid(&live.source, &options).0.get(live.index)
-                    && *slide != live.slide
-                {
-                    live.slide = slide.clone();
-                    live.resolved.background = resolve::slide_background(&live.source, slide);
-                    state.output.changes += 1;
-                }
+                regrid(state);
                 effects
             }
+            command @ (Command::SetTranspose(_) | Command::SetCapo(_) | Command::SaveInThisKey) => key::apply(state, command),
             Command::ToggleBlank => {
                 toggle(state, OutputMode::Blank);
                 Vec::new()
@@ -383,6 +375,7 @@ fn step(state: &mut State, command: Command) -> Vec<Effect> {
 /// item's presentation order when it is that item's song.
 fn show_song(state: &mut State, id: SongId, file: Arc<Song>, hash: ContentHash) {
     let shown = sets::with_item_order(state, &id, Arc::clone(&file));
+    state.slide_options.shift = sets::item_shift(state, &id);
     let mut open = OpenSong::new(id, shown, hash, &state.slide_options);
     open.file = file;
     state.song = Some(open);
@@ -465,11 +458,37 @@ fn go_live(state: &mut State, index: usize) {
     let Some(slide) = open.slides.get(index) else { return };
     let resolved = state.resolved_of(&open.id, &open.song, slide);
     let advance = state.open_advance();
-    state.output.live = Some(LiveSlide { song: open.id.clone(), index, slide: slide.clone(), source: Arc::clone(&open.song), resolved, advance });
+    let shift = state.slide_options.shift;
+    state.output.live =
+        Some(LiveSlide { song: open.id.clone(), index, slide: slide.clone(), source: Arc::clone(&open.song), resolved, advance, shift });
     state.output.mode = OutputMode::Normal;
     state.output.item_blank = None;
     state.output.changes += 1;
     auto::schedule(state);
+}
+
+/// The slide options changed: rebuild the open song's grid and redraw the live slide in them,
+/// wherever it came from. The open song's transposition goes to a live slide of the same song;
+/// another song's live slide keeps its own.
+fn regrid(state: &mut State) {
+    let options = state.slide_options;
+    if let Some(open) = &mut state.song {
+        open.regrid(&options);
+    }
+    let open = state.song.as_ref().map(|open| open.id.clone());
+    if let Some(live) = &mut state.output.live {
+        if open.as_ref() == Some(&live.song) {
+            live.shift = options.shift;
+        }
+        let options = SlideOptions { shift: live.shift, ..options };
+        if let Some(slide) = OpenSong::grid(&live.source, &options).0.get(live.index)
+            && *slide != live.slide
+        {
+            live.slide = slide.clone();
+            live.resolved.background = resolve::slide_background(&live.source, slide);
+            state.output.changes += 1;
+        }
+    }
 }
 
 /// Switch `mode` on, or back to normal when it is already on. Blank and black replace each other.

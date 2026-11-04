@@ -3,6 +3,7 @@
 use std::sync::Arc;
 
 use super::{go_live, refresh_results, set_edit};
+use crate::chord::Shift;
 use crate::command::{Command, Effect};
 use crate::ids::SongId;
 use crate::output::SlideKind;
@@ -292,4 +293,15 @@ pub(super) fn open_item(index: usize, item: &SetItem) -> Option<OpenSong> {
         }
         _ => None,
     }
+}
+
+/// The transposition and capo of the selected item when `id` is its song (else none).
+pub(super) fn item_shift(state: &State, id: &SongId) -> Shift {
+    let Some(set) = &state.set else { return Shift::default() };
+    let Some(index) = set.selected else { return Shift::default() };
+    if set.set.items.get(index).and_then(|item| item.song_id()).as_ref() != Some(id) {
+        return Shift::default();
+    }
+    let settings = set.item_settings(index);
+    Shift { semitones: settings.transpose, capo: settings.capo }
 }

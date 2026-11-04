@@ -89,7 +89,7 @@ pub(super) fn apply(state: &mut State, command: Command) -> Vec<Effect> {
 
 /// Save the draft of `id`: straight away, or, when its tags get renamed, through a change plan
 /// that also updates the sets whose items name those tags.
-fn save(state: &mut State, id: SongId, expect: Expect) -> Vec<Effect> {
+pub(super) fn save(state: &mut State, id: SongId, expect: Expect) -> Vec<Effect> {
     let renames = state.drafts.get(&id).is_some_and(|draft| canonical::renames_tags(&draft.song));
     if !renames {
         return write(state, id, expect, false);

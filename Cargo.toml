@@ -61,6 +61,7 @@ harfrust = "0.12"
 skrifa = "0.44"
 vello_cpu = { version = "0.2", default-features = false, features = ["std", "u8_pipeline"] }
 insta = "1"
+proptest = { version = "1", default-features = false, features = ["std"] }
 image = { version = "0.25", default-features = false, features = ["jpeg", "png"] }
 tempfile = "3"
 # Zip import and export of an OpenSong folder in the browser. Pure-Rust deflate only (wasm).

@@ -2,6 +2,7 @@
 
 use std::sync::Arc;
 
+use crate::chord::{Applied, Shift};
 use crate::style::{Captions, ImageSource, Resize, Style};
 
 /// A song as read from the library (GLOSSARY "Song").
@@ -190,6 +191,8 @@ pub struct SlideOptions {
     pub blank_is_slide_change: bool,
     /// What multilanguage sections show.
     pub language: LanguageMode,
+    /// The set item's transposition and capo, applied to the chords' text (never to the song).
+    pub shift: Shift,
 }
 
 /// A chord above a lyric line, anchored to a character of the line as shown.
@@ -396,7 +399,7 @@ fn split_pair(primary: &Shown, translation: Option<&Shown>) -> Vec<Shown> {
 }
 
 /// The chords of a chord line and the column (character index) each starts at.
-fn chord_columns(line: &str) -> Vec<(usize, &str)> {
+pub(crate) fn chord_columns(line: &str) -> Vec<(usize, &str)> {
     let mut chords = Vec::new();
     let mut start: Option<(usize, usize)> = None;
     for (col, (byte, c)) in line.char_indices().enumerate() {
@@ -503,7 +506,7 @@ impl Song {
 
     /// The song's slides in presentation order.
     pub fn slides(&self, options: &SlideOptions) -> Vec<Slide> {
-        Self::slides_of(self.flow(), options)
+        Self::slides_of(self.flow(), options, options.shift.applied(self))
     }
 
     /// The slides of sections the presentation order leaves out, in file order. They are not
@@ -511,21 +514,29 @@ impl Song {
     pub fn unused_slides(&self, options: &SlideOptions) -> Vec<Slide> {
         let flow = self.flow();
         let unused = self.sections.iter().filter(|s| !flow.iter().any(|f| std::ptr::eq(*f, *s)));
-        Self::slides_of(unused, options)
+        Self::slides_of(unused, options, options.shift.applied(self))
     }
 
-    fn slides_of<'a>(sections: impl IntoIterator<Item = &'a Section>, options: &SlideOptions) -> Vec<Slide> {
+    fn slides_of<'a>(sections: impl IntoIterator<Item = &'a Section>, options: &SlideOptions, shift: Option<Applied>) -> Vec<Slide> {
         sections
             .into_iter()
             .flat_map(|section| {
                 section.chorded_slides(options).into_iter().enumerate().map(|(part, lines)| Slide {
                     section: section.tag.clone(),
-                    chords: lines.iter().map(|l| l.chords.clone()).collect(),
+                    chords: lines.iter().map(|l| shifted(&l.chords, shift)).collect(),
                     lines: lines.into_iter().map(|l| l.text).collect(),
                     multilanguage: section.multilanguage && options.language == LanguageMode::Both,
                     part,
                 })
             })
             .collect()
+    }
+}
+
+/// `chords` with their text moved by `shift`; offsets stay where they are.
+fn shifted(chords: &[Chord], shift: Option<Applied>) -> Vec<Chord> {
+    match shift {
+        Some(shift) => chords.iter().map(|c| Chord { offset: c.offset, text: shift.chord(&c.text) }).collect(),
+        None => chords.to_vec(),
     }
 }

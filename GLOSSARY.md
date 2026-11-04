@@ -76,10 +76,10 @@ A marker (`|`) that forces a new line on screen within a lyric line.
 A line of chords positioned by column above the lyric line that follows it. Each output has its own chord toggle, off by default; control-window thumbnails and the editor preview always show chords. In a multilanguage section chords sit above primary lines only.
 
 **Transposition**:
-A shift of a song's chords by a number of semitones, applied only to a set item's display. It changes the song itself only when the operator explicitly saves the song in the new key.
+A shift of a song's chords by a number of semitones, applied only to a set item's display and kept in the set's sidecar. Only the chord names change, never their positions. The target key decides whether sharps or flats are written; chords the parser does not recognise are left as they are. It changes the song itself only when the operator chooses "Save in this key", a normal canonical save that rewrites the chord lines and the key and puts the item back at zero.
 
 **Capo**:
-The fret a guitarist clamps, which changes the chord shapes they play but not the key that sounds.
+The fret a guitarist clamps, which changes the chord shapes they play but not the key that sounds. A set item can set its own capo (the song's own printed capo applies otherwise). Slides then show the shapes, the chords relative to the capo, and the control window shows the sounding key beside them.
 
 ## Sets
 
