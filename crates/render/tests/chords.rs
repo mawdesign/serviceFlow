@@ -29,8 +29,7 @@ fn first_x(line: &Line) -> f32 {
 #[test]
 fn a_chord_line_goes_above_its_lyric_line_in_the_chord_size_and_colour() {
     let slide = Slide { lines: vec!["Amazing".into(), "grace".into()], chords: vec![vec![chord(0, "G")], vec![]], ..Slide::default() };
-    let mut style = Style::default();
-    style.chord_size = 50;
+    let style = Style { chord_size: 50, ..Style::default() };
     let lines = body_lines(&slide, &style, HD);
     assert_eq!(roles(&lines), [LineRole::Chord, LineRole::Lyric, LineRole::Lyric]);
     let (chords, lyric) = (&lines[0], &lines[1]);

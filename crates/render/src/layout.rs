@@ -420,7 +420,8 @@ fn shape_chorded(
             let lo = char_at(range.start);
             let hi = ranges.get(ri + 1).map_or(paragraph_end, |next| char_at(next.start));
             let lyric = place_line(fonts, font, paragraph, range.clone(), px, style.color, LineRole::Lyric, effects);
-            let mine: Vec<&Chord> = chords.iter().filter(|c| (if ri == 0 { c.offset >= paragraph_start } else { c.offset >= lo }) && c.offset < hi).collect();
+            let mine: Vec<&Chord> =
+                chords.iter().filter(|c| (if ri == 0 { c.offset >= paragraph_start } else { c.offset >= lo }) && c.offset < hi).collect();
             if !mine.is_empty() {
                 let rtl = lyric.runs.first().is_some_and(|r| r.rtl);
                 let text = &paragraph[range.clone()];
@@ -440,7 +441,8 @@ fn shape_chorded(
                     let before = fonts.measure(font, &text[..byte], px);
                     let mut x = if rtl { lyric.width - before } else { before };
                     x = x.max(end + chord_style.px * 0.4);
-                    let placed = place_line(fonts, font, &chord.text, 0..chord.text.len(), chord_style.px, chord_style.color, LineRole::Chord, chord_effects);
+                    let placed =
+                        place_line(fonts, font, &chord.text, 0..chord.text.len(), chord_style.px, chord_style.color, LineRole::Chord, chord_effects);
                     end = x + placed.width;
                     for mut run in placed.runs {
                         run.glyphs.iter_mut().for_each(|g| g.x += x);
