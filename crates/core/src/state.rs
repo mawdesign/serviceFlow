@@ -401,7 +401,7 @@ pub struct Output {
     pub changes: u64,
     /// Which outputs show chords (GLOSSARY "Chord line"). All off by default.
     pub chords: OutputChords,
-    /// The blank between two items (GLOSSARY "Blank") when that is what is shown (then `mode` is
+    /// The blank between two items (GLOSSARY "Blank between items") when that is what is shown (then `mode` is
     /// `Blank`). Any other change of what is shown clears it.
     pub item_blank: Option<ItemBlank>,
     /// When the live slide advances by itself (GLOSSARY "Auto-advance"), measured on the clock of

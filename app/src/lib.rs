@@ -41,8 +41,8 @@ pub struct ControlWindow<S> {
     thumbnails: thumbnails::Thumbnails,
     /// The small monitor in the control window.
     mirror: OutputFrame,
-    /// The output window's frame.
-    screen: OutputFrame,
+    /// The output window's frame ([`OutputId::Window`]).
+    output_frame: OutputFrame,
     output_open: bool,
     monitors: Monitors,
     prefs: Prefs,
@@ -143,7 +143,7 @@ impl<S: Storage + 'static> ControlWindow<S> {
             driver,
             thumbnails: thumbnails::Thumbnails::default(),
             mirror: OutputFrame::new("output monitor", OutputId::Monitor),
-            screen: OutputFrame::new("output window", OutputId::Window),
+            output_frame: OutputFrame::new("output window", OutputId::Window),
             output_open: false,
             monitors: Monitors::default(),
             prefs: Prefs::default(),
@@ -217,7 +217,7 @@ impl<S: Storage + 'static> ControlWindow<S> {
             ui.ctx().request_repaint_after(std::time::Duration::from_millis(250));
         }
         if self.single_output && self.output_open {
-            self.output_open = output::show_in_place(ui, &mut self.screen, &mut self.shortcuts, &mut self.driver);
+            self.output_open = output::show_in_place(ui, &mut self.output_frame, &mut self.shortcuts, &mut self.driver);
             return;
         }
         // While the shortcuts dialog is open it records the presses, so they run nothing.
@@ -285,7 +285,7 @@ impl<S: Storage + 'static> ControlWindow<S> {
         if self.output_open {
             let index = monitors::pick(self.prefs.output.monitor.as_ref(), state.output_settings.monitor, &monitors);
             let target = index.and_then(|i| monitors.get(i).map(|m| (i, m)));
-            self.output_open = output::show_window(ui.ctx(), target, &mut self.screen, &mut self.shortcuts, &state, &mut commands);
+            self.output_open = output::show_window(ui.ctx(), target, &mut self.output_frame, &mut self.shortcuts, &state, &mut commands);
         }
         self.shortcuts_dialog(ui.ctx());
 
@@ -404,52 +404,55 @@ fn problems(ui: &mut egui::Ui, state: &State) {
     for problem in &state.problems {
         match problem {
             Problem::SongUnreadable { id, error } => {
-                ui.colored_label(ui.visuals().error_fg_color, format!("{} “{id}”: {error}", tl!("Could not open the song")));
+                ui.colored_label(ui.visuals().error_fg_color, tl!("Could not open the song “{id}”: {error}", id = id, error = error));
             }
             Problem::LibraryUnreadable { error } => {
-                ui.colored_label(ui.visuals().error_fg_color, format!("{}: {error}", tl!("Could not read the library")));
+                ui.colored_label(ui.visuals().error_fg_color, tl!("Could not read the library: {error}", error = error));
             }
             Problem::ArchiveUnimported { error } => {
-                ui.colored_label(ui.visuals().error_fg_color, format!("{} {error}", tl!("The zip file could not be imported:")));
+                ui.colored_label(ui.visuals().error_fg_color, tl!("The zip file could not be imported: {error}", error = error));
             }
             Problem::StylesUnreadable { error } => {
-                ui.colored_label(ui.visuals().error_fg_color, format!("{}: {error}", tl!("Could not import the OpenSong styles")));
+                ui.colored_label(ui.visuals().error_fg_color, tl!("Could not import the OpenSong styles: {error}", error = error));
             }
             Problem::SetUnreadable { id, error } => {
-                ui.colored_label(ui.visuals().error_fg_color, format!("{} “{id}”: {error}", tl!("Could not open the set")));
+                ui.colored_label(ui.visuals().error_fg_color, tl!("Could not open the set “{id}”: {error}", id = id, error = error));
             }
             Problem::SettingsUnreadable { file, error } => {
-                ui.colored_label(ui.visuals().error_fg_color, format!("{} {file}: {error}", tl!("Could not import the OpenSong settings file")));
+                ui.colored_label(
+                    ui.visuals().error_fg_color,
+                    tl!("Could not import the OpenSong settings file {file}: {error}", file = file, error = error),
+                );
             }
             Problem::SidecarUnreadable { id, error } => {
                 ui.colored_label(
                     ui.visuals().warn_fg_color,
-                    format!("{} “{id}”, {}: {error}", tl!("serviceFlow's own settings for the set"), tl!("so the defaults are used")),
+                    tl!("serviceFlow's own settings for the set “{id}”, so the defaults are used: {error}", id = id, error = error),
                 );
             }
             Problem::SidecarUnsaved { id, error } => {
                 ui.colored_label(
                     ui.visuals().error_fg_color,
-                    format!("{} “{id}”: {error}", tl!("Could not save serviceFlow's own settings for the set")),
+                    tl!("Could not save serviceFlow's own settings for the set “{id}”: {error}", id = id, error = error),
                 );
             }
             Problem::SongUnsaved { id, error } => {
-                ui.colored_label(ui.visuals().error_fg_color, format!("{} “{id}”: {error}", tl!("Could not save the song")));
+                ui.colored_label(ui.visuals().error_fg_color, tl!("Could not save the song “{id}”: {error}", id = id, error = error));
             }
             Problem::TagsNotRenamed { id } => {
                 ui.colored_label(
                     ui.visuals().warn_fg_color,
-                    format!("“{id}” {}", tl!("was saved with its section tags as written: renaming them would have merged two sections.")),
+                    tl!("“{id}” was saved with its section tags as written: renaming them would have merged two sections.", id = id),
                 );
             }
             Problem::SetUnsaved { id, error } => {
-                ui.colored_label(ui.visuals().error_fg_color, format!("{} “{id}”: {error}", tl!("Could not save the set")));
+                ui.colored_label(ui.visuals().error_fg_color, tl!("Could not save the set “{id}”: {error}", id = id, error = error));
             }
             Problem::SetNameRefused { name, taken: true } => {
-                ui.colored_label(ui.visuals().error_fg_color, format!("{} “{name}” {}", tl!("A set called"), tl!("already exists.")));
+                ui.colored_label(ui.visuals().error_fg_color, tl!("A set called “{name}” already exists.", name = name));
             }
             Problem::SetNameRefused { name, taken: false } => {
-                ui.colored_label(ui.visuals().error_fg_color, format!("“{name}” {}", tl!("cannot be used as a set name.")));
+                ui.colored_label(ui.visuals().error_fg_color, tl!("“{name}” cannot be used as a set name.", name = name));
             }
             Problem::PlanRefused(refusal) => {
                 ui.colored_label(ui.visuals().error_fg_color, files::refusal_text(refusal));
@@ -460,7 +463,7 @@ fn problems(ui: &mut egui::Ui, state: &State) {
             Problem::FontSubstituted { requested, used } => {
                 ui.colored_label(
                     ui.visuals().warn_fg_color,
-                    format!("{} “{requested}”, {} “{used}”. {}", tl!("Font not installed:"), tl!("showing"), tl!("Line breaks may differ.")),
+                    tl!("Font not installed: “{requested}”, showing “{used}”. Line breaks may differ.", requested = requested, used = used),
                 );
             }
         }

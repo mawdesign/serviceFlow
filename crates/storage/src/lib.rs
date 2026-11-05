@@ -18,6 +18,15 @@ pub use serviceflow_core::ids::{ContentHash, Expect, SetId, SongId};
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct AssetId(pub String);
 
+impl AssetId {
+    /// Whether this asset is a picture serviceFlow can show: a `png`, `jpg`, `jpeg`, `gif` or
+    /// `bmp` extension, in any case. Other files under `Backgrounds/` (videos, say) are not.
+    pub fn is_picture(&self) -> bool {
+        const PICTURES: [&str; 5] = ["png", "jpg", "jpeg", "gif", "bmp"];
+        self.0.rsplit_once('.').is_some_and(|(_, ext)| PICTURES.iter().any(|p| ext.eq_ignore_ascii_case(p)))
+    }
+}
+
 /// A settings file: its filename under the data root's `Settings/` folder (`"PresentSettings"`).
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct SettingsId(pub String);
@@ -207,4 +216,67 @@ pub fn expect_holds(expect: Expect, current: Option<ContentHash>) -> bool {
         Expect::Absent => current.is_none(),
         Expect::Hash(expected) => current == Some(expected),
     }
+}
+
+/// Makes the key of a file from its path inside its folder.
+pub type MakeKey = fn(String) -> Key;
+
+/// The top-level data-root folders that hold documents, with the key each file in them has.
+pub const FOLDERS: [(&str, MakeKey); 4] = [
+    ("Songs", |p| Key::Song(SongId(p))),
+    ("Sets", |p| Key::Set(SetId(p))),
+    ("Settings", |p| Key::Settings(SettingsId(p))),
+    ("Backgrounds", |p| Key::Asset(AssetId(p))),
+];
+
+/// The key of the file `path` inside top-level `folder` (one of [`FOLDERS`]).
+pub fn key_in_folder(folder: &str, path: &str) -> Option<Key> {
+    FOLDERS.iter().find(|(name, _)| *name == folder).map(|(_, make)| make(path.to_owned()))
+}
+
+/// The `/`-separated file path of a document under the data root: `Songs/<id>`, `Sets/<id>`,
+/// `Settings/<id>`, `Backgrounds/<id>`, and sidecars (ADR-0003) in the dot folder OpenSong never
+/// reads, `.serviceflow/Songs/<id>.sidecar` and `.serviceflow/Sets/<id>.sidecar`. The path is not
+/// checked: call [`check_path`] first.
+pub fn key_file(key: &Key) -> String {
+    let path = key_path(key);
+    match key {
+        Key::Song(_) => format!("Songs/{path}"),
+        Key::Set(_) => format!("Sets/{path}"),
+        Key::Asset(_) => format!("Backgrounds/{path}"),
+        Key::Settings(_) => format!("Settings/{path}"),
+        Key::Sidecar(DocumentId::Song(_)) => format!(".serviceflow/Songs/{path}.sidecar"),
+        Key::Sidecar(DocumentId::Set(_)) => format!(".serviceflow/Sets/{path}.sidecar"),
+    }
+}
+
+/// The debounce shared by the polling watchers: a difference between `announced` (what listeners
+/// were told) and `current` is announced once `previous` (the scan before) shows the same thing,
+/// so a file written in pieces is announced once, when it has stopped changing. `announced` is
+/// updated to match and the events are returned. `M` is whatever a scan records per file.
+pub fn settled_changes<M: PartialEq + Clone>(
+    announced: &mut std::collections::BTreeMap<Key, M>,
+    current: &std::collections::BTreeMap<Key, M>,
+    previous: Option<&std::collections::BTreeMap<Key, M>>,
+) -> Vec<ChangeEvent> {
+    let keys: std::collections::BTreeSet<Key> = current.keys().chain(announced.keys()).cloned().collect();
+    let mut events = Vec::new();
+    for key in keys {
+        let now = current.get(&key);
+        let settled = previous.map(|p| p.get(&key)) == Some(now);
+        if announced.get(&key) == now || !settled {
+            continue;
+        }
+        match now {
+            Some(meta) => {
+                announced.insert(key.clone(), meta.clone());
+                events.push(ChangeEvent { key, kind: ChangeKind::Written });
+            }
+            None => {
+                announced.remove(&key);
+                events.push(ChangeEvent { key, kind: ChangeKind::Removed });
+            }
+        }
+    }
+    events
 }

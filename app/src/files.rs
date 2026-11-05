@@ -33,7 +33,7 @@ impl FileActions {
         });
         if let Some(name) = &mut self.rename_to {
             ui.end_row();
-            let label = ui.label(tl!("New file name (folder/name):"));
+            let label = ui.label(tl!("New file name (category/name):"));
             ui.add(egui::TextEdit::singleline(name).desired_width(240.0)).labelled_by(label.id);
             if ui.button(tl!("Rename")).clicked() {
                 let to = SongId::new(name.trim());

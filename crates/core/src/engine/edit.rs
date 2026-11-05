@@ -24,7 +24,10 @@ pub(super) fn apply(state: &mut State, command: Command) -> Vec<Effect> {
         }
         Command::Undo => state.drafts.get_mut(&id).and_then(|draft| draft.undo().then_some(draft)),
         Command::Redo => state.drafts.get_mut(&id).and_then(|draft| draft.redo().then_some(draft)),
-        _ => None,
+        _ => {
+            super::unrouted(&command);
+            None
+        }
     };
     if let Some(draft) = draft {
         let song = Arc::clone(&draft.song);

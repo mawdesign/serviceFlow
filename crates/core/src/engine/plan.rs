@@ -94,7 +94,7 @@ pub(super) fn apply(state: &mut State, command: Command) -> Vec<Effect> {
                 }
             }
         }
-        _ => Vec::new(),
+        _ => super::unrouted(&command),
     }
 }
 

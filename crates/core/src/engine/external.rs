@@ -21,7 +21,7 @@ pub(super) fn apply(state: &mut State, command: Command) -> Vec<Effect> {
         }
         Command::SongReloaded { id, file } => song_reloaded(state, id, file),
         Command::SetReloaded { id, file } => set_reloaded(state, id, file),
-        _ => Vec::new(),
+        _ => super::unrouted(&command),
     }
 }
 

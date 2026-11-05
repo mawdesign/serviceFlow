@@ -48,7 +48,7 @@ fn renaming_a_song_file_lists_the_set_and_writes_only_after_apply() {
     let set_before = std::fs::read(root.join("Sets/Sunday Service")).unwrap();
     harness.get_by_label("Rename or move file…").click();
     harness.run();
-    let label = "New file name (folder/name):";
+    let label = "New file name (category/name):";
     harness.get(by().role(Role::TextInput).label(label)).focus();
     harness.run();
     harness.get(by().role(Role::TextInput).label(label)).type_text(" (moved)");

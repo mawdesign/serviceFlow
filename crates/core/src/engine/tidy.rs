@@ -42,7 +42,7 @@ pub(super) fn apply(state: &mut State, command: Command) -> Vec<Effect> {
             state.plan = Some(Arc::new(make(state, &songs, &sets, unreadable_songs, unreadable_sets)));
             Vec::new()
         }
-        _ => Vec::new(),
+        _ => super::unrouted(&command),
     }
 }
 
