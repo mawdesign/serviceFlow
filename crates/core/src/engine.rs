@@ -14,6 +14,7 @@ mod plan;
 mod save;
 mod set_edit;
 mod sets;
+mod style_edit;
 mod tidy;
 
 use crate::ids::{ContentHash, SongId};
@@ -275,7 +276,9 @@ fn step(state: &mut State, command: Command) -> Vec<Effect> {
             }
             Command::EndEditGroup => {
                 set_edit::end_group(state);
-                edit::apply(state, Command::EndEditGroup)
+                let mut effects = style_edit::end_group(state);
+                effects.extend(edit::apply(state, Command::EndEditGroup));
+                effects
             }
             command @ (Command::EditSong(_) | Command::Undo | Command::Redo) => edit::apply(state, command),
             command @ (Command::EditSet(_)
@@ -371,18 +374,27 @@ fn step(state: &mut State, command: Command) -> Vec<Effect> {
                 Arc::make_mut(&mut state.images).set(name, file);
                 Vec::new()
             }
-            Command::ImportOpenSongStyles { trigger } => vec![Effect::ReadOpenSongStyles(trigger)],
+            Command::ImportOpenSongStyles { trigger } => {
+                // Starting up also reads serviceFlow's own edit of the default style (ADR-0003);
+                // asking for OpenSong's styles again drops it.
+                let mut effects = match trigger {
+                    ImportTrigger::FirstRun => vec![Effect::ReadStyleSidecar],
+                    ImportTrigger::Manual => style_edit::reset(state),
+                };
+                effects.push(Effect::ReadOpenSongStyles(trigger));
+                effects
+            }
             Command::StylesImported(styles) => {
-                // OpenSong's `blank_is_slide_change` is global (copied into every style); it
-                // applies unless the operator chose otherwise (SetSlideOptions).
-                let blank = styles.default.body.blank_is_slide_change;
-                state.styles = styles;
-                if !state.blank_is_slide_change_chosen && state.slide_options.blank_is_slide_change != blank {
-                    state.slide_options.blank_is_slide_change = blank;
-                    regrid(state);
-                }
+                set_styles(state, styles);
                 Vec::new()
             }
+            command @ (Command::EditStyle { .. }
+            | Command::UndoStyle
+            | Command::RedoStyle
+            | Command::DefaultStyleLoaded(_)
+            | Command::DefaultStyleLoadFailed { .. }
+            | Command::StyleSidecarSaved
+            | Command::StyleSidecarSaveFailed { .. }) => style_edit::apply(state, command),
             Command::StylesImportFailed { trigger, error, missing } => {
                 if trigger == ImportTrigger::Manual || !missing {
                     state.problems.push(Problem::StylesUnreadable { error });
@@ -390,6 +402,19 @@ fn step(state: &mut State, command: Command) -> Vec<Effect> {
                 Vec::new()
             }
         }
+    }
+}
+
+/// Draw with these styles: OpenSong's, with the operator's edited default style over its default.
+fn set_styles(state: &mut State, styles: Arc<crate::style::Styles>) {
+    let styles = style_edit::over(state, styles);
+    // OpenSong's `blank_is_slide_change` is global (copied into every style); it applies unless
+    // the operator chose otherwise (SetSlideOptions).
+    let blank = styles.default.body.blank_is_slide_change;
+    state.styles = styles;
+    if !state.blank_is_slide_change_chosen && state.slide_options.blank_is_slide_change != blank {
+        state.slide_options.blank_is_slide_change = blank;
+        regrid(state);
     }
 }
 
@@ -446,6 +471,10 @@ fn request_images(state: &mut State) -> Vec<Effect> {
     // the operator gets to it.
     if let Some(open) = &state.set {
         for item in &open.set.items {
+            // The pictures of the styles items push (the style editor previews them).
+            if let Some(style) = &item.style {
+                resolve::file_of(style).into_iter().for_each(&mut want);
+            }
             if let ItemKind::Image(image) = &item.kind {
                 for slide in &image.slides {
                     if let Some(ImageSource::File(name)) = &slide.image {

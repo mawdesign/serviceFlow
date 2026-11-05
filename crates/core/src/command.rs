@@ -16,7 +16,8 @@ use crate::set::Set;
 use crate::set_edit::SetEdit;
 use crate::sidecar::SetSidecar;
 use crate::song::{LanguageMode, SlideOptions, Song};
-use crate::style::Styles;
+use crate::style::{Style, Styles};
+use crate::style_edit::{StyleEdit, StyleTarget};
 
 #[derive(Debug, Clone, PartialEq)]
 pub enum Command {
@@ -121,6 +122,28 @@ pub enum Command {
         trigger: ImportTrigger,
         error: String,
         missing: bool,
+    },
+    /// Change one property of a style: the default style or a set item's style. Consecutive
+    /// edits are one undo step until [`Command::EndEditGroup`]. A set item's style is a set edit
+    /// (saved with the set, undone with [`Command::UndoSet`]); the default style is serviceFlow's
+    /// own (undone with [`Command::UndoStyle`], saved to its sidecar when the step ends).
+    EditStyle {
+        target: StyleTarget,
+        edit: StyleEdit,
+    },
+    /// Undo the last edit of the default style.
+    UndoStyle,
+    RedoStyle,
+    /// Storage result of [`Effect::ReadStyleSidecar`]: the edited default style (`None`: none).
+    DefaultStyleLoaded(Option<Arc<Style>>),
+    /// Storage result: the sidecar could not be read.
+    DefaultStyleLoadFailed {
+        error: String,
+    },
+    /// Storage result of [`Effect::WriteStyleSidecar`].
+    StyleSidecarSaved,
+    StyleSidecarSaveFailed {
+        error: String,
     },
     /// Storage result: a background image file was read (`None`: it could not be).
     ImageLoaded {
@@ -449,6 +472,9 @@ impl Command {
                 | Command::EditSet(_)
                 | Command::UndoSet
                 | Command::RedoSet
+                | Command::EditStyle { .. }
+                | Command::UndoStyle
+                | Command::RedoStyle
                 | Command::RelinkItem { .. }
                 | Command::RelinkImage { .. }
         )
@@ -506,6 +532,13 @@ pub enum Effect {
     /// Read and parse `Settings/PresentSettings`; answer with [`Command::StylesImported`] or
     /// [`Command::StylesImportFailed`]. Never writes.
     ReadOpenSongStyles(ImportTrigger),
+    /// Read serviceFlow's edited default style from the library's sidecar; answer with
+    /// [`Command::DefaultStyleLoaded`] or [`Command::DefaultStyleLoadFailed`].
+    ReadStyleSidecar,
+    /// Write the edited default style to the sidecar (`None`: write that there is none). Never
+    /// writes OpenSong's settings. Answer with [`Command::StyleSidecarSaved`] or
+    /// [`Command::StyleSidecarSaveFailed`].
+    WriteStyleSidecar(Option<Arc<Style>>),
     /// Read `Settings/PresentSettings` and `Settings/MainSettings` for the output behaviour and slide
     /// colours; answer with [`Command::SettingsImported`]. Never writes.
     ReadOpenSongSettings(ImportTrigger),

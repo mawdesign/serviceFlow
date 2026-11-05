@@ -77,6 +77,12 @@ Run the real OpenSong (or read its source, notes in `.sf-notes/opensong.md`) and
 - [ ] **Pushed style units (#22).** A new style item copies the default style and writes it back
   in OpenSong's units (sizes ÷ 3, margins ÷ 3 minus the border, rounded to 2 decimals). Check a
   pushed style looks the same in OpenSong as the default style it copied.
+- [ ] **Style editor units (#30).** The editor works in reference pixels (1080 high) and rounds
+  sizes and margins to what OpenSong's file holds (÷3, margins also minus the 12.8 border, two
+  decimals; a margin never goes below OpenSong's 0). Check in OpenSong that a pushed style edited
+  here looks the same there, and that OpenSong accepts a font size with decimals (we write 33.33).
+  Also whether OpenSong honours `<style>` on a song, custom or image item the way it does on a
+  style item (we only edit styles that exist; the editor does not add one to other items).
 - [ ] **Chord display on output (#24).** OpenSong never projects chords (its song display filters
   `.` lines), so there is nothing to compare; the look is ours. Check with musicians: chord size
   (60% of the body), colour (amber), and how a chord line that is wider than its lyric line
@@ -120,6 +126,13 @@ cannot cover them.
   image item with `seconds` set: timing against a wall clock, `loop`, the fade between slides
   (`transition`), and that a manual step, B/W/L or leaving the item stops or restarts it. The
   timer was only tested with a fake clock.
+
+- [ ] **Style editor (#30).** Open it from a real control window and use it: the colour pickers
+  (an undo step ends when the pointer is released), the font box (the warning shows as you type;
+  try an installed font, a missing one and a CJK one), margins and sizes while dragging, the
+  preview against the projector, undo and redo of both the default style and a style item.
+  Automated tests drive the font box and the checkboxes only (the colour popups and drop-downs were
+  not clicked).
 
 ### Data and files
 - [ ] **Canonical save on a real library (#19).** Copy a real data root, save a few edited songs,
@@ -189,6 +202,15 @@ cannot cover them.
   again for permission on the next visit; not done, so the folder is picked on every visit.
 
 ## Decisions waiting for the operator
+
+- [ ] **Where the default style edit lives (#30).** It is kept in `.serviceflow/styles.sidecar` in
+  the data root (shared by everyone on that folder, ADR-0003), not in this computer's preferences.
+  Keep that, or make it per computer? "Re-import styles from OpenSong" drops the edit.
+- [ ] **Scripture style (#30).** The editor edits the default style and style items only. Should the
+  scripture style be editable too (scripture items are placeholders for now)?
+- [ ] **Other style fields (#30).** Translation size and colour, chord size and colour, the subtitle's
+  contents, outline thickness and the italic flip of translations have no controls yet. Which are
+  wanted?
 
 - [ ] **Change-plan confirmation (#20).** A save that renames tags only asks for confirmation when
   at least one set changes. If no set refers to the song it saves directly, as #19 does. Keep

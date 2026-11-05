@@ -34,6 +34,8 @@ pub struct State {
     /// The styles slides are drawn with: imported from OpenSong's PresentSettings on first run
     /// and again on request; serviceFlow's own copy, never written back to OpenSong.
     pub styles: Arc<Styles>,
+    /// serviceFlow's own edits of the default style, and their undo history (ADR-0003).
+    pub default_style: crate::style_edit::DefaultStyle,
     /// How the output behaves (logo, initial monitor, transitions, blanks), imported from OpenSong.
     pub output_settings: Arc<OutputSettings>,
     /// Thumbnail colours by slide kind, imported from OpenSong.
@@ -183,6 +185,11 @@ pub enum Problem {
     LibraryUnreadable { error: String },
     /// OpenSong's PresentSettings could not be read when the operator asked for a re-import.
     StylesUnreadable { error: String },
+    /// serviceFlow's edited default style (`.serviceflow/styles.sidecar`) could not be read, so
+    /// OpenSong's default is used.
+    DefaultStyleUnreadable { error: String },
+    /// The edited default style could not be written; it applies until serviceFlow closes.
+    DefaultStyleUnsaved { error: String },
     /// A style names a font that is not installed, so slides use `used` instead (which may wrap
     /// text differently if it does not have the same measurements).
     FontSubstituted { requested: String, used: String },

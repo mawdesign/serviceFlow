@@ -11,9 +11,9 @@ use crate::xml::{self, Element};
 
 /// OpenSong lays out for a 640 px wide screen; serviceFlow styles are for a 1080 px high one.
 /// At 16:9 that is 1920 px wide, so every OpenSong length is multiplied by 3.
-const SCALE: f32 = 3.0;
+const SCALE: f32 = serviceflow_core::style::OPENSONG_SCALE;
 /// OpenSong adds a border of a fiftieth of the screen width (12.8 at 640) inside every margin.
-const BORDER: f32 = 640.0 / 50.0;
+const BORDER: f32 = serviceflow_core::style::OPENSONG_BORDER;
 
 /// Read the default and scripture styles from PresentSettings. A missing style, element or
 /// attribute keeps serviceFlow's default for it.

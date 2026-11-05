@@ -23,6 +23,9 @@ use serviceflow_core::ids::SongId;
 use serviceflow_core::sidecar::{ItemKey, ItemSettings, SetSidecar};
 use serviceflow_core::song::LanguageMode;
 
+mod styles;
+pub use styles::{read_styles_sidecar, write_styles_sidecar};
+
 /// The version written; a file with a higher one is still read for what this version knows.
 const VERSION: u32 = 1;
 

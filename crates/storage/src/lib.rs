@@ -36,6 +36,8 @@ pub struct SettingsId(pub String);
 pub enum DocumentId {
     Song(SongId),
     Set(SetId),
+    /// The library itself: serviceFlow's own default style (`.serviceflow/styles.sidecar`).
+    Styles,
 }
 
 /// Anything storage holds. Used by change events and errors.
@@ -206,6 +208,7 @@ pub fn key_path(key: &Key) -> &str {
     match key {
         Key::Song(SongId(p)) | Key::Set(SetId(p)) | Key::Asset(AssetId(p)) | Key::Settings(SettingsId(p)) => p,
         Key::Sidecar(DocumentId::Song(SongId(p))) | Key::Sidecar(DocumentId::Set(SetId(p))) => p,
+        Key::Sidecar(DocumentId::Styles) => "styles",
     }
 }
 
@@ -247,6 +250,7 @@ pub fn key_file(key: &Key) -> String {
         Key::Settings(_) => format!("Settings/{path}"),
         Key::Sidecar(DocumentId::Song(_)) => format!(".serviceflow/Songs/{path}.sidecar"),
         Key::Sidecar(DocumentId::Set(_)) => format!(".serviceflow/Sets/{path}.sidecar"),
+        Key::Sidecar(DocumentId::Styles) => ".serviceflow/styles.sidecar".to_owned(),
     }
 }
 

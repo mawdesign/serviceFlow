@@ -10,6 +10,14 @@ use crate::song::Song;
 /// The output height that style lengths are given for.
 pub const REFERENCE_HEIGHT: f32 = 1080.0;
 
+/// OpenSong lengths are for a screen 640 wide; the model is [`REFERENCE_HEIGHT`] high (16:9, so
+/// 1920 wide): sizes and margins are multiplied by this.
+pub const OPENSONG_SCALE: f32 = 3.0;
+
+/// OpenSong adds a border of 640/50 of its own units inside every margin; the model's margins
+/// include it, so a margin of 0 in OpenSong is `OPENSONG_BORDER * OPENSONG_SCALE` here.
+pub const OPENSONG_BORDER: f32 = 640.0 / 50.0;
+
 /// The family of the built-in font.
 pub const BUILTIN_FAMILY: &str = "Liberation Sans";
 
@@ -314,4 +322,23 @@ impl Captions {
             .collect();
         Captions { title: song.title.clone(), subtitle: parts.join(" - ") }
     }
+}
+
+/// OpenSong writes at most two decimals (and the codec reads them back with the same arithmetic),
+/// so a length the operator types is rounded to what the file can hold. Editing in these steps
+/// makes a saved style read back exactly as it was shown.
+fn two_decimals(n: f32) -> f32 {
+    (n * 100.0).round() / 100.0
+}
+
+/// A font size in reference pixels as OpenSong's file can hold it.
+pub fn snap_size(size: f32) -> f32 {
+    two_decimals(size / OPENSONG_SCALE) * OPENSONG_SCALE
+}
+
+/// A margin in reference pixels as OpenSong's file can hold it. Margins are never below the
+/// border OpenSong adds itself (OpenSong's own margin 0).
+pub fn snap_margin(margin: f32) -> f32 {
+    let opensong = two_decimals(margin / OPENSONG_SCALE - OPENSONG_BORDER).max(0.0);
+    (opensong + OPENSONG_BORDER) * OPENSONG_SCALE
 }
