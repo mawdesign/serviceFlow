@@ -117,7 +117,7 @@ fn saving_the_set_writes_the_item_style_in_opensong_units() {
     harness.run();
     harness.get_by_label("Background colour");
     harness.get_by_role_and_label(Role::Button, "Body").click();
-    harness.run();
+    harness.run_steps(8);
     harness.get(by().role(Role::CheckBox).label("Italic")).click();
     harness.run();
     // Both the set panel and the editor have a Save set button; the editor's is the second.
