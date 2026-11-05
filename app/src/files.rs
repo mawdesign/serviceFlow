@@ -3,7 +3,7 @@
 
 use serviceflow_core::command::Command;
 use serviceflow_core::ids::SongId;
-use serviceflow_core::plan::{ChangePlan, PlanAction, PlanFailure, PlanFile, PlanRefusal, PlanStep, TidyChange, TidySkip};
+use serviceflow_core::plan::{ChangePlan, PlanAction, PlanFailure, PlanFile, PlanRefusal, PlanStep, TidyChange, TidySkip, Unkept};
 use serviceflow_core::search::category;
 use serviceflow_core::state::State;
 
@@ -158,6 +158,21 @@ fn tidy_skip_text(skip: &TidySkip) -> String {
         TidySkip::TagCollision => tl!("left alone: renaming its section tags would merge two sections").to_string(),
         TidySkip::Unreadable(error) => format!("{}: {error}", tl!("left alone: it could not be read")),
         TidySkip::UnsavedEdits => tl!("left alone: it has unsaved edits").to_string(),
+        TidySkip::Unkept(unkept) => {
+            let parts: Vec<String> = unkept.iter().map(unkept_text).collect();
+            format!("{}: {}", tl!("left alone: rewriting it would drop"), parts.join("; "))
+        }
+    }
+}
+
+fn unkept_text(unkept: &Unkept) -> String {
+    match unkept {
+        Unkept::Comments => tl!("XML comments").to_string(),
+        Unkept::Attributes(element) => format!("{} <{element}>", tl!("attributes of")),
+        Unkept::Repeated(element) => format!("{} <{element}>", tl!("a second")),
+        Unkept::Elements(element) => format!("{} <{element}>", tl!("elements inside")),
+        Unkept::Text(element) => format!("{} <{element}>", tl!("text directly inside")),
+        Unkept::OldTimeSignature => tl!("<timesig> beside <time_sig>").to_string(),
     }
 }
 

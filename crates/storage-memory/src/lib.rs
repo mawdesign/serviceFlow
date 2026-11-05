@@ -7,22 +7,33 @@ use std::sync::Mutex;
 use futures::StreamExt as _;
 use futures::channel::mpsc;
 use serviceflow_storage::{
-    AssetId, AssetRepository, ChangeEvent, ChangeEvents, ChangeKind, ChangeStream, ContentHash, DocumentId, Expect, Key, Result, SetId,
-    SetRepository, SettingsId, SettingsRepository, SidecarRepository, SongId, SongRepository, StorageError, Stored, check_path, expect_holds,
+    ArchiveImport, AssetId, AssetRepository, ChangeEvent, ChangeEvents, ChangeKind, ChangeStream, ContentHash, DocumentId, Expect, Key, Result,
+    SetId, SetRepository, SettingsId, SettingsRepository, SidecarRepository, SongId, SongRepository, StorageError, Stored, check_path, expect_holds,
     is_ignored_path, key_path,
 };
+
+/// Unpacks a zip file into (`/`-separated path under the data root, bytes).
+pub type ArchiveReader = fn(&[u8]) -> std::result::Result<Vec<(String, Vec<u8>)>, String>;
 
 /// Storage held in memory. Every write is announced on [`ChangeEvents::changes`].
 #[derive(Default)]
 pub struct MemoryStorage {
     documents: Mutex<BTreeMap<Key, Stored>>,
     subscribers: Mutex<Vec<mpsc::UnboundedSender<ChangeEvent>>>,
+    archive_reader: Option<ArchiveReader>,
 }
 
 impl MemoryStorage {
     /// Empty storage.
     pub fn new() -> Self {
         Self::default()
+    }
+
+    /// Accept [`ArchiveImport::import_archive`], unpacking zips with `reader` (this crate has no
+    /// zip codec of its own). Without one, imports are refused, as on a real folder.
+    pub fn with_archive_reader(mut self, reader: ArchiveReader) -> Self {
+        self.archive_reader = Some(reader);
+        self
     }
 
     /// Storage holding a copy of an OpenSong data root: `Songs/` (subfolders are categories),
@@ -251,5 +262,32 @@ impl ChangeEvents for MemoryStorage {
         let (sender, receiver) = mpsc::unbounded();
         self.subscribers.lock().unwrap_or_else(std::sync::PoisonError::into_inner).push(sender);
         receiver.boxed_local()
+    }
+}
+
+impl ArchiveImport for MemoryStorage {
+    async fn import_archive(&self, zip: &[u8]) -> Result<usize> {
+        let Some(reader) = self.archive_reader else {
+            return Err(StorageError::Other("this library cannot be replaced from a zip file".to_owned()));
+        };
+        let files = reader(zip).map_err(StorageError::Other)?;
+        let mut documents = self.lock_documents();
+        documents.clear();
+        let mut written = 0;
+        for (path, bytes) in files {
+            let Some((folder, rest)) = path.split_once('/') else { continue };
+            let key = match folder {
+                "Songs" => Key::Song(SongId(rest.to_owned())),
+                "Sets" => Key::Set(SetId(rest.to_owned())),
+                "Settings" => Key::Settings(SettingsId(rest.to_owned())),
+                "Backgrounds" => Key::Asset(AssetId(rest.to_owned())),
+                _ => continue,
+            };
+            if check_path(rest).is_ok() {
+                documents.insert(key, Stored::new(bytes));
+                written += 1;
+            }
+        }
+        Ok(written)
     }
 }

@@ -199,27 +199,55 @@ fn set_steps<'a>(sets: &[GatheredSet], id: &SongId, rewrite: impl Fn(&[String]) 
     let mut steps = Vec::new();
     for gathered in sets {
         let mut set: Set = (*gathered.set).clone();
-        let mut changed = false;
-        for item in &mut set.items {
-            if item.song_id().as_ref() != Some(id) {
-                continue;
-            }
-            let ItemKind::Song(song) = &mut item.kind else { continue };
-            let Some(change) = rewrite(&song.presentation) else { continue };
-            if let Some(order) = change.order {
-                song.presentation = order;
-            }
-            if let Some(to) = change.to {
-                item.name = filename(to).to_owned();
-                song.path = category(to).to_owned();
-            }
-            changed = true;
-        }
-        if changed {
+        if rewrite_items(&mut set, id, &rewrite) {
             steps.push(PlanStep::WriteSet { id: gathered.id.clone(), set: Arc::new(set), expect: Expect::Hash(gathered.hash) });
         }
     }
     steps
+}
+
+/// Rewrite every song item of `set` referring to `id` as `rewrite` says; whether any changed.
+fn rewrite_items<'a>(set: &mut Set, id: &SongId, rewrite: impl Fn(&[String]) -> Option<Rewrite<'a>>) -> bool {
+    let mut changed = false;
+    for item in &mut set.items {
+        if item.song_id().as_ref() != Some(id) {
+            continue;
+        }
+        let ItemKind::Song(song) = &mut item.kind else { continue };
+        let Some(change) = rewrite(&song.presentation) else { continue };
+        if let Some(order) = change.order {
+            song.presentation = order;
+        }
+        if let Some(to) = change.to {
+            item.name = filename(to).to_owned();
+            song.path = category(to).to_owned();
+        }
+        changed = true;
+    }
+    changed
+}
+
+/// `set` with the change `plan` makes to the song items of the sets it writes, for a set the
+/// plan did not read from storage (the open set's unsaved edits and their undo history).
+/// `None`: the plan changes nothing in it.
+fn rewritten_like(plan: &ChangePlan, set: &Set) -> Option<Set> {
+    let mut set = set.clone();
+    let changed = match &plan.action {
+        PlanAction::RenameSong { from, to } => rewrite_items(&mut set, from, |_| Some(Rewrite { order: None, to: Some(to) })),
+        PlanAction::SaveSong(id) => {
+            let before = plan.steps.iter().find_map(|step| match step {
+                PlanStep::WriteSong { id: written, song, .. } if written == id => Some(song),
+                _ => None,
+            })?;
+            let after = canonical::canonicalize(before).song;
+            rewrite_items(&mut set, id, |order| {
+                let renamed = canonical::rename_tokens(before, &after, order);
+                (renamed != order).then_some(Rewrite { order: Some(renamed), to: None })
+            })
+        }
+        _ => false,
+    };
+    changed.then_some(set)
 }
 
 /// Bring the state in line with a plan that was written in full.
@@ -285,7 +313,9 @@ fn applied(state: &mut State, plan: &ChangePlan, written: Vec<WrittenSong>) -> V
     effects
 }
 
-/// The open set shows what was written to its file, and which of its songs are missing now.
+/// The open set follows what was written to its file, and which of its songs are missing now.
+/// Its unsaved edits are never dropped: they stay on top of the rewritten file (with the plan's
+/// change applied to them and to their undo history), and the set stays modified.
 fn after_writes(state: &mut State, plan: &ChangePlan, files: &[PlanFile]) -> Vec<Effect> {
     let Some(open) = &mut state.set else { return Vec::new() };
     let written = plan.steps.iter().filter(|step| files.contains(&step.file())).find_map(|step| match step {
@@ -293,10 +323,27 @@ fn after_writes(state: &mut State, plan: &ChangePlan, files: &[PlanFile]) -> Vec
         _ => None,
     });
     let touches_songs = files.iter().any(|f| matches!(f, PlanFile::Song(_)));
-    if let Some(set) = written {
-        open.set = set;
-    } else if !touches_songs {
+    if written.is_none() && !touches_songs {
         return Vec::new();
+    }
+    if open.modified {
+        // The song items refer to the song as the files now do.
+        if let Some(set) = rewritten_like(plan, &open.set) {
+            open.set = Arc::new(set);
+        }
+        for version in open.history.undo.iter_mut().chain(open.history.redo.iter_mut()) {
+            if let Some(set) = rewritten_like(plan, version) {
+                *version = Arc::new(set);
+            }
+        }
+        if let Some(set) = written {
+            // The file's new hash arrives with the watcher's reload, which adopts it.
+            open.base = set;
+        }
+        open.modified = open.set != open.base;
+    } else if let Some(set) = written {
+        open.set = Arc::clone(&set);
+        open.base = set;
     }
     let mut ids: Vec<SongId> = open.set.items.iter().filter_map(|item| item.song_id()).collect();
     ids.sort();

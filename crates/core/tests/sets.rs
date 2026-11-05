@@ -191,3 +191,31 @@ fn opening_a_song_from_the_library_ignores_the_item_override() {
     assert_eq!(first_lines(&harness), ["a1", "a2", "ac"]);
     assert_eq!(selected(&harness), None);
 }
+
+/// A song twice in a set: the live slide belongs to the occurrence it was sent live from.
+#[test]
+fn the_same_song_twice_in_a_set_keeps_each_occurrence_live_on_its_own() {
+    let twice = r#"<set name="Twice"><slide_groups>
+  <slide_group name="Alpha" type="song"/>
+  <slide_group name="Beta" type="song"/>
+  <slide_group name="Alpha" type="song"/>
+</slide_groups></set>"#;
+    let mut harness = EngineHarness::with_songs_and_sets(SONGS, &[("Twice", twice)]);
+    harness.send(Command::RefreshLibrary).send(Command::OpenSet(SetId::new("Twice")));
+    harness.send(Command::SelectItem(0)).send(Command::GoLive { index: 1 });
+    assert_eq!(harness.state().open_live_index(), Some(1));
+
+    // Browsing the second occurrence: the first's live slide is not this one's.
+    harness.send(Command::SelectItem(2));
+    assert_eq!(harness.state().open_live_index(), None);
+    assert_eq!(live(&harness).as_deref(), Some("a2"));
+    // Next starts the second occurrence at its first slide.
+    harness.send(Command::NextSlide);
+    assert_eq!(live(&harness).as_deref(), Some("a1"));
+    assert_eq!(harness.state().open_live_index(), Some(0));
+    assert_eq!(harness.state().output.live.as_ref().unwrap().item, Some(2));
+
+    // Back on the first occurrence, nothing of it is live any more.
+    harness.send(Command::SelectItem(0));
+    assert_eq!(harness.state().open_live_index(), None);
+}

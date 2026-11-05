@@ -99,12 +99,38 @@ pub async fn names_starting_with_dot_or_underscore_are_not_songs(storage: impl S
 }
 
 pub async fn song_ids_cannot_leave_the_songs_folder(storage: impl Storage) {
-    for id in ["../escape", "a/../../escape", "/absolute", "a//b", "", "a\\b", "C:evil"] {
+    // `:item/0` is how the engine names a set item's slides, never a file.
+    let mut escapes = vec!["../escape", "a/../../escape", "/absolute", "a//b", "", "a\0b", ":item/0"];
+    if !cfg!(unix) {
+        // Separators and drive or stream markers outside Unix.
+        escapes.extend(["a\\b", "C:evil"]);
+    }
+    for id in escapes {
         let result = storage.write_song(&SongId::new(id), SONG.to_vec(), Expect::Any).await;
         assert!(matches!(result, Err(StorageError::Other(_))), "{id:?}: {result:?}");
         assert!(matches!(storage.read_song(&SongId::new(id)).await, Err(StorageError::Other(_))), "{id:?}");
     }
     assert_eq!(storage.list_songs().await.unwrap(), []);
+}
+
+/// Listing and reading agree on names with a colon or backslash: on Unix (macOS, Linux) they are
+/// ordinary file names (OpenSong libraries made there use them), so they are listed and read;
+/// elsewhere they are refused, and so never listed.
+pub async fn names_with_a_colon_or_backslash_are_listed_only_where_they_can_be_read(storage: impl Storage) {
+    let ids = ["Psalm 23: The Lord's my shepherd", "Hymns/AC\\DC"].map(SongId::new);
+    for id in &ids {
+        let written = storage.write_song(id, SONG.to_vec(), Expect::Any).await;
+        assert_eq!(written.is_ok(), cfg!(unix), "{id:?}: {written:?}");
+    }
+    let listed = storage.list_songs().await.unwrap();
+    if cfg!(unix) {
+        assert_eq!(listed, [ids[1].clone(), ids[0].clone()]);
+    } else {
+        assert_eq!(listed, []);
+    }
+    for id in &listed {
+        assert_eq!(storage.read_song(id).await.unwrap().bytes, SONG, "{id:?}");
+    }
 }
 
 pub async fn sets_round_trip_and_list_sorted(storage: impl Storage) {
@@ -376,6 +402,7 @@ macro_rules! storage_contract {
             files_with_or_without_an_extension_are_all_songs,
             names_starting_with_dot_or_underscore_are_not_songs,
             song_ids_cannot_leave_the_songs_folder,
+            names_with_a_colon_or_backslash_are_listed_only_where_they_can_be_read,
             sets_round_trip_and_list_sorted,
             assets_keep_their_folders_and_stale_writes_conflict,
             settings_round_trip_and_a_missing_file_is_not_found,

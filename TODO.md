@@ -124,6 +124,18 @@ cannot cover them.
 ### Data and files
 - [ ] **Canonical save on a real library (#19).** Copy a real data root, save a few edited songs,
   and open them in OpenSong. Check nothing is lost (comments, capo attributes, odd elements).
+- [ ] **What a save still drops (#19, #21).** Tidy library leaves alone (and lists) any file
+  holding what the codec does not keep: XML comments, attributes on `<song>` and on the standard
+  elements (other than `<capo>`), a repeated standard element, elements inside one, stray text,
+  `<timesig>` beside `<time_sig>`, and in sets attributes of `<slide_groups>` or a second
+  `<notes>` on a song item (`serviceflow_opensong::unkept_in_song`/`unkept_in_set`). Saving an
+  edited song or set still rewrites it canonically and drops those without a warning. Showing the
+  same list before such a save needs the file's bytes in the save path; count how often real
+  libraries hit it first.
+- [ ] **Colons and backslashes in file names (#4).** On macOS and Linux a song or set called
+  `Psalm 23: The Lord's my shepherd` (or with a `\`) is listed and opened as normal. On Windows such
+  names cannot exist. In the browser such files (a Chromium folder on a Mac) are not listed at all,
+  with no message, because the host may be Windows. Check what OpenSong itself does with them.
 - [ ] **Open without edits (#19).** Open many songs from a real library and confirm no file changes
   (check with `git diff` on a copy).
 - [ ] **Change plans (#20).** Rename a song used by several sets and check every set. Interrupt a
@@ -182,7 +194,12 @@ cannot cover them.
   at least one set changes. If no set refers to the song it saves directly, as #19 does. Keep
   that, or always ask?
 - [ ] **Unsaved set edits (#22).** Opening another set drops the open set's unsaved edits without
-  asking (as before #22). Should it ask first, or keep the edits as a draft like songs?
+  asking (as before #22). Should it ask first, or keep the edits as a draft like songs? (A change
+  plan that rewrites the open set, such as renaming a song it uses, keeps the edits: they stay on
+  top of the rewritten file, the renamed song items included, and the set stays unsaved.)
+- [ ] **Blank lines as slide breaks (#7, #8).** OpenSong's `blank_is_slide_change` is now taken
+  from the imported PresentSettings. `SetSlideOptions` overrides it for the rest of the run, but
+  no control sends it yet. Does the operator want a switch, and should it be remembered?
 - [ ] **Duplicate vs save as (#22).** "Duplicate set…" copies the set as saved and leaves the open
   set (and its edits) open; "Save set as…" writes the edits under the new name and switches to
   it. A plan is shown only when the set has a sidecar to copy. Is that the split operators expect?

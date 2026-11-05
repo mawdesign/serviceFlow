@@ -125,6 +125,18 @@ pub trait SettingsRepository {
     async fn write_settings(&self, id: &SettingsId, bytes: Vec<u8>, expect: Expect) -> Result<ContentHash>;
 }
 
+/// Replacing the whole library with an OpenSong data root packed in a zip file. Browser storage
+/// does this (its library is not a folder the operator can reach); others refuse, the default.
+pub trait ArchiveImport {
+    /// Replace everything stored with the data root in `zip` and return the number of files
+    /// written. Nothing is removed when the zip cannot be read. No change events are sent: the
+    /// caller reads the library again.
+    async fn import_archive(&self, zip: &[u8]) -> Result<usize> {
+        let _ = zip;
+        Err(StorageError::Other("this library cannot be replaced from a zip file".to_owned()))
+    }
+}
+
 /// What happened to a stored document.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum ChangeKind {
@@ -151,9 +163,10 @@ pub trait ChangeEvents {
 
 /// Everything serviceFlow needs from storage. Implemented automatically for any type that
 /// implements every repository trait.
-pub trait Storage: SongRepository + SetRepository + AssetRepository + SidecarRepository + SettingsRepository + ChangeEvents {}
+pub trait Storage: SongRepository + SetRepository + AssetRepository + SidecarRepository + SettingsRepository + ChangeEvents + ArchiveImport {}
 
-impl<T> Storage for T where T: SongRepository + SetRepository + AssetRepository + SidecarRepository + SettingsRepository + ChangeEvents {}
+impl<T> Storage for T where T: SongRepository + SetRepository + AssetRepository + SidecarRepository + SettingsRepository + ChangeEvents + ArchiveImport
+{}
 
 /// `true` when OpenSong would ignore this path: any `/`-separated part starts with `.` or `_`.
 /// Hidden documents are never listed. Sidecars and temporary files rely on this (ADR-0003).
@@ -161,11 +174,21 @@ pub fn is_ignored_path(path: &str) -> bool {
     path.split('/').any(|part| part.starts_with('.') || part.starts_with('_'))
 }
 
+/// Characters an id may not hold. On Unix (macOS, Linux) `\` and `:` are ordinary file-name
+/// characters, and OpenSong libraries made there use them ("Psalm 23: ..."); elsewhere (Windows,
+/// and a browser, whose host may be Windows) they are separators or drive and stream markers.
+const FORBIDDEN: &[char] = if cfg!(unix) { &['\0'] } else { &['\\', '\0', ':'] };
+
 /// Check that an id is a plain relative path inside its folder: no empty, `.` or `..` parts, no
-/// backslash, colon or NUL, so it cannot name anything outside the data root. Every
-/// implementation applies this to the ids it is given.
+/// NUL, and outside Unix no backslash or colon, so it cannot name anything outside the data root.
+/// It never starts with `:` either: that is how the engine names set items' slides, which are not
+/// files. Every implementation applies this to the ids it is given, and lists only names that
+/// pass it, so everything listed can be read.
 pub fn check_path(path: &str) -> Result<()> {
-    let bad = path.is_empty() || path.contains(['\\', '\0', ':']) || path.split('/').any(|part| part.is_empty() || part == "." || part == "..");
+    let bad = path.is_empty()
+        || path.starts_with(':')
+        || path.contains(FORBIDDEN)
+        || path.split('/').any(|part| part.is_empty() || part == "." || part == "..");
     if bad { Err(StorageError::Other(format!("not a valid path inside the data root: {path:?}"))) } else { Ok(()) }
 }
 

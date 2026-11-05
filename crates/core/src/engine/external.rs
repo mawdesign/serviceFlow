@@ -117,6 +117,12 @@ fn set_reloaded(state: &mut State, id: crate::ids::SetId, file: Reloaded<Set>) -
                 open.modified = false;
                 return effects;
             }
+            if *open.base == *set {
+                // The file holds the version the edits are on top of (a change plan rewrote it):
+                // only its hash is new.
+                open.hash = hash;
+                return effects;
+            }
             if open.modified {
                 open.changed_on_disk = true;
                 return effects;

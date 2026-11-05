@@ -236,6 +236,22 @@ pub(crate) fn parse(bytes: &[u8]) -> Result<Element, CodecError> {
         .ok_or_else(|| err("no root element"))
 }
 
+/// Whether a document holds comments, processing instructions or a document type declaration,
+/// which [`parse`] skips (the XML declaration does not count).
+pub(crate) fn has_comments(bytes: &[u8]) -> Result<bool, CodecError> {
+    let text = decode(bytes)?;
+    let mut reader = Reader::from_reader(text.as_bytes());
+    let mut buf = Vec::new();
+    loop {
+        match reader.read_event_into(&mut buf).map_err(err)? {
+            Event::Comment(_) | Event::PI(_) | Event::DocType(_) => return Ok(true),
+            Event::Eof => return Ok(false),
+            _ => {}
+        }
+        buf.clear();
+    }
+}
+
 fn element(start: &BytesStart<'_>, decoder: Decoder) -> Result<Element, CodecError> {
     let mut element = Element { name: String::from_utf8_lossy(start.name().as_ref()).into_owned(), ..Element::default() };
     for attr in start.attributes() {

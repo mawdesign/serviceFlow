@@ -4,11 +4,13 @@
 mod set;
 mod settings;
 mod song;
+mod unkept;
 mod xml;
 
 pub use set::{read_set, write_set};
 pub use settings::{read_output_settings, read_present_settings, read_slide_colors};
 pub use song::{read_song, write_song};
+pub use unkept::{unkept_in_set, unkept_in_song};
 
 /// Why bytes could not be read as an OpenSong document.
 #[derive(Debug, Clone, PartialEq, Eq)]

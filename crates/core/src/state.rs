@@ -44,8 +44,11 @@ pub struct State {
     pub(crate) initial_mode_applied: bool,
     /// Problems to show the operator, oldest first.
     pub problems: Vec<Problem>,
-    /// How lyrics become slides, for every song opened.
+    /// How lyrics become slides, for every song opened. `blank_is_slide_change` follows the
+    /// imported OpenSong setting until the operator sets it (`SetSlideOptions`).
     pub slide_options: SlideOptions,
+    /// The operator set the slide options, so an import no longer changes `blank_is_slide_change`.
+    pub(crate) blank_is_slide_change_chosen: bool,
     /// Every set in `Sets/`, sorted.
     pub sets: Vec<SetId>,
     /// The open set (GLOSSARY "Set"), if any.
@@ -67,9 +70,20 @@ pub struct State {
     pub applying_plan: bool,
     /// The picture files in `Backgrounds/`, listed when the operator looks for a missing image.
     pub backgrounds: Vec<String>,
+    /// A zip file replacing the library ([`Command::ImportArchive`](crate::command::Command)):
+    /// being imported, or how many files the last import wrote.
+    pub archive_import: Option<ArchiveImport>,
     /// The time of the last [`Command::Tick`](crate::command::Command), which the caller measures
     /// (the engine has no clock). Auto-advance is scheduled from it.
     pub(crate) now: Duration,
+}
+
+/// Where replacing the library from a zip file is.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum ArchiveImport {
+    Importing,
+    /// Done: this many files were written.
+    Imported(usize),
 }
 
 /// The open set and where the operator is in it.
@@ -162,6 +176,9 @@ impl OpenSet {
 pub enum Problem {
     /// A song could not be read or parsed. `error` is the technical detail.
     SongUnreadable { id: SongId, error: String },
+    /// A zip file could not replace the library; nothing was changed unless `error` says the
+    /// storage failed while writing.
+    ArchiveUnimported { error: String },
     /// The library could not be listed. `error` is the technical detail.
     LibraryUnreadable { error: String },
     /// OpenSong's PresentSettings could not be read when the operator asked for a re-import.
@@ -219,6 +236,21 @@ pub struct OpenSong {
 impl State {
     /// Whether the open song is the selected song item of the open set, so that item's
     /// transposition and capo apply to it (and can be changed).
+    /// The set item the open song is shown for: the selected item, when the open song is its
+    /// (`None`: no set, nothing selected, or a song opened from the library).
+    pub fn open_item(&self) -> Option<usize> {
+        let (open, set) = (self.song.as_ref()?, self.set.as_ref()?);
+        let index = set.selected?;
+        (set.set.items.get(index)?.open_id(index).as_ref() == Some(&open.id)).then_some(index)
+    }
+
+    /// The index of the live slide among the open song's slides, when it was sent live from this
+    /// song shown for this item (the same song elsewhere in the set is another occurrence).
+    pub fn open_live_index(&self) -> Option<usize> {
+        let live = self.output.live.as_ref()?;
+        (self.song.as_ref()?.id == live.song && live.item == self.open_item()).then_some(live.index)
+    }
+
     pub fn is_selected_song_item(&self) -> bool {
         let (Some(open), Some(set)) = (&self.song, &self.set) else { return false };
         set.selected.and_then(|i| set.set.items.get(i)).and_then(|item| item.song_id()).is_some_and(|id| id == open.id)
@@ -425,6 +457,9 @@ impl OutputChords {
 pub struct LiveSlide {
     /// The song it came from.
     pub song: SongId,
+    /// The set item it was sent live from (`None`: a song opened from the library). With the
+    /// same song twice in a set, this tells the occurrences apart.
+    pub item: Option<usize>,
     /// Its position in that song's slides.
     pub index: usize,
     pub slide: Slide,

@@ -64,7 +64,10 @@ fn make(
     for tidy in songs {
         let file = PlanFile::Song(tidy.id.clone());
         let after = canonical::canonicalize(&tidy.song);
-        if after.tags_kept || canonical::has_tag_collision(&tidy.song) {
+        if !tidy.unkept.is_empty() {
+            // Never rewrite a file into one that has lost something.
+            report.skipped.push((file, TidySkip::Unkept(tidy.unkept.clone())));
+        } else if after.tags_kept || canonical::has_tag_collision(&tidy.song) {
             report.skipped.push((file, TidySkip::TagCollision));
         } else if state.drafts.get(&tidy.id).is_some_and(|draft| draft.is_modified()) {
             report.skipped.push((file, TidySkip::UnsavedEdits));
@@ -97,6 +100,12 @@ fn make(
             continue;
         }
         let file = PlanFile::Set(tidy.id.clone());
+        if !tidy.unkept.is_empty() {
+            // Left alone: its song items' orders still find the renamed tags (old tag names
+            // resolve to the canonical ones), so the set keeps working.
+            report.skipped.push((file, TidySkip::Unkept(tidy.unkept.clone())));
+            continue;
+        }
         let mut changes = Vec::new();
         if !items.is_empty() {
             changes.push(TidyChange::ItemOrders(items));

@@ -16,9 +16,11 @@ use std::cell::RefCell;
 use std::rc::Rc;
 use std::sync::Arc;
 
+use serviceflow_core::command::Command;
+use serviceflow_core::state::ArchiveImport;
 use serviceflow_runtime::Driver;
 use serviceflow_storage::StorageError;
-use serviceflow_storage_web::{Backend, ImportError, WebStorage, folder_access_supported};
+use serviceflow_storage_web::{Backend, WebStorage, folder_access_supported};
 use wasm_bindgen::JsCast as _;
 use wasm_bindgen::prelude::Closure;
 use wasm_bindgen_futures::{JsFuture, spawn_local};
@@ -53,7 +55,6 @@ enum Event {
     Opened(Result<Option<(WebStorage, bool)>, StorageError>),
     /// A zip file was chosen for import: its name and bytes.
     ZipChosen(String, Vec<u8>),
-    Imported(Result<usize, ImportError>),
     Exported(Result<(), StorageError>),
     Font(&'static str, Result<Vec<u8>, String>),
 }
@@ -82,8 +83,6 @@ impl Inbox {
 enum Notice {
     NotADataRoot(String),
     Failed(String),
-    Imported(usize),
-    ImportFailed(String),
     ExportFailed(String),
 }
 
@@ -152,18 +151,6 @@ impl WebApp {
                 }
             }
             Event::ZipChosen(name, bytes) => self.to_import = Some((name, bytes)),
-            Event::Imported(result) => {
-                self.busy = false;
-                match result {
-                    Ok(count) => {
-                        self.notice = Some(Notice::Imported(count));
-                        // Start again over the new files.
-                        self.window = None;
-                        self.open_browser_storage();
-                    }
-                    Err(e) => self.notice = Some(Notice::ImportFailed(e.to_string())),
-                }
-            }
             Event::Exported(result) => {
                 self.busy = false;
                 if let Err(e) = result {
@@ -187,7 +174,7 @@ impl WebApp {
         self.window = Some(ControlWindow::new(Driver::new(storage)).with_single_output());
     }
 
-    /// A second storage on the open folder, for long jobs (export, import) that run beside the
+    /// A second storage on the open folder, for an export (it only reads) that runs beside the
     /// control window.
     fn same_folder(&mut self) -> Option<WebStorage> {
         let window = self.window.as_mut()?;
@@ -207,10 +194,12 @@ impl WebApp {
         });
     }
 
+    /// The engine replaces the library through its own storage (ADR-0001): the result shows in
+    /// its state (and a failure among its problems).
     fn start_import(&mut self, bytes: Vec<u8>) {
-        let Some(storage) = self.same_folder() else { return };
-        self.busy = true;
-        self.inbox.spawn(async move { Event::Imported(storage.import_archive(&bytes).await) });
+        if let Some(window) = &mut self.window {
+            window.driver().send(Command::ImportArchive(Arc::from(bytes)));
+        }
     }
 
     /// Fetch every lazy font that slide text has asked for.
@@ -249,12 +238,14 @@ impl WebApp {
     }
 
     fn top_bar(&mut self, ui: &mut egui::Ui) {
+        let import = self.window.as_ref().and_then(|w| w.state().archive_import);
+        let busy = self.busy || import == Some(ArchiveImport::Importing);
         egui::Panel::top("storage").show(ui, |ui| {
             ui.horizontal_wrapped(|ui| {
                 match &self.open {
                     Some((Backend::Folder, name)) => {
                         ui.label(format!("{} {name}", tl!("Folder:")));
-                        if ui.add_enabled(!self.busy, egui::Button::new(tl!("Open another folder…"))).clicked() {
+                        if ui.add_enabled(!busy, egui::Button::new(tl!("Open another folder…"))).clicked() {
                             self.pick_folder();
                         }
                     }
@@ -263,19 +254,22 @@ impl WebApp {
                             ui.visuals().warn_fg_color,
                             tl!("Your songs and sets are stored in this browser, not in a folder on your computer. Export them as a zip to keep a copy or to use them in OpenSong."),
                         );
-                        if ui.add_enabled(!self.busy, egui::Button::new(tl!("Import OpenSong folder (zip)…"))).clicked() {
+                        if ui.add_enabled(!busy, egui::Button::new(tl!("Import OpenSong folder (zip)…"))).clicked() {
                             choose_zip(self.inbox.clone());
                         }
                     }
                     None => {}
                 }
-                if self.open.is_some() && ui.add_enabled(!self.busy, egui::Button::new(tl!("Export as zip"))).clicked() {
+                if self.open.is_some() && ui.add_enabled(!busy, egui::Button::new(tl!("Export as zip"))).clicked() {
                     self.export();
                 }
-                if self.busy {
+                if busy {
                     ui.spinner();
                 }
             });
+            if let Some(ArchiveImport::Imported(n)) = import {
+                ui.label(format!("{n} {}", tl!("files imported.")));
+            }
             if let Some((name, bytes)) = self.to_import.take() {
                 ui.horizontal_wrapped(|ui| {
                     ui.label(format!("{} “{name}”? {}", tl!("Replace everything stored in this browser with"), tl!("This cannot be undone.")));
@@ -293,8 +287,6 @@ impl WebApp {
                         ui.colored_label(error, format!("“{name}” {}", tl!("has no Songs folder, so it is not an OpenSong data folder.")))
                     }
                     Notice::Failed(e) => ui.colored_label(error, format!("{} {e}", tl!("The library could not be opened:"))),
-                    Notice::Imported(n) => ui.label(format!("{n} {}", tl!("files imported."))),
-                    Notice::ImportFailed(e) => ui.colored_label(error, format!("{} {e}", tl!("The zip file could not be imported:"))),
                     Notice::ExportFailed(e) => ui.colored_label(error, format!("{} {e}", tl!("The library could not be exported:"))),
                 };
             }

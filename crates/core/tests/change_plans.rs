@@ -273,3 +273,66 @@ fn a_set_changed_after_a_rename_was_planned_stops_it_and_the_song_keeps_its_name
     let Some(Problem::PlanIncomplete { failure, .. }) = harness.state().problems.last().cloned() else { panic!("a problem") };
     assert_eq!(failure.failed, PlanFile::Set(SetId::new("Sunday")));
 }
+
+/// The open set's unsaved edits survive a plan that rewrites its file: they are kept on top of
+/// the rewritten set, which becomes the version on disk.
+#[test]
+fn renaming_a_song_keeps_the_open_sets_unsaved_edits_on_top_of_the_rewritten_set() {
+    use serviceflow_core::set::ItemKind;
+    use serviceflow_core::set_edit::SetEdit;
+    let mut harness = harness();
+    harness.send(Command::OpenSet(SetId::new("Sunday")));
+    harness.send(Command::EditSet(SetEdit::Remove(2)));
+    harness.send(Command::EditSet(SetEdit::AddCustom { name: "Welcome".to_owned(), at: None }));
+    let to = SongId::new("Hymns/Hymn.xml");
+    harness.send(Command::RenameSong { from: SongId::new("Hymn"), to: to.clone() });
+    harness.send(Command::ConfirmPlan);
+    harness.settle();
+
+    let state = harness.state();
+    let open = state.set.as_ref().unwrap();
+    assert!(open.modified, "the edits are still there to save");
+    assert!(!open.changed_on_disk, "our own plan is not a change by someone else");
+    let names: Vec<&str> = open.set.items.iter().map(|i| i.name.as_str()).collect();
+    assert_eq!(names, ["Hymn.xml", "Other", "Welcome"]);
+    assert_eq!(open.set.items[0].song_id(), Some(to.clone()));
+    assert!(matches!(open.set.items[2].kind, ItemKind::Custom(_)));
+    // The file version is the rewritten set, with the scripture item the edits removed.
+    assert_eq!(open.base.items.len(), 3);
+    assert_eq!(open.base.items[0].song_id(), Some(to.clone()));
+    // Undo goes back through the edits, still pointing at the renamed song.
+    harness.send(Command::UndoSet).send(Command::UndoSet);
+    let state = harness.state();
+    let open = state.set.as_ref().unwrap();
+    assert_eq!(open.set.items[0].song_id(), Some(to.clone()));
+    assert!(!open.modified);
+
+    // Saving the edits writes them over the rewritten file without a conflict.
+    harness.send(Command::RedoSet).send(Command::RedoSet).send(Command::SaveSet);
+    assert!(!harness.state().set.as_ref().unwrap().changed_on_disk);
+    let saved = harness.saved_set("Sunday").unwrap();
+    let names: Vec<&str> = saved.items.iter().map(|i| i.name.as_str()).collect();
+    assert_eq!(names, ["Hymn.xml", "Other", "Welcome"]);
+}
+
+#[test]
+fn a_tag_renaming_save_keeps_the_open_sets_unsaved_edits_and_renames_their_orders() {
+    use serviceflow_core::set::ItemKind;
+    use serviceflow_core::set_edit::{ItemField, SetEdit};
+    let mut harness = harness();
+    harness.send(Command::OpenSet(SetId::new("Sunday")));
+    harness.send(Command::EditSet(SetEdit::Field { item: 1, field: ItemField::Notes, text: "Quietly".to_owned() }));
+    harness.send(Command::OpenSong(SongId::new("Hymn")));
+    edit_title(&mut harness, "Hymn (edited)");
+    harness.send(Command::SaveSong(SongId::new("Hymn")));
+    harness.send(Command::ConfirmPlan);
+    harness.settle();
+
+    let state = harness.state();
+    let open = state.set.as_ref().unwrap();
+    assert!(open.modified);
+    assert!(!open.changed_on_disk);
+    assert_eq!(open.set.items[1].notes, "Quietly");
+    let ItemKind::Song(item) = &open.set.items[0].kind else { panic!("a song item") };
+    assert_eq!(item.presentation, ["V2", "C", "V1"]);
+}

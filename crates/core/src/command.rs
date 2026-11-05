@@ -317,6 +317,13 @@ pub enum Command {
         unreadable_sets: Vec<(SetId, String)>,
         error: Option<String>,
     },
+    /// Replace everything in the library with the OpenSong data root in this zip file (browser
+    /// storage, after the operator confirmed). Whatever is open is closed and unsaved edits are
+    /// dropped; the library, sets and OpenSong settings are read again.
+    ImportArchive(Arc<[u8]>),
+    /// Storage result of [`Effect::ImportArchive`]: the number of files written, or why nothing
+    /// was imported.
+    ArchiveImported(Result<usize, String>),
     /// Apply the change plan the operator has been shown.
     ConfirmPlan,
     /// Drop the change plan; nothing is written.
@@ -448,7 +455,7 @@ impl Command {
     }
 
     /// Live actions are transient: they never enter undo history (ADR-0001). Only document edits
-    /// do, and none exist yet.
+    /// ([`is_document_edit`](Self::is_document_edit)) do.
     pub fn is_live_action(&self) -> bool {
         matches!(
             self,
@@ -522,4 +529,7 @@ pub enum Effect {
     WriteSidecar { set: SetId, sidecar: Arc<SetSidecar> },
     /// Find which of these songs are not in the library; answer with [`Command::SongsChecked`].
     CheckSetSongs { set: SetId, ids: Vec<SongId> },
+    /// Replace the whole library with the OpenSong data root packed in this zip file (browser
+    /// storage only; other storages refuse); answer with [`Command::ArchiveImported`].
+    ImportArchive(Arc<[u8]>),
 }

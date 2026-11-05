@@ -311,7 +311,8 @@ fn collect(dir: &Path, prefix: &str, out: &mut dyn FnMut(String, std::fs::Metada
     for entry in entries {
         let entry = entry?;
         let Ok(name) = entry.file_name().into_string() else { continue };
-        if is_ignored_path(&name) {
+        // A name no id can hold is not listed: everything listed can be read.
+        if is_ignored_path(&name) || check_path(&name).is_err() {
             continue;
         }
         let path = format!("{prefix}{name}");
@@ -402,6 +403,9 @@ impl SettingsRepository for FsStorage {
         self.write(Key::Settings(id.clone()), bytes, expect)
     }
 }
+
+/// A real folder is never emptied to make room for a zip: the default refusal.
+impl serviceflow_storage::ArchiveImport for FsStorage {}
 
 impl ChangeEvents for FsStorage {
     fn changes(&self) -> ChangeStream {

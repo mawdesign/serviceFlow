@@ -134,6 +134,26 @@ pub enum TidySkip {
     Unreadable(String),
     /// The open song has unsaved edits.
     UnsavedEdits,
+    /// The file holds things the rewrite would not keep (serviceFlow does not read them).
+    Unkept(Vec<Unkept>),
+}
+
+/// Something in a song or set file that serviceFlow does not read, so a rewrite of the file
+/// would drop it. The element names are as in the file.
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
+pub enum Unkept {
+    /// XML comments, processing instructions or a document type declaration.
+    Comments,
+    /// Attributes of this element.
+    Attributes(String),
+    /// A second copy of this element: only the first is read.
+    Repeated(String),
+    /// Elements inside this element, which is read as plain text.
+    Elements(String),
+    /// Text directly inside this element, between its elements.
+    Text(String),
+    /// Both `timesig` (the old name) and `time_sig`: only `time_sig` is kept.
+    OldTimeSignature,
 }
 
 /// The dry-run list of a tidy.
@@ -151,6 +171,8 @@ pub struct TidySong {
     pub id: SongId,
     pub song: Arc<Song>,
     pub hash: ContentHash,
+    /// What the file holds that rewriting it would drop (empty: nothing). Such a file is left alone.
+    pub unkept: Vec<Unkept>,
 }
 
 /// A set read for a tidy. Canonical sets are listed too: song tag renames may still change them.
@@ -161,6 +183,8 @@ pub struct TidySet {
     pub hash: ContentHash,
     /// The file's bytes are what a save would write.
     pub canonical: bool,
+    /// What the file holds that rewriting it would drop (empty: nothing). Such a file is left alone.
+    pub unkept: Vec<Unkept>,
 }
 
 /// An action waiting for storage to be read so its plan can be made.

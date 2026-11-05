@@ -43,6 +43,22 @@ impl EngineHarness {
         Self::with_storage(storage)
     }
 
+    /// An engine over storage holding these songs that, like browser storage, can be replaced
+    /// from a zip file ([`zip_of`](Self::zip_of)).
+    pub fn with_zip_import(songs: &[(&str, &str)]) -> Self {
+        let storage = MemoryStorage::new().with_archive_reader(|zip| serviceflow_storage_web::archive::read_archive(zip).map_err(|e| e.to_string()));
+        for (id, xml) in songs {
+            crate::block_on(storage.write_song(&SongId::new(*id), xml.as_bytes().to_vec(), Expect::Any)).expect("seeding a song");
+        }
+        Self::with_storage(storage)
+    }
+
+    /// A zip of an OpenSong data root holding these files, as (path under the root, contents).
+    pub fn zip_of(files: &[(&str, &str)]) -> Vec<u8> {
+        let files: Vec<(String, Vec<u8>)> = files.iter().map(|(path, text)| ((*path).to_owned(), text.as_bytes().to_vec())).collect();
+        serviceflow_storage_web::archive::write_archive(&files)
+    }
+
     /// An engine over storage holding only these songs and sets, given as (id, file contents).
     pub fn with_songs_and_sets(songs: &[(&str, &str)], sets: &[(&str, &str)]) -> Self {
         let storage = MemoryStorage::new();

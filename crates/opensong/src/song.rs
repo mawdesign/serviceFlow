@@ -12,7 +12,7 @@ use crate::CodecError;
 use crate::xml::{self, Node};
 
 /// Elements read into [`Song`] fields. Everything else ends up in [`Song::other_elements`].
-const MODELLED: &[&str] = &[
+pub(crate) const MODELLED: &[&str] = &[
     "title",
     "author",
     "copyright",

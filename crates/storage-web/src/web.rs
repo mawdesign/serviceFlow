@@ -205,7 +205,9 @@ async fn walk(dir: Dir, hidden: bool) -> Result<Vec<(String, FileHandle)>> {
     let mut folders = vec![(dir, String::new())];
     while let Some((folder, prefix)) = folders.pop() {
         for (name, handle) in entries(&folder).await? {
-            if is_swap_file(&name) || (!hidden && name.starts_with(['.', '_'])) {
+            // A name no id can hold (a colon or backslash, see `check_path`) is not listed:
+            // everything listed can be read.
+            if is_swap_file(&name) || (!hidden && (name.starts_with(['.', '_']) || check_path(&name).is_err())) {
                 continue;
             }
             let path = format!("{prefix}{name}");
@@ -653,6 +655,15 @@ impl SettingsRepository for WebStorage {
 
     async fn write_settings(&self, id: &SettingsId, bytes: Vec<u8>, expect: Expect) -> Result<ContentHash> {
         self.inner.write(Key::Settings(id.clone()), bytes, expect).await
+    }
+}
+
+impl serviceflow_storage::ArchiveImport for WebStorage {
+    async fn import_archive(&self, zip: &[u8]) -> Result<usize> {
+        WebStorage::import_archive(self, zip).await.map_err(|e| match e {
+            ImportError::Storage(e) => e,
+            ImportError::Archive(e) => StorageError::Other(e.to_string()),
+        })
     }
 }
 
