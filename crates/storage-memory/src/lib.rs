@@ -7,9 +7,9 @@ use std::sync::Mutex;
 use futures::StreamExt as _;
 use futures::channel::mpsc;
 use serviceflow_storage::{
-    ArchiveImport, AssetId, AssetRepository, ChangeEvent, ChangeEvents, ChangeKind, ChangeStream, ContentHash, DocumentId, Expect, Key, Result,
-    SetId, SetRepository, SettingsId, SettingsRepository, SidecarRepository, SongId, SongRepository, StorageError, Stored, check_path, expect_holds,
-    is_ignored_path, key_path,
+    ArchiveImport, AssetId, AssetRepository, ChangeEvent, ChangeEvents, ChangeKind, ChangeStream, ContentHash, DocumentId, Expect, FOLDERS, Key,
+    Result, SetId, SetRepository, SettingsId, SettingsRepository, SidecarRepository, SongId, SongRepository, StorageError, Stored, check_path,
+    expect_holds, is_ignored_path, key_in_folder, key_path,
 };
 
 /// Unpacks a zip file into (`/`-separated path under the data root, bytes).
@@ -42,14 +42,7 @@ impl MemoryStorage {
         let storage = Self::new();
         {
             let mut documents = storage.lock_documents();
-            type MakeKey = fn(String) -> Key;
-            let folders: [(&str, MakeKey); 4] = [
-                ("Songs", |p| Key::Song(SongId(p))),
-                ("Sets", |p| Key::Set(SetId(p))),
-                ("Settings", |p| Key::Settings(SettingsId(p))),
-                ("Backgrounds", |p| Key::Asset(AssetId(p))),
-            ];
-            for (folder, key) in folders {
+            for (folder, key) in FOLDERS {
                 let mut files = Vec::new();
                 collect_files(&root.join(folder), "", &mut files)?;
                 for (path, bytes) in files {
@@ -276,13 +269,7 @@ impl ArchiveImport for MemoryStorage {
         let mut written = 0;
         for (path, bytes) in files {
             let Some((folder, rest)) = path.split_once('/') else { continue };
-            let key = match folder {
-                "Songs" => Key::Song(SongId(rest.to_owned())),
-                "Sets" => Key::Set(SetId(rest.to_owned())),
-                "Settings" => Key::Settings(SettingsId(rest.to_owned())),
-                "Backgrounds" => Key::Asset(AssetId(rest.to_owned())),
-                _ => continue,
-            };
+            let Some(key) = key_in_folder(folder, rest) else { continue };
             if check_path(rest).is_ok() {
                 documents.insert(key, Stored::new(bytes));
                 written += 1;

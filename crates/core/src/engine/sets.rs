@@ -143,7 +143,7 @@ pub(super) fn apply(state: &mut State, command: Command) -> Vec<Effect> {
             effects
         }
         // Handled by the engine itself.
-        _ => Vec::new(),
+        _ => super::unrouted(&command),
     }
 }
 

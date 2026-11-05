@@ -32,6 +32,9 @@ impl SongId {
         self.0.starts_with(":item/")
     }
 
+    /// How many copy names a save-as-copy tries (`copy(1)` to `copy(MAX_COPIES)`) before giving up.
+    pub const MAX_COPIES: usize = 100;
+
     /// The id of copy `n` (from 1) of this song, beside it: `Hymns/Abide (copy)`, then
     /// `Hymns/Abide (copy 2)`. A `.xml` extension stays at the end.
     pub fn copy(&self, n: usize) -> SongId {

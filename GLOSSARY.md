@@ -104,7 +104,7 @@ A set item that shows one or more images.
 A set item that changes the style of the items after it, either by pushing a new style or by reverting to the previous one.
 
 **Placeholder**:
-A set item that serviceFlow keeps but cannot present: an unsupported type such as scripture or external, or a reference to a song or image that is missing.
+A set item that serviceFlow keeps but cannot present: an unsupported type such as scripture or external. A song item whose song is missing stays a song item, flagged `missing` until the song is back; it is not turned into a placeholder.
 _Avoid_: Broken item, error item
 
 **Item notes**:
@@ -148,7 +148,7 @@ The operator's window, where the set, slides and output monitor are shown and th
 _Avoid_: Main window, presenter view
 
 **Output**:
-A destination where slides are shown to an audience. In Phase 1 this is the output window.
+A destination where slides are shown. In Phase 1 there are two, `OutputId::Window` (the output window) and `OutputId::Monitor` (the small mirror in the control window). Each has its own chord toggle; the live slide, blank, black and logo apply to both.
 _Avoid_: Screen, display, projector (unless physical hardware is meant)
 
 **Live**:
@@ -158,7 +158,7 @@ The slide currently shown on the outputs.
 An output state showing the style's background with no text.
 
 **Blank between items**:
-A slide of only a background, no text, that stepping reaches between two set items. It stops the next item (a video, say) starting the moment the operator steps past the end of the last one. Shown only while presenting: never in the set or the set builder. Only with the `blanks` setting on; none before the first item or after the last, and none between two items with the same name (so the operator can group items into one). Its background is the item before's, or the item after's with `blank_uses_next`, including that item's own style.
+An output state, not an item or a slide of the set: the style's background with no text, which stepping reaches between two set items (`State.output.item_blank`). It stops the next item (a video, say) starting the moment the operator steps past the end of the last one. Shown only while presenting: never in the set or the set builder. Only with the `blanks` setting on; none before the first item or after the last, and none between two items with the same name (so the operator can group items into one). Its background is the item before's, or the item after's with `blank_uses_next`, including that item's own style.
 _Avoid_: Spacer, separator slide
 
 **Auto-advance**:

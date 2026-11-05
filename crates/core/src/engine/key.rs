@@ -16,7 +16,7 @@ pub(super) fn apply(state: &mut State, command: Command) -> Vec<Effect> {
         Command::SetTranspose(semitones) => change(state, |settings| settings.transpose = semitones.clamp(-11, 11)),
         Command::SetCapo(capo) => change(state, |settings| settings.capo = capo.map(|fret| fret.min(11))),
         Command::SaveInThisKey => save_in_this_key(state),
-        _ => Vec::new(),
+        _ => super::unrouted(&command),
     }
 }
 

@@ -2,7 +2,7 @@
 
 use serviceflow_core::command::Command;
 use serviceflow_core::ids::SongId;
-use serviceflow_core::song::{LanguageMode, Slide};
+use serviceflow_core::song::{LanguageMode, Slide, SlideOptions};
 use serviceflow_testkit::EngineHarness;
 
 fn open(harness: &mut EngineHarness, name: &str) {
@@ -92,4 +92,18 @@ fn other_songs_do_not_change_with_the_language_mode() {
 #[test]
 fn switching_the_language_mode_is_a_live_action() {
     assert!(Command::SetLanguageMode(LanguageMode::Primary).is_live_action());
+}
+
+#[test]
+fn setting_the_slide_options_redraws_the_live_slide_like_the_language_mode_does() {
+    let mut harness = EngineHarness::with_fixtures();
+    open(&mut harness, "一件礼物 A Gift");
+    harness.send(Command::GoLive { index: 1 });
+    let changes = harness.state().output.changes;
+
+    let options = SlideOptions { language: LanguageMode::Primary, ..harness.state().slide_options };
+    harness.send(Command::SetSlideOptions(options));
+    assert!(!live(&harness).multilanguage);
+    assert_eq!(live(&harness), grid(&harness)[1]);
+    assert!(harness.state().output.changes > changes, "the output redraws");
 }

@@ -27,6 +27,14 @@ use wasm_bindgen_futures::{JsFuture, spawn_local};
 
 use crate::{ControlWindow, tl};
 
+impl ControlWindow<WebStorage> {
+    /// A second storage on the same folder as this window's own.
+    fn second_storage(&self) -> WebStorage {
+        let storage = self.driver.storage();
+        WebStorage::from_directory(storage.directory().clone(), storage.backend())
+    }
+}
+
 /// Id of the `<canvas>` in `app/index.html`.
 const CANVAS_ID: &str = "serviceflow_canvas";
 /// The folder in the browser's private file system that holds the library.
@@ -177,9 +185,7 @@ impl WebApp {
     /// A second storage on the open folder, for an export (it only reads) that runs beside the
     /// control window.
     fn same_folder(&mut self) -> Option<WebStorage> {
-        let window = self.window.as_mut()?;
-        let storage = window.driver().storage();
-        Some(WebStorage::from_directory(storage.directory().clone(), storage.backend()))
+        Some(self.window.as_ref()?.second_storage())
     }
 
     fn export(&mut self) {
@@ -245,7 +251,7 @@ impl WebApp {
                 match &self.open {
                     Some((Backend::Folder, name)) => {
                         ui.label(format!("{} {name}", tl!("Folder:")));
-                        if ui.add_enabled(!busy, egui::Button::new(tl!("Open another folder…"))).clicked() {
+                        if ui.add_enabled(!busy, egui::Button::new(tl!("Open another data root…"))).clicked() {
                             self.pick_folder();
                         }
                     }
@@ -254,7 +260,7 @@ impl WebApp {
                             ui.visuals().warn_fg_color,
                             tl!("Your songs and sets are stored in this browser, not in a folder on your computer. Export them as a zip to keep a copy or to use them in OpenSong."),
                         );
-                        if ui.add_enabled(!busy, egui::Button::new(tl!("Import OpenSong folder (zip)…"))).clicked() {
+                        if ui.add_enabled(!busy, egui::Button::new(tl!("Import data root (zip)…"))).clicked() {
                             choose_zip(self.inbox.clone());
                         }
                     }
@@ -284,7 +290,7 @@ impl WebApp {
                 let error = ui.visuals().error_fg_color;
                 match notice {
                     Notice::NotADataRoot(name) => {
-                        ui.colored_label(error, format!("“{name}” {}", tl!("has no Songs folder, so it is not an OpenSong data folder.")))
+                        ui.colored_label(error, format!("“{name}” {}", tl!("has no Songs folder, so it is not an OpenSong data root.")))
                     }
                     Notice::Failed(e) => ui.colored_label(error, format!("{} {e}", tl!("The library could not be opened:"))),
                     Notice::ExportFailed(e) => ui.colored_label(error, format!("{} {e}", tl!("The library could not be exported:"))),
@@ -300,8 +306,8 @@ impl WebApp {
                 ui.spinner();
                 return;
             }
-            ui.label(tl!("Choose the folder that holds your OpenSong Songs and Sets."));
-            if ui.button(tl!("Open OpenSong folder…")).clicked() {
+            ui.label(tl!("Choose the data root that holds your OpenSong Songs and Sets."));
+            if ui.button(tl!("Open data root…")).clicked() {
                 self.pick_folder();
             }
             ui.add_space(12.0);

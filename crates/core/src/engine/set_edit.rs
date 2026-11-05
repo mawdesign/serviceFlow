@@ -110,7 +110,7 @@ pub(super) fn apply(state: &mut State, command: Command) -> Vec<Effect> {
             Vec::new()
         }
         Command::ListBackgrounds => vec![Effect::ListBackgrounds],
-        _ => Vec::new(),
+        _ => super::unrouted(&command),
     }
 }
 

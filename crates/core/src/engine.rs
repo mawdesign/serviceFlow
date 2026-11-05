@@ -61,6 +61,14 @@ impl Engine {
     }
 }
 
+/// The fallback of a submodule's `apply` for a command `step` should never have sent it. Release
+/// builds ignore it; debug builds and tests catch a mis-routed command instead of silently doing
+/// nothing.
+fn unrouted(command: &Command) -> Vec<Effect> {
+    debug_assert!(false, "command routed to a module that does not handle it: {command:?}");
+    Vec::new()
+}
+
 fn step(state: &mut State, command: Command) -> Vec<Effect> {
     {
         match command {
@@ -247,10 +255,7 @@ fn step(state: &mut State, command: Command) -> Vec<Effect> {
                 state.slide_options = SlideOptions { shift: state.slide_options.shift, ..options };
                 // From now on the operator's choice wins over OpenSong's setting.
                 state.blank_is_slide_change_chosen = true;
-                let options = state.slide_options;
-                if let Some(open) = &mut state.song {
-                    open.regrid(&options);
-                }
+                regrid(state);
                 Vec::new()
             }
             Command::SetLanguageMode(language) => {

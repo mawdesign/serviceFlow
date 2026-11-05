@@ -207,3 +207,9 @@ cannot cover them.
   library (hundreds of songs, OpenSong running on it): check how long the dry run takes (every
   file is read), that OpenSong still opens the rewritten songs and sets, and that CRLF-only diffs
   are what a version-control diff shows.
+- [ ] **English strings in core Problems.** Some `Problem` values and plan failures carry English
+  text made in core or the runtime (storage error messages, "written but unreadable", "no free copy
+  name"). They should become typed variants the app words with `tl!`.
+- [ ] **Other `tl!` sentences built from pieces.** The `Problem` list now uses single `tl!`
+  strings with `{name}` placeholders; about 40 other sites in the app (files, set panel, editor,
+  web) still join several `tl!` fragments with `format!`.

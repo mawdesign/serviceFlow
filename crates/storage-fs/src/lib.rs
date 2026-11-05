@@ -39,9 +39,9 @@ use std::time::{Duration, SystemTime};
 use futures::StreamExt as _;
 use futures::channel::mpsc;
 use serviceflow_storage::{
-    AssetId, AssetRepository, ChangeEvent, ChangeEvents, ChangeKind, ChangeStream, ContentHash, DocumentId, Expect, Key, Result, SetId,
+    AssetId, AssetRepository, ChangeEvent, ChangeEvents, ChangeKind, ChangeStream, ContentHash, DocumentId, Expect, FOLDERS, Key, Result, SetId,
     SetRepository, SettingsId, SettingsRepository, SidecarRepository, SongId, SongRepository, StorageError, Stored, check_path, expect_holds,
-    is_ignored_path, key_path,
+    is_ignored_path, key_file, key_path, settled_changes,
 };
 
 /// How often the data root is scanned for changes made by other programs.
@@ -108,15 +108,8 @@ impl FsStorage {
     fn file(&self, key: &Key) -> Result<PathBuf> {
         let path = key_path(key);
         check_path(path)?;
-        let relative = match key {
-            Key::Song(_) => Path::new("Songs").join(path),
-            Key::Set(_) => Path::new("Sets").join(path),
-            Key::Asset(_) => Path::new("Backgrounds").join(path),
-            Key::Settings(_) => Path::new("Settings").join(path),
-            Key::Sidecar(DocumentId::Song(_)) => Path::new(".serviceflow/Songs").join(format!("{path}.sidecar")),
-            Key::Sidecar(DocumentId::Set(_)) => Path::new(".serviceflow/Sets").join(format!("{path}.sidecar")),
-        };
-        Ok(self.root.join(relative))
+        let relative = key_file(key);
+        Ok(relative.split('/').fold(self.root.clone(), |dir, part| dir.join(part)))
     }
 
     fn read(&self, key: Key) -> Result<Stored> {
@@ -246,15 +239,8 @@ fn scan(root: &Path) -> Option<BTreeMap<Key, Stat>> {
     if !root.is_dir() {
         return None;
     }
-    type MakeKey = fn(String) -> Key;
-    let folders: [(&str, MakeKey); 4] = [
-        ("Songs", |p| Key::Song(SongId(p))),
-        ("Sets", |p| Key::Set(SetId(p))),
-        ("Settings", |p| Key::Settings(SettingsId(p))),
-        ("Backgrounds", |p| Key::Asset(AssetId(p))),
-    ];
     let mut found = BTreeMap::new();
-    for (folder, key) in folders {
+    for (folder, key) in FOLDERS {
         collect(&root.join(folder), "", &mut |path, meta| {
             found.insert(key(path), (meta.modified().ok(), meta.len()));
         })
@@ -270,24 +256,11 @@ fn watch(root: PathBuf, shared: Weak<Shared>, poll: Duration, mut previous: BTre
         std::thread::sleep(poll);
         let Some(shared) = shared.upgrade() else { return };
         let Some(current) = scan(&root) else { continue };
-        let mut events = Vec::new();
+        let events;
         {
             let mut guard = lock(&shared.announced);
             let announced = guard.get_or_insert_with(BTreeMap::new);
-            let keys: std::collections::BTreeSet<Key> = current.keys().chain(announced.keys()).cloned().collect();
-            for key in keys {
-                let (now, then, before) = (current.get(&key), previous.get(&key), announced.get(&key));
-                if now == before || now != then {
-                    continue;
-                }
-                events.push(ChangeEvent { key, kind: if now.is_some() { ChangeKind::Written } else { ChangeKind::Removed } });
-            }
-            for event in &events {
-                match current.get(&event.key) {
-                    Some(stat) => announced.insert(event.key.clone(), *stat),
-                    None => announced.remove(&event.key),
-                };
-            }
+            events = settled_changes(announced, &current, Some(&previous));
         }
         for event in events {
             announce(&shared, event);

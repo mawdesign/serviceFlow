@@ -17,16 +17,16 @@
 //!   reload whose hash it already has.
 
 use std::cell::{Cell, RefCell};
-use std::collections::{BTreeMap, BTreeSet};
+use std::collections::BTreeMap;
 use std::rc::{Rc, Weak};
 
 use futures::StreamExt as _;
 use futures::channel::mpsc;
 use js_sys::{Function, Object, Promise, Reflect, Uint8Array};
 use serviceflow_storage::{
-    AssetId, AssetRepository, ChangeEvent, ChangeEvents, ChangeKind, ChangeStream, ContentHash, DocumentId, Expect, Key, Result, SetId,
+    AssetId, AssetRepository, ChangeEvent, ChangeEvents, ChangeKind, ChangeStream, ContentHash, DocumentId, Expect, FOLDERS, Key, Result, SetId,
     SetRepository, SettingsId, SettingsRepository, SidecarRepository, SongId, SongRepository, StorageError, Stored, check_path, expect_holds,
-    key_path,
+    key_file, key_path, settled_changes,
 };
 use wasm_bindgen::{JsCast as _, JsValue};
 use wasm_bindgen_futures::JsFuture;
@@ -39,14 +39,6 @@ use crate::archive::{self, ArchiveError};
 
 /// How often, in milliseconds, the folders are scanned for changes made by other programs.
 pub const DEFAULT_POLL_MS: u32 = 2000;
-
-/// The top-level folders the watcher scans, and the kind of document each holds.
-const WATCHED: [(&str, fn(String) -> Key); 4] = [
-    ("Songs", |p| Key::Song(SongId(p))),
-    ("Sets", |p| Key::Set(SetId(p))),
-    ("Settings", |p| Key::Settings(SettingsId(p))),
-    ("Backgrounds", |p| Key::Asset(AssetId(p))),
-];
 
 /// Where a [`WebStorage`]'s folder lives.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -135,16 +127,9 @@ fn is_swap_file(name: &str) -> bool {
 }
 
 /// The file path of a document under the root.
-fn key_file(key: &Key) -> Result<String> {
+fn checked_key_file(key: &Key) -> Result<String> {
     check_path(key_path(key))?;
-    Ok(match key {
-        Key::Song(SongId(p)) => format!("Songs/{p}"),
-        Key::Set(SetId(p)) => format!("Sets/{p}"),
-        Key::Asset(AssetId(p)) => format!("Backgrounds/{p}"),
-        Key::Settings(SettingsId(p)) => format!("Settings/{p}"),
-        Key::Sidecar(DocumentId::Song(SongId(p))) => format!(".serviceflow/Songs/{p}.sidecar"),
-        Key::Sidecar(DocumentId::Set(SetId(p))) => format!(".serviceflow/Sets/{p}.sidecar"),
-    })
+    Ok(key_file(key))
 }
 
 async fn child_dir(dir: &Dir, name: &str, create: bool) -> Result<Option<Dir>> {
@@ -416,12 +401,12 @@ impl Inner {
     }
 
     async fn read(&self, key: Key) -> Result<Stored> {
-        let path = key_file(&key)?;
+        let path = checked_key_file(&key)?;
         self.read_path(&path).await?.map(Stored::new).ok_or(StorageError::NotFound(key))
     }
 
     async fn write(&self, key: Key, bytes: Vec<u8>, expect: Expect) -> Result<ContentHash> {
-        let path = key_file(&key)?;
+        let path = checked_key_file(&key)?;
         if expect != Expect::Any {
             let current = self.read_path(&path).await?.map(|b| ContentHash::of(&b));
             if !expect_holds(expect, current) {
@@ -435,7 +420,7 @@ impl Inner {
     }
 
     async fn delete(&self, key: Key, expect: Expect) -> Result<()> {
-        let path = key_file(&key)?;
+        let path = checked_key_file(&key)?;
         let Some(bytes) = self.read_path(&path).await? else { return Err(StorageError::NotFound(key)) };
         if !expect_holds(expect, Some(ContentHash::of(&bytes))) {
             return Err(StorageError::Conflict(key));
@@ -449,8 +434,8 @@ impl Inner {
     }
 
     async fn rename(&self, from: Key, to: Key, expect: Expect) -> Result<ContentHash> {
-        let from_path = key_file(&from)?;
-        let to_path = key_file(&to)?;
+        let from_path = checked_key_file(&from)?;
+        let to_path = checked_key_file(&to)?;
         let Some(bytes) = self.read_path(&from_path).await? else { return Err(StorageError::NotFound(from)) };
         let hash = ContentHash::of(&bytes);
         if !expect_holds(expect, Some(hash)) {
@@ -515,7 +500,7 @@ impl Inner {
     /// (modified time, size) of every watched document.
     async fn scan(&self) -> Result<Snapshot> {
         let mut snapshot = Snapshot::new();
-        for (folder, make) in WATCHED {
+        for (folder, make) in FOLDERS {
             let Some(dir) = child_dir(&self.root, folder, false).await? else { continue };
             for (path, handle) in walk(dir, false).await? {
                 if let Some(file) = file_of(&handle).await? {
@@ -528,31 +513,14 @@ impl Inner {
 
     /// Announce what differs from the baseline and looked the same in the previous scan too.
     fn compare(&self, scan: &Snapshot, previous: Option<&Snapshot>) {
-        let mut events = Vec::new();
+        let events;
         {
             let mut baseline = self.baseline.borrow_mut();
             let Some(base) = baseline.as_mut() else {
                 *baseline = Some(scan.clone());
                 return;
             };
-            let keys: BTreeSet<Key> = base.keys().chain(scan.keys()).cloned().collect();
-            for key in keys {
-                let now = scan.get(&key);
-                let settled = previous.map(|p| p.get(&key)) == Some(now);
-                if base.get(&key) == now || !settled {
-                    continue;
-                }
-                match now {
-                    Some(meta) => {
-                        base.insert(key.clone(), *meta);
-                        events.push(ChangeEvent { key, kind: ChangeKind::Written });
-                    }
-                    None => {
-                        base.remove(&key);
-                        events.push(ChangeEvent { key, kind: ChangeKind::Removed });
-                    }
-                }
-            }
+            events = settled_changes(base, scan, previous);
         }
         for event in events {
             self.announce(event);
@@ -639,7 +607,7 @@ impl AssetRepository for WebStorage {
 
 impl SidecarRepository for WebStorage {
     async fn read_sidecar(&self, owner: &DocumentId) -> Result<Option<Stored>> {
-        let path = key_file(&Key::Sidecar(owner.clone()))?;
+        let path = checked_key_file(&Key::Sidecar(owner.clone()))?;
         Ok(self.inner.read_path(&path).await?.map(Stored::new))
     }
 
