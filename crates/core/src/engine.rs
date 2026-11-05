@@ -22,7 +22,7 @@ use crate::resolve::{self, ImageFile, ResolvedStyle};
 use crate::search::SearchIndex;
 use crate::set::ItemKind;
 use crate::song::{SlideOptions, Song};
-use crate::state::{Library, LiveSlide, OpenSong, OutputMode, Problem, State};
+use crate::state::{ArchiveImport, Library, LiveSlide, OpenSong, OutputMode, Problem, State};
 use crate::style::ImageSource;
 
 #[derive(Debug, Default)]
@@ -245,6 +245,8 @@ fn step(state: &mut State, command: Command) -> Vec<Effect> {
             Command::SetSlideOptions(options) => {
                 // The item's transposition is not the caller's to set (SetTranspose/SetCapo).
                 state.slide_options = SlideOptions { shift: state.slide_options.shift, ..options };
+                // From now on the operator's choice wins over OpenSong's setting.
+                state.blank_is_slide_change_chosen = true;
                 let options = state.slide_options;
                 if let Some(open) = &mut state.song {
                     open.regrid(&options);
@@ -318,6 +320,14 @@ fn step(state: &mut State, command: Command) -> Vec<Effect> {
             | Command::ConfirmPlan
             | Command::CancelPlan
             | Command::PlanApplied { .. }) => plan::apply(state, command),
+            Command::ImportArchive(zip) => {
+                if state.archive_import == Some(ArchiveImport::Importing) {
+                    return Vec::new();
+                }
+                state.archive_import = Some(ArchiveImport::Importing);
+                vec![Effect::ImportArchive(zip)]
+            }
+            Command::ArchiveImported(result) => archive_imported(state, result),
             Command::ToggleChords(output) => {
                 state.output.chords.toggle(output);
                 Vec::new()
@@ -358,7 +368,14 @@ fn step(state: &mut State, command: Command) -> Vec<Effect> {
             }
             Command::ImportOpenSongStyles { trigger } => vec![Effect::ReadOpenSongStyles(trigger)],
             Command::StylesImported(styles) => {
+                // OpenSong's `blank_is_slide_change` is global (copied into every style); it
+                // applies unless the operator chose otherwise (SetSlideOptions).
+                let blank = styles.default.body.blank_is_slide_change;
                 state.styles = styles;
+                if !state.blank_is_slide_change_chosen && state.slide_options.blank_is_slide_change != blank {
+                    state.slide_options.blank_is_slide_change = blank;
+                    regrid(state);
+                }
                 Vec::new()
             }
             Command::StylesImportFailed { trigger, error, missing } => {
@@ -367,6 +384,34 @@ fn step(state: &mut State, command: Command) -> Vec<Effect> {
                 }
                 Vec::new()
             }
+        }
+    }
+}
+
+/// Every file was replaced by an imported zip (or nothing was). Storage sent no change events,
+/// so what was open is closed and everything is read again; the live slide stays on the output.
+fn archive_imported(state: &mut State, result: Result<usize, String>) -> Vec<Effect> {
+    match result {
+        Ok(count) => {
+            state.archive_import = Some(ArchiveImport::Imported(count));
+            state.song = None;
+            state.loading = None;
+            state.drafts.clear();
+            state.set = None;
+            state.loading_set = None;
+            state.save_conflicts.clear();
+            state.saving.clear();
+            state.images = Arc::default();
+            let mut effects = step(state, Command::RefreshLibrary);
+            effects.extend(step(state, Command::RefreshSets));
+            effects.extend(step(state, Command::ImportOpenSongStyles { trigger: ImportTrigger::FirstRun }));
+            effects.extend(step(state, Command::ImportOpenSongSettings { trigger: ImportTrigger::FirstRun }));
+            effects
+        }
+        Err(error) => {
+            state.archive_import = None;
+            state.problems.push(Problem::ArchiveUnimported { error });
+            Vec::new()
         }
     }
 }
@@ -434,10 +479,9 @@ fn request_images(state: &mut State) -> Vec<Effect> {
         .collect()
 }
 
-/// The live slide's index, when it belongs to the open song.
+/// The live slide's index, when it belongs to the open song shown for the same set item.
 fn live_index(state: &State) -> Option<usize> {
-    let live = state.output.live.as_ref()?;
-    (state.song.as_ref()?.id == live.song).then_some(live.index)
+    state.open_live_index()
 }
 
 /// The grid index of the first slide of the open song's section called `token`.
@@ -459,8 +503,9 @@ fn go_live(state: &mut State, index: usize) {
     let resolved = state.resolved_of(&open.id, &open.song, slide);
     let advance = state.open_advance();
     let shift = state.slide_options.shift;
+    let item = state.open_item();
     state.output.live =
-        Some(LiveSlide { song: open.id.clone(), index, slide: slide.clone(), source: Arc::clone(&open.song), resolved, advance, shift });
+        Some(LiveSlide { song: open.id.clone(), item, index, slide: slide.clone(), source: Arc::clone(&open.song), resolved, advance, shift });
     state.output.mode = OutputMode::Normal;
     state.output.item_blank = None;
     state.output.changes += 1;
@@ -468,16 +513,16 @@ fn go_live(state: &mut State, index: usize) {
 }
 
 /// The slide options changed: rebuild the open song's grid and redraw the live slide in them,
-/// wherever it came from. The open song's transposition goes to a live slide of the same song;
-/// another song's live slide keeps its own.
+/// wherever it came from. The open song's transposition goes to a live slide of the same song
+/// and set item; another song's (or occurrence's) live slide keeps its own.
 fn regrid(state: &mut State) {
     let options = state.slide_options;
     if let Some(open) = &mut state.song {
         open.regrid(&options);
     }
-    let open = state.song.as_ref().map(|open| open.id.clone());
+    let live_is_open = state.open_live_index().is_some();
     if let Some(live) = &mut state.output.live {
-        if open.as_ref() == Some(&live.song) {
+        if live_is_open {
             live.shift = options.shift;
         }
         let options = SlideOptions { shift: live.shift, ..options };

@@ -239,7 +239,9 @@ async fn gather_for_tidy<S: Storage>(storage: &S) -> Command {
                 };
                 match read {
                     Ok((song, stored)) if serviceflow_opensong::write_song(&song) != stored.bytes => {
-                        songs.push(TidySong { id, song: Arc::new(song), hash: stored.hash });
+                        // Parsed already, so it parses again.
+                        let unkept = serviceflow_opensong::unkept_in_song(&stored.bytes).unwrap_or_default();
+                        songs.push(TidySong { id, song: Arc::new(song), hash: stored.hash, unkept });
                     }
                     Ok(_) => {}
                     Err(e) => unreadable_songs.push((id, e)),
@@ -260,7 +262,8 @@ async fn gather_for_tidy<S: Storage>(storage: &S) -> Command {
                 match read {
                     Ok((set, stored)) => {
                         let canonical = serviceflow_opensong::write_set(&set) == stored.bytes;
-                        sets.push(TidySet { id, set: Arc::new(set), hash: stored.hash, canonical });
+                        let unkept = if canonical { Vec::new() } else { serviceflow_opensong::unkept_in_set(&stored.bytes).unwrap_or_default() };
+                        sets.push(TidySet { id, set: Arc::new(set), hash: stored.hash, canonical, unkept });
                     }
                     Err(e) => unreadable_sets.push((id, e)),
                 }
@@ -398,6 +401,7 @@ pub async fn perform<S: Storage>(storage: &S, effect: Effect) -> Command {
                 Err(e) => Command::SidecarSaveFailed { set, error: e.to_string() },
             }
         }
+        Effect::ImportArchive(zip) => Command::ArchiveImported(storage.import_archive(&zip).await.map_err(|e| e.to_string())),
         Effect::CheckSetSongs { set, ids } => {
             // If the library cannot be listed, report nothing missing rather than red everywhere.
             let missing = match storage.list_songs().await {

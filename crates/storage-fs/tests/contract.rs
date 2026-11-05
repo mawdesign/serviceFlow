@@ -92,6 +92,22 @@ fn files_added_behind_its_back_are_listed_and_hidden_ones_are_not() {
     assert_eq!(songs.len(), 8);
 }
 
+/// Every song listed can be opened, including names OpenSong on macOS or Linux writes with a
+/// colon or backslash in them.
+#[cfg(unix)]
+#[test]
+fn files_named_with_a_colon_or_backslash_behind_its_back_are_listed_and_readable() {
+    let (storage, root) = fixtures_copy();
+    std::fs::write(root.join("Songs/Psalm 23: Shepherd"), "<song/>").unwrap();
+    std::fs::write(root.join("Songs/AC\\DC"), "<song/>").unwrap();
+    let songs = block_on(storage.list_songs()).unwrap();
+    assert!(songs.contains(&SongId::new("Psalm 23: Shepherd")));
+    assert!(songs.contains(&SongId::new("AC\\DC")));
+    for id in &songs {
+        assert!(block_on(storage.read_song(id)).is_ok(), "{id:?} is listed but cannot be read");
+    }
+}
+
 #[test]
 fn a_write_after_the_file_changed_on_disk_is_a_conflict() {
     let (storage, root) = fixtures_copy();

@@ -3093,6 +3093,7 @@ dependencies = [
  "serviceflow-runtime",
  "serviceflow-storage",
  "serviceflow-storage-memory",
+ "serviceflow-storage-web",
  "tempfile",
 ]
 

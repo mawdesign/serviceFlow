@@ -193,3 +193,40 @@ fn content_serviceflow_does_not_model_survives_a_tidy() {
     let set = String::from_utf8(harness.set_bytes("S").unwrap()).unwrap();
     assert!(set.contains("extra=\"kept\"") && set.contains("transition=\"1\""), "{set}");
 }
+
+#[test]
+fn files_holding_what_a_rewrite_would_drop_are_listed_as_left_alone_and_never_written() {
+    use serviceflow_core::plan::Unkept;
+    let commented = "<song><!-- arranged by J. --><title>Commented</title><lyrics>[1]\n Verse</lyrics></song>";
+    let twice = "<song><title>One</title><title>Two</title><time_sig>4/4</time_sig><timesig>3/4</timesig><lyrics>[1]\n Verse</lyrics></song>";
+    let set_xml =
+        r#"<set name="S"><slide_groups sort="no"><slide_group name="Commented" type="song" path="" presentation="1"/></slide_groups></set>"#;
+    let mut harness = EngineHarness::with_songs_and_sets(&[("Commented", commented), ("Twice", twice)], &[("S", set_xml)]);
+    harness.send(Command::TidyLibrary);
+    let report = report(&harness);
+    assert!(report.skipped.contains(&(song("Commented"), TidySkip::Unkept(vec![Unkept::Comments]))), "{report:?}");
+    assert!(report.skipped.contains(&(song("Twice"), TidySkip::Unkept(vec![Unkept::Repeated("title".into()), Unkept::OldTimeSignature]))));
+    assert!(report.skipped.contains(&(set("S"), TidySkip::Unkept(vec![Unkept::Attributes("slide_groups".into())]))));
+    assert!(report.changes.is_empty(), "{report:?}");
+    harness.send(Command::ConfirmPlan);
+    assert_eq!(harness.song_bytes(&SongId::new("Commented")).unwrap(), commented.as_bytes());
+    assert_eq!(harness.song_bytes(&SongId::new("Twice")).unwrap(), twice.as_bytes());
+    assert_eq!(harness.set_bytes("S").unwrap(), set_xml.as_bytes());
+}
+
+#[test]
+fn edits_made_to_the_open_set_while_the_list_is_shown_survive_the_tidy() {
+    use serviceflow_core::set_edit::SetEdit;
+    let mut harness = harness();
+    harness.send(Command::OpenSet(SetId::new("Ordered")));
+    harness.send(Command::TidyLibrary);
+    harness.send(Command::EditSet(SetEdit::AddCustom { name: "Welcome".to_owned(), at: None }));
+    harness.send(Command::ConfirmPlan);
+    harness.settle();
+    let state = harness.state();
+    let open = state.set.as_ref().unwrap();
+    assert!(open.modified, "the edit is still there to save");
+    assert!(!open.changed_on_disk);
+    assert_eq!(open.set.items.len(), 2);
+    assert_eq!(open.base.items.len(), 1);
+}

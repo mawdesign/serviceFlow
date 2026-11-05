@@ -142,11 +142,16 @@ pub(super) fn change(state: &mut State, target: Option<crate::set_edit::Target>,
         // The selection stays on the same item; a custom or image item live keeps its slides
         // under its new position.
         open.selected = open.selected.and_then(|i| change.remap(i));
-        if let Some(live) = &mut state.output.live
-            && let Some(index) = live.song.as_str().strip_prefix(":item/").and_then(|i| i.parse::<usize>().ok())
-            && let Some(moved) = change.remap(index)
-        {
-            live.song = SongId::set_item(moved);
+        if let Some(live) = &mut state.output.live {
+            if let Some(index) = live.song.as_str().strip_prefix(":item/").and_then(|i| i.parse::<usize>().ok())
+                && let Some(moved) = change.remap(index)
+            {
+                live.song = SongId::set_item(moved);
+            }
+            // The live slide stays with its item (a removed item's slide belongs to none).
+            if let Some(item) = live.item {
+                live.item = Some(change.remap(item).unwrap_or(usize::MAX));
+            }
         }
     }
     reshow(state)

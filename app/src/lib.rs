@@ -409,6 +409,9 @@ fn problems(ui: &mut egui::Ui, state: &State) {
             Problem::LibraryUnreadable { error } => {
                 ui.colored_label(ui.visuals().error_fg_color, format!("{}: {error}", tl!("Could not read the library")));
             }
+            Problem::ArchiveUnimported { error } => {
+                ui.colored_label(ui.visuals().error_fg_color, format!("{} {error}", tl!("The zip file could not be imported:")));
+            }
             Problem::StylesUnreadable { error } => {
                 ui.colored_label(ui.visuals().error_fg_color, format!("{}: {error}", tl!("Could not import the OpenSong styles")));
             }
@@ -519,7 +522,7 @@ fn slide_grid(
     let points = egui::vec2(THUMBNAIL_WIDTH, THUMBNAIL_WIDTH * 9.0 / 16.0);
     let pixels = points * ui.ctx().pixels_per_point();
     let size = Size { width: pixels.x.round() as u32, height: pixels.y.round() as u32 };
-    let live = state.output.live.as_ref().filter(|live| live.song == open.id).map(|live| live.index);
+    let live = state.open_live_index();
     let textures = thumbnails.for_song(ui.ctx(), state, size);
     egui::ScrollArea::vertical().show(ui, |ui| {
         ui.horizontal_wrapped(|ui| {

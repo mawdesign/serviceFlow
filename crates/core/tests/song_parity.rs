@@ -99,6 +99,34 @@ fn blank_is_slide_change_splits_the_open_song_at_empty_lines() {
     assert_eq!(grid(&harness).len(), 1);
 }
 
+const BLANK_SPLITS: &str = r#"<present_settings><style blank_is_slide_change="true"/><default_style/><scripture_style/></present_settings>"#;
+
+#[test]
+fn opensongs_blank_is_slide_change_setting_splits_slides_once_imported() {
+    use serviceflow_core::command::ImportTrigger;
+    let mut harness =
+        EngineHarness::with_files(&[("Blank", "<song><lyrics>[V1]\n one\n\n two</lyrics></song>")], &[("PresentSettings", BLANK_SPLITS)]);
+    open(&mut harness, "Blank");
+    harness.send(Command::GoLive { index: 0 });
+    harness.send(Command::ImportOpenSongStyles { trigger: ImportTrigger::FirstRun });
+    assert!(harness.state().slide_options.blank_is_slide_change);
+    // The open song and the live slide follow at once.
+    assert_eq!(grid(&harness), [("V1".to_string(), "one".to_string()), ("V1".to_string(), "two".to_string())]);
+    assert_eq!(harness.state().output.live.as_ref().unwrap().slide.lines, ["one"]);
+}
+
+#[test]
+fn the_operators_own_blank_is_slide_change_choice_wins_over_the_imported_setting() {
+    use serviceflow_core::command::ImportTrigger;
+    let mut harness =
+        EngineHarness::with_files(&[("Blank", "<song><lyrics>[V1]\n one\n\n two</lyrics></song>")], &[("PresentSettings", BLANK_SPLITS)]);
+    open(&mut harness, "Blank");
+    harness.send(Command::SetSlideOptions(SlideOptions::default()));
+    harness.send(Command::ImportOpenSongStyles { trigger: ImportTrigger::Manual });
+    assert!(!harness.state().slide_options.blank_is_slide_change);
+    assert_eq!(grid(&harness).len(), 1);
+}
+
 #[test]
 fn a_stray_first_character_is_shown_as_lyrics_and_recorded_as_a_warning() {
     let mut harness = EngineHarness::with_songs(&[("Typo", "<song><lyrics>[C]\nHello\n</lyrics></song>")]);
