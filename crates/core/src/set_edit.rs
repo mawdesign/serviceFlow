@@ -34,6 +34,8 @@ pub enum ItemField {
     Loop,
     /// Whether a custom or image item's slides crossfade: `default`, `on` or `off`.
     Transition,
+    /// The item's own style (edited property by property with `Command::EditStyle`).
+    Style,
 }
 
 /// One change to the open set. `at` is where a new item goes: `None` puts it after the selected

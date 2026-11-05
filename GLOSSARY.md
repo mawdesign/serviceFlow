@@ -117,10 +117,13 @@ The full visual specification for a slide: title, subtitle and body text formatt
 _Avoid_: Theme, template, look
 
 **Default style**:
-The style used when nothing more specific applies.
+The style used when nothing more specific applies. It starts as OpenSong's (imported from its settings, never written back); edits made in the style editor are serviceFlow's own and are kept in the library's sidecar, over OpenSong's.
 
 **Scripture style**:
 The default style for scripture items.
+
+**Style editor**:
+The window where the operator edits the title, subtitle and body boxes and the background of the default style or of a style item's pushed style, with a live preview drawn by the real renderer. Edits of a style item are set edits; edits of the default style are serviceFlow's own.
 
 **Style stack**:
 The styles pushed by style items so far in a set. The top one applies to the items that follow.

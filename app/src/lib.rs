@@ -18,6 +18,7 @@ pub mod output;
 pub mod prefs;
 pub mod set_panel;
 pub mod shortcuts;
+pub mod style_editor;
 pub mod thumbnails;
 #[cfg(target_arch = "wasm32")]
 pub mod web;
@@ -27,6 +28,7 @@ use craft_ui::layout::{SplitAxis, SplitSize};
 use serviceflow_core::command::{Command, ImportTrigger};
 use serviceflow_core::song::LanguageMode;
 use serviceflow_core::state::{OutputId, OutputMode, Problem, State};
+use serviceflow_core::style_edit::StyleTarget;
 use serviceflow_render::Size;
 use serviceflow_runtime::Driver;
 use serviceflow_storage::Storage;
@@ -57,6 +59,7 @@ pub struct ControlWindow<S> {
     editing: bool,
     files: files::FileActions,
     set_view: set_panel::SetView,
+    style_editor: style_editor::StyleEditor,
     /// One screen only (the browser): the output takes over the whole window while it is shown.
     single_output: bool,
 }
@@ -155,6 +158,7 @@ impl<S: Storage + 'static> ControlWindow<S> {
             editing: false,
             files: files::FileActions::default(),
             set_view: set_panel::SetView::default(),
+            style_editor: style_editor::StyleEditor::default(),
             single_output: false,
         }
     }
@@ -243,6 +247,16 @@ impl<S: Storage + 'static> ControlWindow<S> {
                 if ui.button(tl!("Keyboard shortcuts…")).clicked() {
                     self.shortcuts_dialog.get_or_insert_with(craft_keymap::ui::DialogState::new);
                 }
+                if ui.button(tl!("Edit default style")).clicked() {
+                    self.style_editor.open(StyleTarget::Default, &mut commands);
+                }
+                // A set item that pushes its own style (a style item) has one to edit.
+                let selected = state.set.as_ref().and_then(|s| s.selected.filter(|i| s.set.items.get(*i).is_some_and(|item| item.style.is_some())));
+                if ui.add_enabled(selected.is_some(), egui::Button::new(tl!("Edit item style"))).clicked()
+                    && let Some(index) = selected
+                {
+                    self.style_editor.open(StyleTarget::Item(index), &mut commands);
+                }
                 if ui.button(tl!("Re-import styles from OpenSong")).clicked() {
                     commands.push(Command::ImportOpenSongStyles { trigger: ImportTrigger::Manual });
                     commands.push(Command::ImportOpenSongSettings { trigger: ImportTrigger::Manual });
@@ -263,7 +277,9 @@ impl<S: Storage + 'static> ControlWindow<S> {
         });
         egui::CentralPanel::default().show(ui, |ui| {
             files::plan_panel(ui, &state, &mut commands);
-            problems(ui, &state);
+            if problems(ui, &state) {
+                self.style_editor.open(StyleTarget::Default, &mut commands);
+            }
             fonts::status(ui);
             let style = DockStyle::from_ui(ui);
             let mut panels = Panels {
@@ -288,6 +304,7 @@ impl<S: Storage + 'static> ControlWindow<S> {
             self.output_open = output::show_window(ui.ctx(), target, &mut self.output_frame, &mut self.shortcuts, &state, &mut commands);
         }
         self.shortcuts_dialog(ui.ctx());
+        self.style_editor.ui(ui.ctx(), &state, &mut commands);
 
         // Rendering may have had to substitute a style's font; tell the engine so it is shown.
         commands.extend(fonts::substitution_commands());
@@ -400,7 +417,10 @@ fn live_buttons(ui: &mut egui::Ui, state: &State, commands: &mut Vec<Command>) {
     });
 }
 
-fn problems(ui: &mut egui::Ui, state: &State) {
+/// The problems the operator should see. Returns true when the operator asked to fix a font in the
+/// style editor.
+fn problems(ui: &mut egui::Ui, state: &State) -> bool {
+    let mut edit_style = false;
     for problem in &state.problems {
         match problem {
             Problem::SongUnreadable { id, error } => {
@@ -461,13 +481,31 @@ fn problems(ui: &mut egui::Ui, state: &State) {
                 ui.colored_label(ui.visuals().error_fg_color, files::failure_text(action, failure));
             }
             Problem::FontSubstituted { requested, used } => {
+                ui.horizontal(|ui| {
+                    ui.colored_label(
+                        ui.visuals().warn_fg_color,
+                        tl!("Font not installed: “{requested}”, showing “{used}”. Line breaks may differ.", requested = requested, used = used),
+                    );
+                    if ui.button(tl!("Change the font in the style editor")).clicked() {
+                        edit_style = true;
+                    }
+                });
+            }
+            Problem::DefaultStyleUnreadable { error } => {
                 ui.colored_label(
                     ui.visuals().warn_fg_color,
-                    tl!("Font not installed: “{requested}”, showing “{used}”. Line breaks may differ.", requested = requested, used = used),
+                    tl!("serviceFlow's own default style could not be read, so OpenSong's is used: {error}", error = error),
+                );
+            }
+            Problem::DefaultStyleUnsaved { error } => {
+                ui.colored_label(
+                    ui.visuals().error_fg_color,
+                    tl!("Could not save serviceFlow's own default style (it applies until serviceFlow closes): {error}", error = error),
                 );
             }
         }
     }
+    edit_style
 }
 
 fn slides(

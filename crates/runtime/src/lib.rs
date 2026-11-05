@@ -425,6 +425,21 @@ pub async fn perform<S: Storage>(storage: &S, effect: Effect) -> Command {
                 Err(e) => Command::SidecarSaveFailed { set, error: e.to_string() },
             }
         }
+        Effect::ReadStyleSidecar => match storage.read_sidecar(&serviceflow_storage::DocumentId::Styles).await {
+            Ok(None) => Command::DefaultStyleLoaded(None),
+            Ok(Some(stored)) => match serviceflow_sidecar::read_styles_sidecar(&stored.bytes) {
+                Ok(style) => Command::DefaultStyleLoaded(style.map(Arc::new)),
+                Err(e) => Command::DefaultStyleLoadFailed { error: e.to_string() },
+            },
+            Err(e) => Command::DefaultStyleLoadFailed { error: e.to_string() },
+        },
+        Effect::WriteStyleSidecar(style) => {
+            let bytes = serviceflow_sidecar::write_styles_sidecar(style.as_deref());
+            match storage.write_sidecar(&serviceflow_storage::DocumentId::Styles, bytes, Expect::Any).await {
+                Ok(_) => Command::StyleSidecarSaved,
+                Err(e) => Command::StyleSidecarSaveFailed { error: e.to_string() },
+            }
+        }
         Effect::ImportArchive(zip) => Command::ArchiveImported(storage.import_archive(&zip).await.map_err(|e| e.to_string())),
         Effect::CheckSetSongs { set, ids } => {
             // If the library cannot be listed, report nothing missing rather than red everywhere.

@@ -181,6 +181,16 @@ impl EngineHarness {
         crate::block_on(self.storage().read_sidecar(&owner)).ok().flatten().map(|s| s.bytes)
     }
 
+    /// The bytes of the library's style sidecar in storage (`None`: there is none).
+    pub fn style_sidecar_bytes(&self) -> Option<Vec<u8>> {
+        crate::block_on(self.storage().read_sidecar(&DocumentId::Styles)).ok().flatten().map(|s| s.bytes)
+    }
+
+    /// Write the library's style sidecar behind the engine's back (a hand edit, or damage).
+    pub fn write_style_sidecar_file(&self, bytes: &[u8]) {
+        crate::block_on(self.storage().write_sidecar(&DocumentId::Styles, bytes.to_vec(), Expect::Any)).expect("writing a sidecar");
+    }
+
     /// Write a set's sidecar behind the engine's back (a hand edit, a sync, or damage).
     pub fn write_sidecar_file(&self, set: &str, bytes: &[u8]) {
         let owner = DocumentId::Set(serviceflow_storage::SetId::new(set));

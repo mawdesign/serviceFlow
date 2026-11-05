@@ -21,3 +21,4 @@ pub mod sidecar;
 pub mod song;
 pub mod state;
 pub mod style;
+pub mod style_edit;
