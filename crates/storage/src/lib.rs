@@ -126,6 +126,9 @@ pub trait AssetRepository {
 pub trait SidecarRepository {
     async fn read_sidecar(&self, owner: &DocumentId) -> Result<Option<Stored>>;
     async fn write_sidecar(&self, owner: &DocumentId, bytes: Vec<u8>, expect: Expect) -> Result<ContentHash>;
+    /// Delete a sidecar (its document moved or went away). `expect` applies to the sidecar as it
+    /// is; a missing one is `NotFound`.
+    async fn delete_sidecar(&self, owner: &DocumentId, expect: Expect) -> Result<()>;
 }
 
 /// Settings files under `Settings/`.

@@ -97,8 +97,19 @@ pub struct OpenSet {
     pub missing: Vec<SongId>,
     /// The song item being relinked: the library search is for its replacement.
     pub relinking: Option<usize>,
-    /// The set's serviceFlow-only item settings (ADR-0003), read with the set.
-    pub sidecar: Arc<SetSidecar>,
+    /// The set's sidecar as its file holds it (ADR-0003): as read with the set, or as last
+    /// saved. Changes to item settings stay in memory ([`sidecar`](Self::sidecar)) until the set
+    /// is saved.
+    pub saved_sidecar: Arc<SetSidecar>,
+    /// The in-memory identity of each item of [`set`](Self::set) (same order), stable across
+    /// edits, undo and redo, so item settings stay with their item. Never saved.
+    pub(crate) uids: Arc<Vec<u64>>,
+    /// The serviceFlow-only settings of items, by identity. Not in the undo history: they are
+    /// changed by live actions, and an item's settings come back with it when its removal is
+    /// undone.
+    pub(crate) settings: BTreeMap<u64, ItemSettings>,
+    /// The identity the next new item gets.
+    pub(crate) next_uid: u64,
     /// The picture (item, slide) the operator is looking for a file for: choose one of
     /// [`State::backgrounds`].
     pub finding_image: Option<(usize, usize)>,
@@ -134,7 +145,11 @@ pub(crate) enum Pending {
 
 impl OpenSet {
     pub(crate) fn new(id: SetId, set: Arc<Set>, hash: ContentHash, sidecar: Arc<SetSidecar>) -> Self {
-        Self {
+        let mut open = Self {
+            uids: Arc::new(Vec::new()),
+            settings: BTreeMap::new(),
+            next_uid: 0,
+            saved_sidecar: Arc::clone(&sidecar),
             id,
             base: Arc::clone(&set),
             set,
@@ -147,22 +162,77 @@ impl OpenSet {
             changed_on_disk: false,
             saving: false,
             history: SetHistory::default(),
-            sidecar,
             pending: None,
             peeked: Vec::new(),
+        };
+        open.identify(&sidecar);
+        open
+    }
+
+    /// Give every item of the set a new identity, with the settings `sidecar` holds for it.
+    fn identify(&mut self, sidecar: &SetSidecar) {
+        let start = self.next_uid;
+        let count = self.set.items.len() as u64;
+        self.uids = Arc::new((start..start + count).collect());
+        self.next_uid = start + count;
+        for (i, uid) in self.uids.iter().enumerate() {
+            if let Some(key) = crate::sidecar::item_key(&self.set, i) {
+                let settings = sidecar.get(&key);
+                if settings != ItemSettings::default() {
+                    self.settings.insert(*uid, settings);
+                }
+            }
         }
     }
 
     /// The sidecar key of song item `index` (`None` for any other kind of item).
     pub fn item_key(&self, index: usize) -> Option<ItemKey> {
-        let song = self.set.items.get(index)?.song_id()?;
-        let occurrence = self.set.items[..index].iter().filter(|item| item.song_id().as_ref() == Some(&song)).count();
-        Some(ItemKey { song, occurrence })
+        crate::sidecar::item_key(&self.set, index)
     }
 
-    /// The serviceFlow-only settings of item `index` (the defaults for items without any).
+    /// The serviceFlow-only settings of item `index` (the defaults for items without any, and
+    /// for items that are not song items).
     pub fn item_settings(&self, index: usize) -> ItemSettings {
-        self.item_key(index).map(|key| self.sidecar.get(&key)).unwrap_or_default()
+        self.item_key(index).and_then(|_| self.settings.get(self.uids.get(index)?).copied()).unwrap_or_default()
+    }
+
+    /// The sidecar as a save would write it now: the item settings as they are in memory, keyed
+    /// for [`set`](Self::set).
+    pub fn sidecar(&self) -> SetSidecar {
+        SetSidecar::of(&self.set, |i| self.item_settings(i))
+    }
+
+    /// Change the settings of song item `index`, in memory (they are saved with the set).
+    pub(crate) fn set_item_settings(&mut self, index: usize, settings: ItemSettings) {
+        if self.item_key(index).is_none() {
+            return;
+        }
+        let Some(&uid) = self.uids.get(index) else { return };
+        if settings == ItemSettings::default() {
+            self.settings.remove(&uid);
+        } else {
+            self.settings.insert(uid, settings);
+        }
+        self.refresh_modified();
+    }
+
+    /// Whether a save would write something: the set differs from its file, or the item
+    /// settings from its sidecar.
+    pub(crate) fn refresh_modified(&mut self) {
+        self.modified = *self.set != *self.base || self.sidecar() != *self.saved_sidecar;
+    }
+
+    /// Replace the set with `set`, which holds the same items in the same places (as written and
+    /// read back, or as a change plan rewrote them): each item keeps its identity and settings.
+    /// A set with another number of items is identified again from the settings as keyed now.
+    pub(crate) fn replace_set(&mut self, set: Arc<Set>) {
+        if set.items.len() == self.uids.len() {
+            self.set = set;
+        } else {
+            let keyed = self.sidecar();
+            self.set = set;
+            self.identify(&keyed);
+        }
     }
 
     /// Whether item `index` is a song item whose song is not in the library.

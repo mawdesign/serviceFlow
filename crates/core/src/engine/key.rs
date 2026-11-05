@@ -13,32 +13,35 @@ use crate::state::State;
 
 pub(super) fn apply(state: &mut State, command: Command) -> Vec<Effect> {
     match command {
-        Command::SetTranspose(semitones) => change(state, |settings| settings.transpose = semitones.clamp(-11, 11)),
-        Command::SetCapo(capo) => change(state, |settings| settings.capo = capo.map(|fret| fret.min(11))),
+        Command::SetTranspose(semitones) => {
+            change(state, |settings| settings.transpose = semitones.clamp(-11, 11));
+            Vec::new()
+        }
+        Command::SetCapo(capo) => {
+            change(state, |settings| settings.capo = capo.map(|fret| fret.min(11)));
+            Vec::new()
+        }
         Command::SaveInThisKey => save_in_this_key(state),
         _ => super::unrouted(&command),
     }
 }
 
-/// Change the selected song item's settings, keep them in the sidecar and redraw.
-fn change(state: &mut State, edit: impl FnOnce(&mut ItemSettings)) -> Vec<Effect> {
+/// Change the selected song item's settings (in memory: they are saved with the set) and redraw.
+fn change(state: &mut State, edit: impl FnOnce(&mut ItemSettings)) {
     if !state.is_selected_song_item() {
-        return Vec::new();
+        return;
     }
-    let Some(set) = &mut state.set else { return Vec::new() };
-    let Some(index) = set.selected else { return Vec::new() };
-    let Some(key) = set.item_key(index) else { return Vec::new() };
-    let before = set.sidecar.get(&key);
+    let Some(set) = &mut state.set else { return };
+    let Some(index) = set.selected else { return };
+    let before = set.item_settings(index);
     let mut settings = before;
     edit(&mut settings);
     if settings == before {
-        return Vec::new();
+        return;
     }
-    Arc::make_mut(&mut set.sidecar).set(key, settings);
-    let effects = vec![Effect::WriteSidecar { set: set.id.clone(), sidecar: Arc::clone(&set.sidecar) }];
+    set.set_item_settings(index, settings);
     state.slide_options.shift = Shift { semitones: settings.transpose, capo: settings.capo };
     regrid(state);
-    effects
 }
 
 /// Rewrite the chords and key of the open song as transposed for its item, put that in the song's
@@ -67,8 +70,10 @@ fn save_in_this_key(state: &mut State) -> Vec<Effect> {
     }
     state.drafts.entry(id.clone()).or_insert_with(|| crate::edit::Draft::new(Arc::clone(&open.file), hash)).replace(song);
 
-    // The song now has the new key: the item goes back to zero (its capo stays).
-    let mut effects = change(state, |settings| settings.transpose = 0);
+    // The song now has the new key: the item goes back to zero (its capo stays), saved with the
+    // set like any item setting.
+    change(state, |settings| settings.transpose = 0);
+    let mut effects = Vec::new();
     if let Some(song) = state.drafts.get(&id).map(|draft| Arc::clone(&draft.song)) {
         show_song(state, id.clone(), song, hash);
         // What is live from this song is redrawn from the song as it now is.

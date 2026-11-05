@@ -188,4 +188,4 @@ The full list of files one action will write (a song plus the sets that refer to
 An operator-initiated action that rewrites every file not yet in canonical form, after showing a dry-run list of the changes.
 
 **Sidecar**:
-A file storing serviceFlow-only information about a song or set (such as transposition or language mode), kept beside the OpenSong files rather than inside them.
+A file storing serviceFlow-only information about a song or set (such as transposition or language mode), kept beside the OpenSong files rather than inside them. A set's sidecar is part of the set: its settings stay with each item when items are moved, copied or relinked, change only in memory until the set is saved, are written by the same save, and are dropped when the set's edits are discarded. Renaming the set moves it; renaming a song rewrites it.

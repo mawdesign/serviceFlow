@@ -181,6 +181,11 @@ impl EngineHarness {
         crate::block_on(self.storage().read_sidecar(&owner)).ok().flatten().map(|s| s.bytes)
     }
 
+    /// A set's sidecar in storage, parsed (`None`: there is none).
+    pub fn stored_sidecar(&self, set: &str) -> Option<serviceflow_core::sidecar::SetSidecar> {
+        self.sidecar_bytes(set).map(|bytes| serviceflow_sidecar::read_set_sidecar(&bytes).expect("a readable sidecar"))
+    }
+
     /// Write a set's sidecar behind the engine's back (a hand edit, a sync, or damage).
     pub fn write_sidecar_file(&self, set: &str, bytes: &[u8]) {
         let owner = DocumentId::Set(serviceflow_storage::SetId::new(set));

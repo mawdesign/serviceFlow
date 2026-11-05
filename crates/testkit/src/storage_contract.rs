@@ -186,6 +186,20 @@ pub async fn a_sidecar_write_based_on_the_current_hash_replaces_it_and_a_stale_o
     assert_eq!(storage.read_sidecar(&set).await.unwrap().unwrap().bytes, b"version = 2\n");
 }
 
+pub async fn a_deleted_sidecar_is_gone_and_a_missing_or_stale_one_is_refused(storage: impl Storage) {
+    let set = DocumentId::Set(SetId::new("Sunday"));
+    let key = Key::Sidecar(set.clone());
+    assert_eq!(storage.delete_sidecar(&set, Expect::Any).await, Err(StorageError::NotFound(key.clone())));
+    let first = storage.write_sidecar(&set, b"version = 1\n".to_vec(), Expect::Absent).await.unwrap();
+    storage.write_sidecar(&set, b"version = 2\n".to_vec(), Expect::Any).await.unwrap();
+    assert_eq!(storage.delete_sidecar(&set, Expect::Hash(first)).await, Err(StorageError::Conflict(key)));
+    assert!(storage.read_sidecar(&set).await.unwrap().is_some());
+    storage.write_set(&SetId::new("Sunday"), b"<set/>".to_vec(), Expect::Absent).await.unwrap();
+    assert_eq!(storage.delete_sidecar(&set, Expect::Any).await, Ok(()));
+    assert_eq!(storage.read_sidecar(&set).await, Ok(None));
+    assert_eq!(storage.read_set(&SetId::new("Sunday")).await.unwrap().bytes, b"<set/>", "the set itself stays");
+}
+
 pub async fn a_song_sidecar_and_a_set_sidecar_with_the_same_name_are_different_documents(storage: impl Storage) {
     let song = DocumentId::Song(SongId::new("Same"));
     let set = DocumentId::Set(SetId::new("Same"));
@@ -409,6 +423,7 @@ macro_rules! storage_contract {
             sidecars_are_optional_and_never_appear_as_songs_or_sets,
             a_song_and_a_set_with_the_same_name_are_different_documents,
             a_sidecar_write_based_on_the_current_hash_replaces_it_and_a_stale_one_conflicts,
+            a_deleted_sidecar_is_gone_and_a_missing_or_stale_one_is_refused,
             a_song_sidecar_and_a_set_sidecar_with_the_same_name_are_different_documents,
             sidecar_owners_cannot_leave_the_sidecar_folder,
             writing_a_sidecar_emits_a_change_event,

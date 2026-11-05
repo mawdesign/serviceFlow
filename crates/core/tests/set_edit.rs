@@ -431,6 +431,7 @@ fn a_set_with_a_sidecar_is_saved_under_a_new_name_through_a_change_plan() {
     let mut harness = open();
     harness.send(Command::SelectItem(0));
     harness.send(Command::SetLanguageMode(LanguageMode::Translation));
+    harness.send(Command::SaveSet);
     let sidecar = harness.sidecar_bytes("Sunday").expect("the item's language mode is kept");
     edit(&mut harness, SetEdit::Remove(1));
     harness.send(Command::SaveSetAs { name: "Next".into() });

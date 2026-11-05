@@ -260,9 +260,9 @@ fn step(state: &mut State, command: Command) -> Vec<Effect> {
             }
             Command::SetLanguageMode(language) => {
                 state.slide_options.language = language;
-                let effects = sets::remember_language(state, language);
+                sets::remember_language(state, language);
                 regrid(state);
-                effects
+                Vec::new()
             }
             command @ (Command::SetTranspose(_) | Command::SetCapo(_) | Command::SaveInThisKey) => key::apply(state, command),
             Command::ToggleBlank => {
@@ -284,6 +284,7 @@ fn step(state: &mut State, command: Command) -> Vec<Effect> {
             | Command::SaveSet
             | Command::SaveSetAs { .. }
             | Command::DuplicateSet { .. }
+            | Command::RenameSet { .. }
             | Command::ResolveSetConflict(_)
             | Command::SetSaved { .. }
             | Command::SetSaveConflict { .. }

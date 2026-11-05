@@ -1,4 +1,5 @@
-//! Seam 1, the engine: serviceFlow-only item settings kept in a set's sidecar (#23).
+//! Seam 1, the engine: serviceFlow-only item settings kept in a set's sidecar (#23), written when
+//! the set is saved (#31).
 
 use serviceflow_core::command::Command;
 use serviceflow_core::ids::SetId;
@@ -39,6 +40,7 @@ fn the_language_mode_of_an_item_is_restored_when_the_set_is_opened_again() {
     assert_eq!(grid_lines(&harness), 2, "both languages by default");
     harness.send(Command::SetLanguageMode(LanguageMode::Primary));
     assert_eq!(grid_lines(&harness), 1);
+    harness.send(Command::SaveSet);
 
     // Restart the app: nothing of the session is left but the files.
     let mut harness = harness.restart();
@@ -78,7 +80,9 @@ fn going_back_to_both_languages_leaves_no_entry() {
     let mut harness = open();
     harness.send(Command::SelectItem(0));
     harness.send(Command::SetLanguageMode(LanguageMode::Primary));
+    harness.send(Command::SaveSet);
     harness.send(Command::SetLanguageMode(LanguageMode::Both));
+    harness.send(Command::SaveSet);
     let text = String::from_utf8(harness.sidecar_bytes("Test").unwrap()).unwrap();
     assert_eq!(text, "version = 1\n");
 }
@@ -89,6 +93,7 @@ fn the_sidecar_is_toml_beside_the_set_and_the_set_file_is_untouched() {
     let before = harness.set_bytes("Test");
     harness.send(Command::SelectItem(2));
     harness.send(Command::SetLanguageMode(LanguageMode::Primary));
+    harness.send(Command::SaveSet);
     let text = String::from_utf8(harness.sidecar_bytes("Test").unwrap()).unwrap();
     assert_eq!(text, "version = 1\n\n[[item]]\nsong = \"Gift\"\noccurrence = 1\nlanguage = \"primary\"\n");
     assert_eq!(harness.set_bytes("Test"), before);
@@ -102,7 +107,7 @@ fn a_hand_written_sidecar_is_read_with_transposition_and_capo_carried() {
     let state = harness.state();
     let set = state.set.as_ref().unwrap();
     let key = ItemKey { song: serviceflow_core::ids::SongId::new("Plain"), occurrence: 0 };
-    assert_eq!(set.sidecar.get(&key), ItemSettings { language: LanguageMode::Translation, transpose: -3, capo: Some(2) });
+    assert_eq!(set.sidecar().get(&key), ItemSettings { language: LanguageMode::Translation, transpose: -3, capo: Some(2) });
     assert_eq!(set.item_settings(1).transpose, -3);
     assert_eq!(set.item_settings(0), ItemSettings::default());
     assert!(state.problems.is_empty());
@@ -115,6 +120,7 @@ fn changing_the_language_keeps_what_else_the_sidecar_holds_for_the_item() {
     harness.send(Command::OpenSet(SetId::new("Test")));
     harness.send(Command::SelectItem(0));
     harness.send(Command::SetLanguageMode(LanguageMode::Primary));
+    harness.send(Command::SaveSet);
     let restarted = harness.restart();
     let mut harness = restarted;
     harness.send(Command::OpenSet(SetId::new("Test")));
@@ -139,12 +145,13 @@ fn a_corrupt_sidecar_gives_defaults_with_a_warning_and_the_set_still_opens() {
         let state = harness.state();
         assert_eq!(state.set.as_ref().expect("the set opened").set.items.len(), 3);
         assert!(matches!(state.problems.as_slice(), [Problem::SidecarUnreadable { id, .. }] if id == &SetId::new("Test")), "{:?}", state.problems);
-        assert!(state.set.as_ref().unwrap().sidecar.items.is_empty());
+        assert!(state.set.as_ref().unwrap().sidecar().items.is_empty());
 
         harness.send(Command::SelectItem(0));
         assert_eq!(grid_lines(&harness), 2, "defaults: both languages");
-        // Choosing a mode replaces the damaged file with a good one.
+        // Choosing a mode and saving the set replaces the damaged file with a good one.
         harness.send(Command::SetLanguageMode(LanguageMode::Primary));
+        harness.send(Command::SaveSet);
         let mut harness = harness.restart();
         harness.send(Command::OpenSet(SetId::new("Test")));
         assert!(harness.state().problems.is_empty());

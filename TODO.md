@@ -147,8 +147,10 @@ cannot cover them.
   library of several thousand songs.
 - [ ] **Many large photos in one set (#15).** All images named by the open set load into memory
   when it opens. Watch memory with a set of big photos.
-- [ ] **Sidecars (#23).** Language mode is restored after reopening a set. Rename a set and check
-  what happens to its sidecar (it is not moved yet).
+- [ ] **Sidecars (#23, #31).** Language mode, transposition and capo are restored after saving and
+  reopening a set, and stay with their items when items are reordered on a real set (the same
+  song twice included). Rename a set from the set panel and check `.serviceflow/Sets/` holds only
+  the new name's sidecar.
 - [ ] **Set editing on a real library (#22).** Build a set by dragging songs in, reorder by
   dragging, add custom/image/style items, save, and open it in OpenSong. Also save a set while
   OpenSong has just changed it, and check the conflict choices. Dragging was only tested with
@@ -203,6 +205,15 @@ cannot cover them.
 - [ ] **Duplicate vs save as (#22).** "Duplicate set…" copies the set as saved and leaves the open
   set (and its edits) open; "Save set as…" writes the edits under the new name and switches to
   it. A plan is shown only when the set has a sidecar to copy. Is that the split operators expect?
+- [ ] **Transposition is now a set change (#31).** Language mode, transposition and capo of a set
+  item are saved with the set ("Save set"), not at once, so a key chosen during a service is lost
+  if the set is not saved. Opening another set drops them with the other unsaved edits. Also,
+  "Save in this key" saves the song at once but puts the item back to zero only in the open set:
+  if the set is then not saved, the item is transposed again on top of the new key next time.
+  Should these settings save themselves (or ask) instead?
+- [ ] **Renaming a set keeps its `name` (#31).** "Rename set…" moves the file as it is, so the
+  `name` attribute inside it still holds the old name ("Save set as…" writes the new one). Check
+  whether OpenSong shows the file name or the attribute.
 - [ ] **Tidy library on a real library (#21).** Run "Tidy library…" on a copy of a large shared
   library (hundreds of songs, OpenSong running on it): check how long the dry run takes (every
   file is read), that OpenSong still opens the rewritten songs and sets, and that CRLF-only diffs

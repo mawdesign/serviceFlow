@@ -236,10 +236,18 @@ async fn gather_for_plan<S: Storage>(storage: &S, subject: Option<SongId>) -> Co
                         id: id.clone(),
                         set: Arc::new(set),
                         hash: stored.hash,
+                        sidecar: None,
                     })
                 });
                 match read {
-                    Some(set) => sets.push(set),
+                    Some(mut set) => {
+                        // Only a sidecar that can be read is rewritten; a damaged one is left alone.
+                        let (sidecar, damaged) = read_sidecar(storage, &id).await;
+                        if damaged.is_none() && !sidecar.items.is_empty() {
+                            set.sidecar = Some(Arc::new(sidecar));
+                        }
+                        sets.push(set);
+                    }
                     None => unreadable_sets.push(id),
                 }
             }
@@ -322,8 +330,13 @@ async fn step_holds<S: Storage>(storage: &S, step: &PlanStep) -> bool {
             let same_file = from.as_str().to_lowercase() == to.as_str().to_lowercase();
             current.is_some() && expect_holds(*expect, current) && (same_file || song_hash(storage, to).await.is_none())
         }
-        // Sidecars hold serviceFlow extras only and are written whatever they hold.
-        PlanStep::WriteSidecar { .. } => true,
+        PlanStep::RenameSet { from, to, expect } => {
+            let current = storage.read_set(from).await.ok().map(|s| s.hash);
+            let same_file = from.as_str().to_lowercase() == to.as_str().to_lowercase();
+            current.is_some() && expect_holds(*expect, current) && (same_file || storage.read_set(to).await.is_err())
+        }
+        // Sidecars hold serviceFlow extras only and are written (or removed) whatever they hold.
+        PlanStep::WriteSidecar { .. } | PlanStep::DeleteSidecar { .. } => true,
     }
 }
 
@@ -340,10 +353,15 @@ async fn write_step<S: Storage>(storage: &S, step: &PlanStep) -> Result<Option<W
         }
         PlanStep::RenameSong { from, to, expect } => storage.rename_song(from, to, *expect).await.map(|_| None),
         PlanStep::DeleteSong { id, expect } => storage.delete_song(id, *expect).await.map(|_| None),
+        PlanStep::RenameSet { from, to, expect } => storage.rename_set(from, to, *expect).await.map(|_| None),
         PlanStep::WriteSidecar { set, sidecar } => {
             let owner = serviceflow_storage::DocumentId::Set(set.clone());
             storage.write_sidecar(&owner, serviceflow_sidecar::write_set_sidecar(sidecar), Expect::Any).await.map(|_| None)
         }
+        PlanStep::DeleteSidecar { set } => match storage.delete_sidecar(&serviceflow_storage::DocumentId::Set(set.clone()), Expect::Any).await {
+            Ok(()) | Err(StorageError::NotFound(_)) => Ok(None),
+            Err(e) => Err(e),
+        },
     }
 }
 
@@ -421,7 +439,7 @@ pub async fn perform<S: Storage>(storage: &S, effect: Effect) -> Command {
         Effect::WriteSidecar { set, sidecar } => {
             let bytes = serviceflow_sidecar::write_set_sidecar(&sidecar);
             match storage.write_sidecar(&serviceflow_storage::DocumentId::Set(set.clone()), bytes, Expect::Any).await {
-                Ok(_) => Command::SidecarSaved { set },
+                Ok(_) => Command::SidecarSaved { set, sidecar },
                 Err(e) => Command::SidecarSaveFailed { set, error: e.to_string() },
             }
         }
@@ -462,12 +480,30 @@ pub async fn perform<S: Storage>(storage: &S, effect: Effect) -> Command {
             Command::ImageLoaded { name, bytes }
         }
         Effect::WriteSong { id, song, expect, as_copy } => save_song(storage, id, &song, expect, as_copy).await,
-        Effect::WriteSet { id, to, set, expect, purpose } => {
+        Effect::WriteSet { id, to, set, expect, purpose, sidecar } => {
             // Canonical form; the engine then holds exactly what the file says.
             let bytes = serviceflow_opensong::write_set(&set);
             let result = storage.write_set(&to, bytes.clone(), expect).await;
             match written(result, &bytes, serviceflow_opensong::read_set) {
-                Written::Saved(read, hash) => Command::SetSaved { id, saved_as: to, set: Arc::new(read), hash, purpose },
+                Written::Saved(read, hash) => {
+                    // The sidecar only once the set is written: a set that was not saved keeps
+                    // its old item settings too.
+                    let mut sidecar_error = None;
+                    let sidecar = match sidecar {
+                        Some(sidecar) => {
+                            let owner = serviceflow_storage::DocumentId::Set(to.clone());
+                            match storage.write_sidecar(&owner, serviceflow_sidecar::write_set_sidecar(&sidecar), Expect::Any).await {
+                                Ok(_) => Some(sidecar),
+                                Err(e) => {
+                                    sidecar_error = Some(e.to_string());
+                                    None
+                                }
+                            }
+                        }
+                        None => None,
+                    };
+                    Command::SetSaved { id, saved_as: to, set: Arc::new(read), hash, purpose, sidecar, sidecar_error }
+                }
                 Written::Conflict => Command::SetSaveConflict { id, saved_as: to, purpose },
                 Written::Failed(error) => Command::SetSaveFailed { id, saved_as: to, purpose, error },
             }

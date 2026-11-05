@@ -3091,6 +3091,7 @@ dependencies = [
  "serviceflow-core",
  "serviceflow-opensong",
  "serviceflow-runtime",
+ "serviceflow-sidecar",
  "serviceflow-storage",
  "serviceflow-storage-memory",
  "serviceflow-storage-web",

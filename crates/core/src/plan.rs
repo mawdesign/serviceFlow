@@ -38,6 +38,11 @@ pub enum PlanAction {
         from: SetId,
         to: SetId,
     },
+    /// Rename a set file (its sidecar moves with it).
+    RenameSet {
+        from: SetId,
+        to: SetId,
+    },
     /// Rewrite every song and set not yet in canonical form (ADR-0002, GLOSSARY "Tidy library").
     TidyLibrary,
 }
@@ -67,11 +72,21 @@ pub enum PlanStep {
         id: SongId,
         expect: Expect,
     },
+    /// Move a set file, bytes unchanged.
+    RenameSet {
+        from: SetId,
+        to: SetId,
+        expect: Expect,
+    },
     /// Write a set's sidecar (ADR-0003). Sidecars hold serviceFlow extras only, so this is written
     /// whatever the file holds.
     WriteSidecar {
         set: SetId,
         sidecar: Arc<SetSidecar>,
+    },
+    /// Delete a set's sidecar (the set moved away from it), if there is one.
+    DeleteSidecar {
+        set: SetId,
     },
 }
 
@@ -91,7 +106,8 @@ impl PlanStep {
             PlanStep::WriteSet { id, .. } => PlanFile::Set(id.clone()),
             PlanStep::WriteSong { id, .. } | PlanStep::DeleteSong { id, .. } => PlanFile::Song(id.clone()),
             PlanStep::RenameSong { from, .. } => PlanFile::Song(from.clone()),
-            PlanStep::WriteSidecar { set, .. } => PlanFile::Sidecar(set.clone()),
+            PlanStep::RenameSet { from, .. } => PlanFile::Set(from.clone()),
+            PlanStep::WriteSidecar { set, .. } | PlanStep::DeleteSidecar { set } => PlanFile::Sidecar(set.clone()),
         }
     }
 }
@@ -213,6 +229,9 @@ pub struct GatheredSet {
     pub id: SetId,
     pub set: Arc<Set>,
     pub hash: ContentHash,
+    /// Its sidecar, when it has a readable one (its keys name songs, so renaming a song
+    /// rewrites it with the set).
+    pub sidecar: Option<Arc<SetSidecar>>,
 }
 
 /// A song a plan wrote, as read back from the written bytes.

@@ -15,6 +15,7 @@ serviceflow-storage-memory = { workspace = true }
 serviceflow-storage-web = { workspace = true }
 serviceflow-runtime = { workspace = true }
 serviceflow-opensong = { workspace = true }
+serviceflow-sidecar = { workspace = true }
 futures = { workspace = true }
 tempfile = { workspace = true }
 
