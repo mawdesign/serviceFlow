@@ -238,6 +238,10 @@ impl SidecarRepository for MemoryStorage {
     async fn write_sidecar(&self, owner: &DocumentId, bytes: Vec<u8>, expect: Expect) -> Result<ContentHash> {
         self.write(Key::Sidecar(owner.clone()), bytes, expect)
     }
+
+    async fn delete_sidecar(&self, owner: &DocumentId, expect: Expect) -> Result<()> {
+        self.delete(Key::Sidecar(owner.clone()), expect)
+    }
 }
 
 impl SettingsRepository for MemoryStorage {

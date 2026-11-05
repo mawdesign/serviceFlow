@@ -55,6 +55,9 @@ pub enum SetEdit {
     Move { from: usize, to: usize },
     /// Remove an item.
     Remove(usize),
+    /// Put a copy of an item right after it. A song item's copy starts with the same
+    /// serviceFlow-only settings (language mode, transposition, capo).
+    Duplicate(usize),
     /// Set a text of item `item`. Ignored for a field the item's kind does not have.
     Field { item: usize, field: ItemField, text: String },
 }
@@ -63,6 +66,11 @@ pub enum SetEdit {
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(crate) enum Change {
     Inserted(usize),
+    /// A copy of item `from` was inserted at `at`.
+    Copied {
+        from: usize,
+        at: usize,
+    },
     Removed(usize),
     Moved {
         from: usize,
@@ -76,7 +84,7 @@ impl Change {
     /// Where the item that was at `index` is now (`None`: it was removed).
     pub(crate) fn remap(self, index: usize) -> Option<usize> {
         match self {
-            Change::Inserted(at) if index >= at => Some(index + 1),
+            Change::Inserted(at) | Change::Copied { at, .. } if index >= at => Some(index + 1),
             Change::Removed(at) if index == at => None,
             Change::Removed(at) if index > at => Some(index - 1),
             Change::Moved { from, to } if index == from => Some(to),
@@ -150,6 +158,11 @@ impl SetEdit {
                 set.items.remove(*index);
                 Change::Removed(*index)
             }
+            SetEdit::Duplicate(index) => {
+                let copy = set.items.get(*index)?.clone();
+                set.items.insert(index + 1, copy);
+                Change::Copied { from: *index, at: index + 1 }
+            }
             SetEdit::Field { item, field, text } => {
                 let item = set.items.get_mut(*item)?;
                 set_field(item, *field, text)?;
@@ -218,11 +231,19 @@ pub fn field_text(item: &SetItem, field: ItemField) -> Option<String> {
     })
 }
 
+/// One version of the open set in its history: the set, and the in-memory identity of each of
+/// its items (so item settings stay with their item through undo and redo).
+#[derive(Debug, Clone, PartialEq)]
+pub(crate) struct SetVersion {
+    pub(crate) set: Arc<Set>,
+    pub(crate) uids: Arc<Vec<u64>>,
+}
+
 /// The open set's undo history: earlier versions of the set, newest last.
 #[derive(Debug, Clone, Default, PartialEq)]
 pub struct SetHistory {
-    pub(crate) undo: Vec<Arc<Set>>,
-    pub(crate) redo: Vec<Arc<Set>>,
+    pub(crate) undo: Vec<SetVersion>,
+    pub(crate) redo: Vec<SetVersion>,
     /// The text the last edit changed, while edits to it are still joined into one step.
     pub(crate) group: Option<Target>,
 }

@@ -100,6 +100,9 @@ fn the_setting_is_in_the_sidecar_and_never_in_the_song() {
     harness.send(Command::SetTranspose(2));
     harness.send(Command::SetCapo(Some(3)));
     assert_eq!(harness.song_bytes(&SongId::new("Song")), song_before);
+    assert_eq!(harness.sidecar_bytes("Test"), None, "kept in memory until the set is saved");
+    harness.send(Command::SaveSet);
+    assert_eq!(harness.song_bytes(&SongId::new("Song")), song_before);
     let text = String::from_utf8(harness.sidecar_bytes("Test").unwrap()).unwrap();
     assert!(text.contains("transpose = 2") && text.contains("capo = 3"), "{text}");
     assert!(harness.state().drafts.is_empty());
@@ -182,7 +185,9 @@ fn save_in_this_key_rewrites_chords_and_key_through_a_canonical_save() {
     assert!(bytes.starts_with("<?xml"), "a canonical save");
 
     // The item is back at zero: the song has the key now.
-    let text = String::from_utf8(harness.sidecar_bytes("Test").unwrap()).unwrap();
+    assert_eq!(harness.state().set.as_ref().unwrap().item_settings(0).transpose, 0);
+    harness.send(Command::SaveSet);
+    let text = String::from_utf8(harness.sidecar_bytes("Test").unwrap_or_default()).unwrap();
     assert!(!text.contains("transpose"), "{text}");
     assert_eq!(shown(&harness), ["A", "D", "E/G#", "F#m"]);
     let state = harness.state();

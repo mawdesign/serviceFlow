@@ -1,5 +1,7 @@
-//! Change plans: renaming tags on save, renaming/moving, deleting and creating songs. Storage is
-//! read first ([`Effect::GatherForPlan`]), the plan is made here (pure), shown in
+//! Change plans: renaming tags on save, renaming/moving, deleting and creating songs (and, made
+//! in `set_edit`, saving a set under a new name, duplicating and renaming it). A set's sidecar
+//! is keyed by song, so a plan that renames a song rewrites the sidecars of the sets it rewrites.
+//! Storage is read first ([`Effect::GatherForPlan`]), the plan is made here (pure), shown in
 //! [`State::plan`], and written only after [`Command::ConfirmPlan`].
 
 use std::sync::Arc;
@@ -90,7 +92,15 @@ pub(super) fn apply(state: &mut State, command: Command) -> Vec<Effect> {
                     }
                     let written = failure.written.clone();
                     state.problems.push(Problem::PlanIncomplete { action: plan.action.clone(), failure });
-                    after_writes(state, &plan, &written)
+                    let mut effects = Vec::new();
+                    // A set that was renamed before the plan stopped is open under its new name.
+                    if let PlanAction::RenameSet { from, to } = &plan.action
+                        && written.contains(&PlanFile::Set(from.clone()))
+                    {
+                        effects.extend(set_renamed(state, from, to));
+                    }
+                    effects.extend(after_writes(state, &plan, &written));
+                    effects
                 }
             }
         }
@@ -194,16 +204,27 @@ struct Rewrite<'a> {
 
 /// One [`PlanStep::WriteSet`] for every set with a song item referring to `id` that `rewrite`
 /// changes. `rewrite` gets the item's presentation-order override (empty: none); renamed tags
-/// only matter for items with an override.
+/// only matter for items with an override. When the song items now name another song, the set's
+/// sidecar follows in a [`PlanStep::WriteSidecar`] right after it, each item keeping its settings.
 fn set_steps<'a>(sets: &[GatheredSet], id: &SongId, rewrite: impl Fn(&[String]) -> Option<Rewrite<'a>>) -> Vec<PlanStep> {
     let mut steps = Vec::new();
     for gathered in sets {
         let mut set: Set = (*gathered.set).clone();
         if rewrite_items(&mut set, id, &rewrite) {
-            steps.push(PlanStep::WriteSet { id: gathered.id.clone(), set: Arc::new(set), expect: Expect::Hash(gathered.hash) });
+            let rekeyed = gathered.sidecar.as_ref().filter(|_| keys_change(&gathered.set, &set)).map(|sidecar| sidecar.rekeyed(&gathered.set, &set));
+            let set = Arc::new(set);
+            steps.push(PlanStep::WriteSet { id: gathered.id.clone(), set, expect: Expect::Hash(gathered.hash) });
+            if let Some(sidecar) = rekeyed {
+                steps.push(PlanStep::WriteSidecar { set: gathered.id.clone(), sidecar: Arc::new(sidecar) });
+            }
         }
     }
     steps
+}
+
+/// Whether some item of `before` has another sidecar key in `after` (same items, same places).
+fn keys_change(before: &Set, after: &Set) -> bool {
+    (0..after.items.len()).any(|i| crate::sidecar::item_key(before, i) != crate::sidecar::item_key(after, i))
 }
 
 /// Rewrite every song item of `set` referring to `id` as `rewrite` says; whether any changed.
@@ -305,6 +326,7 @@ fn applied(state: &mut State, plan: &ChangePlan, written: Vec<WrittenSong>) -> V
             effects.push(Effect::ListSets);
         }
         PlanAction::DuplicateSet { .. } => effects.push(Effect::ListSets),
+        PlanAction::RenameSet { from, to } => effects.extend(set_renamed(state, from, to)),
         // Files are rewritten in place; the watcher reloads the open song and set.
         PlanAction::TidyLibrary => {}
     }
@@ -313,38 +335,56 @@ fn applied(state: &mut State, plan: &ChangePlan, written: Vec<WrittenSong>) -> V
     effects
 }
 
-/// The open set follows what was written to its file, and which of its songs are missing now.
+/// Set `from` is now `to`: the open set follows, its edits and item settings with it.
+fn set_renamed(state: &mut State, from: &crate::ids::SetId, to: &crate::ids::SetId) -> Vec<Effect> {
+    if let Some(open) = state.set.as_mut().filter(|open| open.id == *from) {
+        open.id = to.clone();
+    }
+    vec![Effect::ListSets]
+}
+
+/// The open set follows what was written to its file (and its sidecar), and which of its songs are missing now.
 /// Its unsaved edits are never dropped: they stay on top of the rewritten file (with the plan's
 /// change applied to them and to their undo history), and the set stays modified.
 fn after_writes(state: &mut State, plan: &ChangePlan, files: &[PlanFile]) -> Vec<Effect> {
     let Some(open) = &mut state.set else { return Vec::new() };
-    let written = plan.steps.iter().filter(|step| files.contains(&step.file())).find_map(|step| match step {
+    let steps = || plan.steps.iter().filter(|step| files.contains(&step.file()));
+    let written = steps().find_map(|step| match step {
         PlanStep::WriteSet { id, set, .. } if *id == open.id => Some(Arc::clone(set)),
         _ => None,
     });
+    // The sidecar as the plan wrote it (the settings as saved, rekeyed): unsaved item settings
+    // stay unsaved, on the items they belong to.
+    if let Some(sidecar) = steps().find_map(|step| match step {
+        PlanStep::WriteSidecar { set, sidecar } if *set == open.id => Some(Arc::clone(sidecar)),
+        _ => None,
+    }) {
+        open.saved_sidecar = sidecar;
+    }
     let touches_songs = files.iter().any(|f| matches!(f, PlanFile::Song(_)));
     if written.is_none() && !touches_songs {
+        open.refresh_modified();
         return Vec::new();
     }
     if open.modified {
         // The song items refer to the song as the files now do.
         if let Some(set) = rewritten_like(plan, &open.set) {
-            open.set = Arc::new(set);
+            open.replace_set(Arc::new(set));
         }
         for version in open.history.undo.iter_mut().chain(open.history.redo.iter_mut()) {
-            if let Some(set) = rewritten_like(plan, version) {
-                *version = Arc::new(set);
+            if let Some(set) = rewritten_like(plan, &version.set) {
+                version.set = Arc::new(set);
             }
         }
         if let Some(set) = written {
             // The file's new hash arrives with the watcher's reload, which adopts it.
             open.base = set;
         }
-        open.modified = open.set != open.base;
     } else if let Some(set) = written {
-        open.set = Arc::clone(&set);
+        open.replace_set(Arc::clone(&set));
         open.base = set;
     }
+    open.refresh_modified();
     let mut ids: Vec<SongId> = open.set.items.iter().filter_map(|item| item.song_id()).collect();
     ids.sort();
     ids.dedup();

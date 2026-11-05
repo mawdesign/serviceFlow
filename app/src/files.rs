@@ -100,6 +100,7 @@ fn action_text(action: &PlanAction) -> String {
         PlanAction::NewSong(id) => format!("{} “{id}”", tl!("New song")),
         PlanAction::SaveSetAs { from, to } => format!("{} “{from}” {} “{to}”", tl!("Save set"), tl!("as")),
         PlanAction::DuplicateSet { from, to } => format!("{} “{from}” {} “{to}”", tl!("Duplicate set"), tl!("as")),
+        PlanAction::RenameSet { from, to } => format!("{} “{from}” → “{to}”", tl!("Rename set file")),
         PlanAction::TidyLibrary => tl!("Tidy library: rewrite files not yet in canonical form").to_string(),
     }
 }
@@ -109,11 +110,12 @@ fn step_text(step: &PlanStep) -> String {
     match step {
         PlanStep::WriteSet { expect: serviceflow_core::ids::Expect::Absent, .. } => format!("{file}: {}", tl!("create")),
         PlanStep::WriteSet { .. } => format!("{file}: {}", tl!("update the song item")),
-        PlanStep::WriteSidecar { .. } => format!("{file}: {}", tl!("copy")),
+        PlanStep::WriteSidecar { .. } => format!("{file}: {}", tl!("write")),
         PlanStep::WriteSong { expect: serviceflow_core::ids::Expect::Absent, .. } => format!("{file}: {}", tl!("create")),
         PlanStep::WriteSong { .. } => format!("{file}: {}", tl!("save in canonical form")),
         PlanStep::RenameSong { to, .. } => format!("{file}: {} Songs/{to}", tl!("move to")),
-        PlanStep::DeleteSong { .. } => format!("{file}: {}", tl!("delete")),
+        PlanStep::DeleteSong { .. } | PlanStep::DeleteSidecar { .. } => format!("{file}: {}", tl!("delete")),
+        PlanStep::RenameSet { to, .. } => format!("{file}: {} Sets/{to}", tl!("move to")),
     }
 }
 

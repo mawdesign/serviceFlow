@@ -614,6 +614,10 @@ impl SidecarRepository for WebStorage {
     async fn write_sidecar(&self, owner: &DocumentId, bytes: Vec<u8>, expect: Expect) -> Result<ContentHash> {
         self.inner.write(Key::Sidecar(owner.clone()), bytes, expect).await
     }
+
+    async fn delete_sidecar(&self, owner: &DocumentId, expect: Expect) -> Result<()> {
+        self.inner.delete(Key::Sidecar(owner.clone()), expect).await
+    }
 }
 
 impl SettingsRepository for WebStorage {

@@ -4,6 +4,7 @@
 use std::collections::BTreeMap;
 
 use crate::ids::SongId;
+use crate::set::Set;
 use crate::song::LanguageMode;
 
 /// Which song item of a set: its song and how many items for the same song come before it. A
@@ -32,7 +33,33 @@ pub struct SetSidecar {
     pub items: BTreeMap<ItemKey, ItemSettings>,
 }
 
+/// The sidecar key of item `index` of `set` (`None` for any item that is not a song item).
+pub fn item_key(set: &Set, index: usize) -> Option<ItemKey> {
+    let song = set.items.get(index)?.song_id()?;
+    let occurrence = set.items[..index].iter().filter(|item| item.song_id().as_ref() == Some(&song)).count();
+    Some(ItemKey { song, occurrence })
+}
+
 impl SetSidecar {
+    /// The sidecar of `set` whose item `i` has `settings(i)`: each song item's settings under its
+    /// key (items at the defaults have no entry).
+    pub fn of(set: &Set, settings: impl Fn(usize) -> ItemSettings) -> Self {
+        let mut sidecar = Self::default();
+        for index in 0..set.items.len() {
+            if let Some(key) = item_key(set, index) {
+                sidecar.set(key, settings(index));
+            }
+        }
+        sidecar
+    }
+
+    /// This sidecar of set `before` for set `after`, whose items are the same items in the same
+    /// places with (possibly) other songs: each item keeps its settings under its new key.
+    /// Entries for no item of `before` are dropped.
+    pub fn rekeyed(&self, before: &Set, after: &Set) -> Self {
+        Self::of(after, |index| item_key(before, index).map(|key| self.get(&key)).unwrap_or_default())
+    }
+
     /// The settings of an item (the default when there is no entry).
     pub fn get(&self, key: &ItemKey) -> ItemSettings {
         self.items.get(key).copied().unwrap_or_default()

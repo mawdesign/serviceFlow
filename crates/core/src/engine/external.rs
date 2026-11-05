@@ -111,10 +111,11 @@ fn set_reloaded(state: &mut State, id: crate::ids::SetId, file: Reloaded<Set>) -
                 return effects;
             }
             if *open.set == *set {
-                // The file now says what the open set says: nothing left to save.
+                // The file now says what the open set says: nothing left to save but item
+                // settings, if they changed.
                 open.base = set;
                 open.hash = hash;
-                open.modified = false;
+                open.refresh_modified();
                 return effects;
             }
             if *open.base == *set {
@@ -128,8 +129,9 @@ fn set_reloaded(state: &mut State, id: crate::ids::SetId, file: Reloaded<Set>) -
                 return effects;
             }
             let selected = open.selected;
-            // The sidecar is not watched (#23): keep the settings already read.
-            let mut fresh = OpenSet::new(id, set, hash, std::sync::Arc::clone(&open.sidecar));
+            // The sidecar is not watched (#23): keep the settings already read (an unmodified set
+            // has none that are not saved).
+            let mut fresh = OpenSet::new(id, set, hash, std::sync::Arc::clone(&open.saved_sidecar));
             if library_listed {
                 fresh.missing = fresh.set.items.iter().filter_map(|item| item.song_id()).filter(|song| songs.binary_search(song).is_err()).collect();
             }

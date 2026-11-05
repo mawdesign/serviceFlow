@@ -45,8 +45,18 @@ pub(super) fn apply(state: &mut State, command: Command) -> Vec<Effect> {
             state.set = Some(OpenSet::new(id.clone(), set, hash, sidecar));
             if ids.is_empty() { Vec::new() } else { vec![Effect::CheckSetSongs { set: id, ids }] }
         }
-        Command::SidecarSaved { .. } => Vec::new(),
+        Command::SidecarSaved { set, sidecar } => {
+            if let Some(open) = state.set.as_mut().filter(|open| open.id == set) {
+                open.saving = false;
+                open.saved_sidecar = sidecar;
+                open.refresh_modified();
+            }
+            Vec::new()
+        }
         Command::SidecarSaveFailed { set, error } => {
+            if let Some(open) = state.set.as_mut().filter(|open| open.id == set) {
+                open.saving = false;
+            }
             state.problems.push(Problem::SidecarUnsaved { id: set, error });
             Vec::new()
         }
@@ -241,18 +251,16 @@ pub(super) fn go_pending(state: &mut State) {
 }
 
 /// The operator chose a language mode: if a song item of the open set is selected, keep the choice
-/// for that item in the set's sidecar (a song opened from the library has no item to keep it for).
-pub(super) fn remember_language(state: &mut State, language: LanguageMode) -> Vec<Effect> {
-    let Some(set) = &mut state.set else { return Vec::new() };
-    let Some(index) = set.selected else { return Vec::new() };
-    let Some(key) = set.item_key(index) else { return Vec::new() };
-    let mut settings = set.sidecar.get(&key);
-    if settings.language == language {
-        return Vec::new();
+/// for that item in the set's item settings (in memory: saved with the set; a song opened from
+/// the library has no item to keep it for).
+pub(super) fn remember_language(state: &mut State, language: LanguageMode) {
+    let Some(set) = &mut state.set else { return };
+    let Some(index) = set.selected else { return };
+    let mut settings = set.item_settings(index);
+    if settings.language != language {
+        settings.language = language;
+        set.set_item_settings(index, settings);
     }
-    settings.language = language;
-    Arc::make_mut(&mut set.sidecar).set(key, settings);
-    vec![Effect::WriteSidecar { set: set.id.clone(), sidecar: Arc::clone(&set.sidecar) }]
 }
 
 /// A custom or image item as the stand-in song its slides are shown from. Its title and subtitle

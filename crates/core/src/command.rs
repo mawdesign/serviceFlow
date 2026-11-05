@@ -160,11 +160,13 @@ pub enum Command {
     /// song's slides are rebuilt; what is live stays live.
     SetSlideOptions(SlideOptions),
     /// Show both lines of multilanguage sections, primary lines only or translation lines only
-    /// (GLOSSARY "Language mode"). The open song's slides and the live slide change at once.
+    /// (GLOSSARY "Language mode"). The open song's slides and the live slide change at once. For
+    /// a selected song item the choice is kept in the open set's sidecar, in memory until the set
+    /// is saved.
     SetLanguageMode(LanguageMode),
     /// Transpose the selected song item by this many semitones (GLOSSARY "Transposition"): the
-    /// chords' text changes on its slides and the live slide, kept in the set's sidecar, never in
-    /// the song. Ignored without a selected song item.
+    /// chords' text changes on its slides and the live slide, kept in the set's sidecar (in memory
+    /// until the set is saved), never in the song. Ignored without a selected song item.
     SetTranspose(i32),
     /// Set the selected song item's capo fret (GLOSSARY "Capo"): chords show as shapes relative
     /// to it. `None` goes back to the song's own capo.
@@ -219,9 +221,10 @@ pub enum Command {
         /// Why the sidecar was not used, when it exists but could not be read.
         sidecar_error: Option<String>,
     },
-    /// Storage result: a set's sidecar was written.
+    /// Storage result of [`Effect::WriteSidecar`]: a set's sidecar was written with `sidecar`.
     SidecarSaved {
         set: SetId,
+        sidecar: Arc<SetSidecar>,
     },
     /// Storage result: a set's sidecar could not be written.
     SidecarSaveFailed {
@@ -379,16 +382,24 @@ pub enum Command {
     DuplicateSet {
         name: String,
     },
+    /// Rename the open set's file to `name` (a file name under `Sets/`), its sidecar with it, as
+    /// a change plan. The file's bytes are not changed; unsaved edits stay unsaved.
+    RenameSet {
+        name: String,
+    },
     /// The operator's answer to the open set having changed on disk while it has edits.
     ResolveSetConflict(ConflictChoice),
     /// Storage result of [`Effect::WriteSet`]: set `id` was written to `saved_as`, which now holds
-    /// `set` (as read back) with `hash`.
+    /// `set` (as read back) with `hash`, and its sidecar `sidecar` when one was written with it
+    /// (`sidecar_error`: it could not be).
     SetSaved {
         id: SetId,
         saved_as: SetId,
         set: Arc<Set>,
         hash: ContentHash,
         purpose: SetWrite,
+        sidecar: Option<Arc<SetSidecar>>,
+        sidecar_error: Option<String>,
     },
     /// Storage result of [`Effect::WriteSet`]: the file had changed on disk (or, for a new name,
     /// already existed), so nothing was written.
@@ -515,9 +526,10 @@ pub enum Effect {
     /// [`Command::SongSaveFailed`].
     WriteSong { id: SongId, song: Arc<Song>, expect: Expect, as_copy: bool },
     /// Write `set` in canonical form to set `to` if the file meets `expect` (`id`: the open set
-    /// it comes from). Answer with [`Command::SetSaved`] (read back from the written bytes),
+    /// it comes from); once it is written, write `sidecar` too (the set's sidecar, same save).
+    /// Answer with [`Command::SetSaved`] (read back from the written bytes),
     /// [`Command::SetSaveConflict`] or [`Command::SetSaveFailed`].
-    WriteSet { id: SetId, to: SetId, set: Arc<Set>, expect: Expect, purpose: SetWrite },
+    WriteSet { id: SetId, to: SetId, set: Arc<Set>, expect: Expect, purpose: SetWrite, sidecar: Option<Arc<SetSidecar>> },
     /// List the songs, read and parse every set and read the hash of song `subject`, to make a
     /// change plan; answer with [`Command::PlanGathered`].
     GatherForPlan { subject: Option<SongId> },
@@ -557,7 +569,8 @@ pub enum Effect {
     ListBackgrounds,
     /// Read and parse a set and its sidecar (a missing or unreadable sidecar gives the defaults); answer with [`Command::SetLoaded`] or [`Command::SetLoadFailed`].
     LoadSet(SetId),
-    /// Write the set's sidecar (TOML, ADR-0003); answer with [`Command::SidecarSaved`] or
+    /// Write the set's sidecar (TOML, ADR-0003), when saving a set whose item settings changed
+    /// but whose file did not; answer with [`Command::SidecarSaved`] or
     /// [`Command::SidecarSaveFailed`]. LoadSet reads it back with the set.
     WriteSidecar { set: SetId, sidecar: Arc<SetSidecar> },
     /// Find which of these songs are not in the library; answer with [`Command::SongsChecked`].

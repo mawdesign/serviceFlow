@@ -25,7 +25,7 @@ pub struct SetView {
     typing: Option<((usize, ItemField), String)>,
     /// The pictures ticked for a new image item, while choosing them.
     choosing_images: Option<Vec<String>>,
-    /// The name typed for "Save as…" or "Duplicate…".
+    /// The name typed for "Save as…", "Duplicate…" or "Rename…".
     naming: Option<(Naming, String)>,
 }
 
@@ -33,6 +33,7 @@ pub struct SetView {
 enum Naming {
     SaveAs,
     Duplicate,
+    Rename,
 }
 
 impl SetView {
@@ -156,6 +157,9 @@ impl SetView {
             if ui.add_enabled(!busy && !set.saving, egui::Button::new(tl!("Duplicate set…"))).clicked() {
                 self.naming = Some((Naming::Duplicate, format!("{} (copy)", set.id)));
             }
+            if ui.add_enabled(!busy && !set.saving, egui::Button::new(tl!("Rename set…"))).clicked() {
+                self.naming = Some((Naming::Rename, set.id.to_string()));
+            }
             if set.saving {
                 ui.label(egui::RichText::new(tl!("Saving…")).weak());
             } else if set.modified {
@@ -168,17 +172,20 @@ impl SetView {
                     let label = ui.label(match naming {
                         Naming::SaveAs => tl!("Save the set as:"),
                         Naming::Duplicate => tl!("Name of the copy:"),
+                        Naming::Rename => tl!("Rename the set to:"),
                     });
                     ui.add(egui::TextEdit::singleline(name).desired_width(180.0)).labelled_by(label.id);
                     let ok = match naming {
                         Naming::SaveAs => tl!("Save"),
                         Naming::Duplicate => tl!("Duplicate"),
+                        Naming::Rename => tl!("Rename"),
                     };
                     if ui.add_enabled(!name.trim().is_empty(), egui::Button::new(ok)).clicked() {
                         let name = name.trim().to_owned();
                         commands.push(match naming {
                             Naming::SaveAs => Command::SaveSetAs { name },
                             Naming::Duplicate => Command::DuplicateSet { name },
+                            Naming::Rename => Command::RenameSet { name },
                         });
                         true
                     } else {
@@ -218,6 +225,9 @@ impl SetView {
                 }
                 if ui.add_enabled(index + 1 < set.set.items.len(), egui::Button::new(tl!("Move down"))).clicked() {
                     commands.push(Command::EditSet(SetEdit::Move { from: index, to: index + 1 }));
+                }
+                if ui.button(tl!("Duplicate item")).clicked() {
+                    commands.push(Command::EditSet(SetEdit::Duplicate(index)));
                 }
                 if ui.button(tl!("Remove item")).clicked() {
                     commands.push(Command::EditSet(SetEdit::Remove(index)));

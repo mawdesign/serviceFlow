@@ -199,3 +199,31 @@ fn the_set_is_saved_and_saved_under_a_new_name() {
     assert!(saved_bytes(&window, "Sunday Service 2").is_some());
     assert_eq!(set(&window).id, SetId::new("Sunday Service 2"));
 }
+
+#[test]
+fn an_item_is_duplicated_and_the_set_renamed_through_a_plan() {
+    let (mut harness, window) = harness();
+    let before = names(&window);
+    harness.get_by_role_and_label(Role::Button, "Psalm 23 (scripture)").click();
+    harness.run();
+    click(&mut harness, "Duplicate item");
+    let index = before.iter().position(|n| n == "Psalm 23").unwrap();
+    assert_eq!(names(&window)[index + 1], "Psalm 23");
+    assert_eq!(names(&window).len(), before.len() + 1);
+
+    let original = saved_bytes(&window, "Sunday Service").unwrap();
+    click(&mut harness, "Rename set…");
+    let label = "Rename the set to:";
+    harness.get(by().role(Role::TextInput).label(label)).focus();
+    harness.run();
+    harness.get(by().role(Role::TextInput).label(label)).type_text(" (evening)");
+    harness.run();
+    click(&mut harness, "Rename");
+    assert!(window.borrow().state().plan.is_some(), "a rename is shown first");
+    click(&mut harness, "Apply changes");
+    assert_eq!(saved_bytes(&window, "Sunday Service (evening)").unwrap(), original, "moved as it was");
+    assert!(saved_bytes(&window, "Sunday Service").is_none());
+    let open = set(&window);
+    assert_eq!(open.id, SetId::new("Sunday Service (evening)"));
+    assert!(open.modified, "the duplicated item is still unsaved");
+}
